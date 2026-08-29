@@ -86,20 +86,24 @@ class RuntimeService:
             try:
                 result = await self._execute(prompt, session_id, on_notification)
             except BaseException as exc:
-                offer(BrowserEvent(
-                    type="error",
-                    session_id=session_id,
-                    data={"message": str(exc) or type(exc).__name__},
-                ))
+                offer(
+                    BrowserEvent(
+                        type="error",
+                        session_id=session_id,
+                        data={"message": str(exc) or type(exc).__name__},
+                    )
+                )
             else:
-                offer(BrowserEvent(
-                    type="final",
-                    session_id=session_id,
-                    data={
-                        "response": result.final_response,
-                        "finish_reason": result.finish_reason,
-                    },
-                ))
+                offer(
+                    BrowserEvent(
+                        type="final",
+                        session_id=session_id,
+                        data={
+                            "response": result.final_response,
+                            "finish_reason": result.finish_reason,
+                        },
+                    )
+                )
 
         task = asyncio.create_task(execute(), name=f"dsh-run-{session_id}")
         self._tasks.add(task)

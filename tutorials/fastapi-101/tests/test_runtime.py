@@ -34,16 +34,18 @@ class FakeHarness:
                     harness.active += 1
                     harness.max_active = max(harness.max_active, harness.active)
                 if on_notification is not None:
-                    on_notification(Notification(
-                        method="session.event",
-                        payload={
-                            "sessionId": session_id,
-                            "event": {
-                                "type": "assistant/chunk",
-                                "data": {"chunk": {"type": "text-delta", "text": prompt}},
+                    on_notification(
+                        Notification(
+                            method="session.event",
+                            payload={
+                                "sessionId": session_id,
+                                "event": {
+                                    "type": "assistant/chunk",
+                                    "data": {"chunk": {"type": "text-delta", "text": prompt}},
+                                },
                             },
-                        },
-                    ))
+                        )
+                    )
                 time.sleep(0.05)
                 with harness.guard:
                     harness.active -= 1

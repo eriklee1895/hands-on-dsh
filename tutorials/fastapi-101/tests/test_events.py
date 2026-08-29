@@ -48,7 +48,7 @@ def test_projects_status_tool_and_subagent_events() -> None:
             "sessionId": "root",
             "event": {
                 "type": "tool/call",
-                "data": {"callId": "call-1", "name": "bash", "arguments": "{\"command\":\"pwd\"}"},
+                "data": {"callId": "call-1", "name": "bash", "arguments": '{"command":"pwd"}'},
             },
         },
     )

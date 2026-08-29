@@ -131,9 +131,11 @@ uv run python -m dsh_fastapi_101
 
 ```sh
 uv run pytest
+uv run ruff check .
+uv run ruff format --check .
 ```
 
-测试使用假的 harness 验证应用语义，不调用模型。真实端到端验证需要环境中的 `DEEPSEEK_API_KEY`，然后启动服务并使用 curl 或浏览器发送任务。
+测试使用假的 harness 验证应用语义，不调用模型。Ruff 负责 lint 和格式检查。真实端到端验证需要环境中的 `DEEPSEEK_API_KEY`，然后启动服务并使用 curl 或浏览器发送任务。
 
 ## 生产化前必须补齐
 

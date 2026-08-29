@@ -144,6 +144,8 @@ uv run --project tutorials/python-sdk pytest tutorials/python-sdk/tests
 uv run --project tutorials/python-sdk ruff check tutorials/python-sdk
 uv run --project tutorials/python-sdk ruff format --check tutorials/python-sdk
 uv run --project tutorials/fastapi-101 pytest -c tutorials/fastapi-101/pyproject.toml tutorials/fastapi-101/tests
+uv run --project tutorials/fastapi-101 ruff check tutorials/fastapi-101
+uv run --project tutorials/fastapi-101 ruff format --check tutorials/fastapi-101
 ```
 
 ## 学习原则

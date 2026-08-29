@@ -59,13 +59,15 @@ def test_lifespan_blocking_api_and_static_frontend() -> None:
 
 def test_streaming_api_returns_named_sse_events() -> None:
     runtime = FakeRuntime()
-    with TestClient(create_app(runtime=runtime)) as client:
-        with client.stream(
+    with (
+        TestClient(create_app(runtime=runtime)) as client,
+        client.stream(
             "POST",
             "/api/chat/stream",
             json={"prompt": "stream me", "session_id": "web-stream"},
-        ) as response:
-            body = "".join(response.iter_text())
+        ) as response,
+    ):
+        body = "".join(response.iter_text())
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")

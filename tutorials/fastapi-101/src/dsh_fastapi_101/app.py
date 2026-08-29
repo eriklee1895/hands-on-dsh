@@ -11,10 +11,9 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from .events import BrowserEvent, encode_sse
+from .events import encode_sse
 from .models import ChatRequest, RunOutput
 from .runtime import RuntimeService
-
 
 STATIC_DIR = Path(__file__).with_name("static")
 
