@@ -260,6 +260,7 @@ uv run --project tutorials/fastapi-101 \
 
 - 不打印或提交 API Key、token、凭据、`.env`、cookie 或账户状态；
 - 不提交 `.venv`、workspace、session 日志、Ruff/pytest cache 或临时生成物；
+- 通用忽略规则由根 `.gitignore` 统一拥有；子项目只有独有运行产物时才增加局部 `.gitignore`，不要复制根规则；
 - 凭据只通过环境变量传入，不写入示例、fixture、截图或终端记录；
 - DSH 可以读写文件、运行命令和委派任务，工具实验只针对可丢弃 workspace、容器或明确 sandbox；
 - 保留用户已有修改，不 reset、覆盖或顺手整理无关内容；
