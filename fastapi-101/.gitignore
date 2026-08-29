@@ -1,0 +1,8 @@
+.DS_Store
+.pytest_cache/
+.sessions/
+.venv/
+dist/
+workspace/
+__pycache__/
+*.py[cod]

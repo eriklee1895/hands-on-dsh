@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="DSH FastAPI 101：把 DeepSeek Harness 作为 agent runtime 嵌入 Python Web 服务。">
+  <title>DSH FastAPI 101</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="topbar">
+    <a class="brand" href="/chapter/1" aria-label="DSH FastAPI 101 首页">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 5h10a10 10 0 0 1 0 20H7V5Zm6 6v8h4a4 4 0 0 0 0-8h-4Z"/></svg>
+      <span>DSH FastAPI <strong>101</strong></span>
+    </a>
+    <div class="runtime-state" role="status" aria-live="polite">
+      <span id="runtime-dot" class="status-dot"></span>
+      <span id="runtime-label">正在连接 runtime</span>
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav class="chapter-nav" aria-label="教程章节">
+      <p class="eyebrow">学习路径</p>
+      <a href="/chapter/1" data-chapter="1"><b>01</b><span>最小调用</span></a>
+      <a href="/chapter/2" data-chapter="2"><b>02</b><span>SSE 流式输出</span></a>
+      <a href="/chapter/3" data-chapter="3"><b>03</b><span>多轮会话</span></a>
+      <a href="/chapter/4" data-chapter="4"><b>04</b><span>工具轨迹</span></a>
+      <a href="/chapter/5" data-chapter="5"><b>05</b><span>并发与生命周期</span></a>
+      <div class="nav-note">
+        <span>传输</span>
+        <strong id="transport-label">HTTP JSON</strong>
+      </div>
+    </nav>
+
+    <main id="main" class="workspace">
+      <section class="intro" aria-labelledby="chapter-title">
+        <div>
+          <p id="chapter-kicker" class="eyebrow">第一章</p>
+          <h1 id="chapter-title">从一次阻塞式调用开始</h1>
+          <p id="chapter-description">FastAPI 等待 DSH 完成整个活动区间，再返回最终结果。</p>
+        </div>
+        <a id="tutorial-link" class="text-link" href="/static/tutorials/01-blocking-api.md">阅读本章教程</a>
+      </section>
+
+      <section class="composer card" aria-labelledby="composer-title">
+        <div class="card-heading">
+          <div>
+            <p class="eyebrow">REQUEST</p>
+            <h2 id="composer-title">发送任务</h2>
+          </div>
+          <button id="new-session" class="button ghost" type="button">新建 session</button>
+        </div>
+
+        <form id="chat-form">
+          <label for="session-id">业务 session ID</label>
+          <input id="session-id" name="session_id" autocomplete="off" spellcheck="false">
+          <p class="field-help">相同 ID 保留对话；同一 ID 的并发请求会串行执行。</p>
+
+          <label for="prompt">Prompt</label>
+          <textarea id="prompt" name="prompt" rows="6" required>用三句话解释 agent runtime 的职责。</textarea>
+
+          <div class="preset-row" aria-label="提示词预设">
+            <button class="chip" type="button" data-prompt="记住项目代号 ORBIT，只回复：已记录">记住代号</button>
+            <button class="chip" type="button" data-prompt="项目代号是什么？只回复代号。">召回代号</button>
+            <button class="chip" type="button" data-prompt="使用 bash 执行 printf 'TOOL_EVENT_OK\\n'，然后只回复它的输出。">调用工具</button>
+          </div>
+
+          <div class="actions">
+            <button id="run-button" class="button primary" type="submit">运行第一章示例</button>
+            <span id="request-status" class="request-status" role="status" aria-live="polite">等待输入</span>
+          </div>
+        </form>
+      </section>
+
+      <section class="output-grid">
+        <article class="response-card card" aria-labelledby="response-title">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">ASSISTANT</p>
+              <h2 id="response-title">响应</h2>
+            </div>
+            <span id="finish-reason" class="badge">尚未运行</span>
+          </div>
+          <pre id="response" class="response" aria-live="polite">响应会显示在这里。</pre>
+        </article>
+
+        <article class="timeline-card card" aria-labelledby="timeline-title">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">TRAJECTORY</p>
+              <h2 id="timeline-title">事件时间线</h2>
+            </div>
+            <span id="event-count" class="badge">0 events</span>
+          </div>
+          <ol id="timeline" class="timeline">
+            <li class="timeline-empty">第二章起会展示实时事件。</li>
+          </ol>
+        </article>
+      </section>
+
+      <section class="sessions card" aria-labelledby="sessions-title">
+        <div class="card-heading">
+          <div>
+            <p class="eyebrow">APPLICATION STATE</p>
+            <h2 id="sessions-title">本进程已使用的 sessions</h2>
+          </div>
+          <button id="refresh-sessions" class="button ghost" type="button">刷新</button>
+        </div>
+        <div id="session-list" class="session-list"><span>暂无 session</span></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
