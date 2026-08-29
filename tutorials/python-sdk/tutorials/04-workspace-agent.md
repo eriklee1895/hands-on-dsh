@@ -13,7 +13,7 @@ Complete [Tutorial 03](03-stream-events.md). Use a disposable directory because 
 ## Run it
 
 ```sh
-uv run --project python-sdk python python-sdk/04_workspace_agent.py \
+uv run python 04_workspace_agent.py \
   --workspace /tmp/dsh-demo-04
 ```
 

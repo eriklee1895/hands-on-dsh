@@ -10,7 +10,7 @@
 
 ### ✅ Python SDK：由浅入深
 
-[`python-sdk/`](python-sdk/README.zh.md)包含 6 个已实现并实测的示例：
+[`tutorials/python-sdk/`](tutorials/python-sdk/README.zh.md)包含 6 个已实现并实测的示例：
 
 1. `DeepSeekHarness.run()` 最小调用
 2. runtime 进程与多轮 session 复用
@@ -23,7 +23,7 @@
 
 ### ✅ FastAPI 101：从零构建 Web Agent
 
-[`fastapi-101/`](fastapi-101/README.md)是一套完整、可运行的中文入门课程：
+[`tutorials/fastapi-101/`](tutorials/fastapi-101/README.md)是一套完整、可运行的中文入门课程：
 
 - FastAPI lifespan 管理一个长期运行的 DSH runtime
 - 同步 JSON API
@@ -104,30 +104,33 @@
 
 ```text
 hands-on-dsh/
-├── python-sdk/       # 6 个 Python SDK / JSON-RPC 示例
-├── fastapi-101/      # Python Web Agent 入门课程
-├── acp/              # 未来：ACP 实验
-├── typescript-sdk/   # 未来：TypeScript SDK
-├── fullstack-ts/     # 未来：TypeScript full-stack
-└── internals/        # 未来：源码与内部机制学习
+├── tutorials/                  # 跟着章节系统学习
+│   ├── python-sdk/
+│   └── fastapi-101/
+├── projects/                   # 用完整项目巩固知识
+├── labs/                       # 针对单一问题做实验
+├── how-dsh-works/              # 理解 DSH 如何工作
+└── docs/                       # 跨主题学习资料
+    ├── learning-paths/
+    └── comparisons/
 ```
 
-未开始的目录暂不创建，以路线图为准逐步加入。
+目录按自学活动而不是单一技术分类。跨主题内容由 `docs/learning-paths/` 串联，避免在多个目录复制代码。
 
 ## 快速开始
 
 ### Python SDK
 
 ```sh
-uv sync --project python-sdk --group dev
+uv sync --project tutorials/python-sdk --group dev
 export DEEPSEEK_API_KEY=your-key
-uv run --project python-sdk python python-sdk/01_hello.py
+uv run --project tutorials/python-sdk python tutorials/python-sdk/01_hello.py
 ```
 
 ### FastAPI 101
 
 ```sh
-cd fastapi-101
+cd tutorials/fastapi-101
 uv sync --group dev
 uv run python -m dsh_fastapi_101
 ```
@@ -137,10 +140,10 @@ uv run python -m dsh_fastapi_101
 ## 验证
 
 ```sh
-uv run --project python-sdk pytest python-sdk/tests
-uv run --project python-sdk ruff check python-sdk
-uv run --project python-sdk ruff format --check python-sdk
-uv run --project fastapi-101 pytest -c fastapi-101/pyproject.toml fastapi-101/tests
+uv run --project tutorials/python-sdk pytest tutorials/python-sdk/tests
+uv run --project tutorials/python-sdk ruff check tutorials/python-sdk
+uv run --project tutorials/python-sdk ruff format --check tutorials/python-sdk
+uv run --project tutorials/fastapi-101 pytest -c tutorials/fastapi-101/pyproject.toml tutorials/fastapi-101/tests
 ```
 
 ## 学习原则

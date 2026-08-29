@@ -13,7 +13,7 @@
 ## 运行
 
 ```sh
-uv run --project python-sdk python python-sdk/05_low_level_client.py \
+uv run python 05_low_level_client.py \
   --session-id python-demo-05 \
   --session-root /tmp/dsh-demo-05 \
   "Reply with exactly: PYTHON_DEMO_05_OK"

@@ -13,8 +13,8 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-DEMOS = REPO_ROOT / "python-sdk"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DEMOS = REPO_ROOT / "tutorials/python-sdk"
 TUTORIALS_ROOT = DEMOS / "tutorials"
 SCRIPTS = {
     "01_hello.py": "Run one prompt",
@@ -105,6 +105,7 @@ def test_each_python_demo_has_a_complete_bilingual_tutorial() -> None:
         content = english.read_text(encoding="utf-8")
         assert chinese.is_file()
         assert f"../{script}" in content
+        assert f"uv run python {script}" in content
         assert all(heading in content for heading in required_headings)
         assert "```mermaid" in content
 

@@ -41,7 +41,7 @@ flowchart LR
 要求 Python 3.10 或更高版本，以及受 `deepseek-harness-runtime-bin` 支持的平台。推荐使用 uv：
 
 ```sh
-cd fastapi-101
+cd tutorials/fastapi-101
 uv sync --group dev
 ```
 

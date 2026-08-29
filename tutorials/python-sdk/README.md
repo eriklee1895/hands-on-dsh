@@ -14,7 +14,7 @@ These examples progress from one high-level call to direct newline-delimited JSO
 Enter this project and synchronize its locked runtime and development tools:
 
 ```sh
-cd python-sdk
+cd tutorials/python-sdk
 uv sync --group dev
 export DEEPSEEK_API_KEY=sk-your-key-here
 # export DEEPSEEK_BASE_URL=http://127.0.0.1:8000/v1
@@ -32,7 +32,7 @@ export DEEPSEEK_API_KEY=sk-your-key-here
 | [`05_low_level_client.py`](05_low_level_client.py) | `HarnessClient` | Initialization, prompt enqueue, durable inbox receipt, events, and idle settlement | [Drive `HarnessClient`](tutorials/05-low-level-client.md) |
 | [`06_raw_jsonrpc.py`](06_raw_jsonrpc.py) | Raw stdio JSON-RPC | Process launch, JSONL framing, response correlation, notification consumption, and teardown | [Hand-write JSON-RPC](tutorials/06-raw-jsonrpc.md) |
 
-Run the examples from the `python-sdk` directory:
+Run the examples from the `tutorials/python-sdk` directory:
 
 ```sh
 uv run python 01_hello.py

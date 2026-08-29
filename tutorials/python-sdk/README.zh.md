@@ -14,7 +14,7 @@
 进入该项目并同步锁定的 runtime 与开发工具：
 
 ```sh
-cd python-sdk
+cd tutorials/python-sdk
 uv sync --group dev
 export DEEPSEEK_API_KEY=sk-your-key-here
 # export DEEPSEEK_BASE_URL=http://127.0.0.1:8000/v1
@@ -32,7 +32,7 @@ export DEEPSEEK_API_KEY=sk-your-key-here
 | [`05_low_level_client.py`](05_low_level_client.py) | `HarnessClient` | 初始化、提示词入队、持久 inbox 回执、事件与空闲结算 | [驱动 `HarnessClient`](tutorials/05-low-level-client.zh.md) |
 | [`06_raw_jsonrpc.py`](06_raw_jsonrpc.py) | 原始 stdio JSON-RPC | 启动进程、JSONL 分帧、关联响应、消费通知与清理资源 | [手写 JSON-RPC](tutorials/06-raw-jsonrpc.zh.md) |
 
-从 `python-sdk` 目录运行示例：
+从 `tutorials/python-sdk` 目录运行示例：
 
 ```sh
 uv run python 01_hello.py
