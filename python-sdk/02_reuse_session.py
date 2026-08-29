@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Reuse one runtime process and one durable DSH session."""
 
 from __future__ import annotations

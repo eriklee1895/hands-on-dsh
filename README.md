@@ -40,6 +40,8 @@
 
 ### Phase 1 — Python 集成基础
 
+- [x] 使用 uv 管理 Python SDK 项目、依赖与 lockfile
+- [x] 使用 Ruff 统一 lint 与格式检查
 - [x] 安装 Python SDK 与匹配的 runtime wheel
 - [x] 高层单轮与多轮调用
 - [x] 流式通知和事件过滤
@@ -117,11 +119,9 @@ hands-on-dsh/
 ### Python SDK
 
 ```sh
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install deepseek-harness-sdk pytest
+uv sync --project python-sdk --group dev
 export DEEPSEEK_API_KEY=your-key
-python python-sdk/01_hello.py
+uv run --project python-sdk python python-sdk/01_hello.py
 ```
 
 ### FastAPI 101
@@ -137,9 +137,10 @@ uv run python -m dsh_fastapi_101
 ## 验证
 
 ```sh
-python -m pytest python-sdk/tests
-cd fastapi-101
-uv run pytest
+uv run --project python-sdk pytest python-sdk/tests
+uv run --project python-sdk ruff check python-sdk
+uv run --project python-sdk ruff format --check python-sdk
+uv run --project fastapi-101 pytest -c fastapi-101/pyproject.toml fastapi-101/tests
 ```
 
 ## 学习原则

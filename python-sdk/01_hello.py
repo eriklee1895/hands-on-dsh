@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Run the smallest useful DeepSeek Harness Python SDK example."""
 
 from __future__ import annotations
@@ -12,7 +11,9 @@ from deepseek_harness import DeepSeekHarness
 
 def main() -> None:
     """Run one prompt and print the interval result."""
-    parser = argparse.ArgumentParser(description="Run one prompt through the high-level Python SDK.")
+    parser = argparse.ArgumentParser(
+        description="Run one prompt through the high-level Python SDK."
+    )
     parser.add_argument("prompt", nargs="?", default="Reply with exactly: hello from dsh")
     parser.add_argument("--provider", default="deepseek-official")
     parser.add_argument("--model", default=os.environ.get("DSH_MODEL", "deepseek-v4-flash"))

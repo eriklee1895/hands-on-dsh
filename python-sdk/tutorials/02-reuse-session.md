@@ -13,7 +13,7 @@ Complete [Tutorial 01](01-hello.md). Choose a new session ID when repeating this
 ## Run it
 
 ```sh
-python python-sdk/02_reuse_session.py \
+uv run --project python-sdk python python-sdk/02_reuse_session.py \
   --session-id python-demo-02 \
   --session-root /tmp/dsh-demo-02
 ```

@@ -13,7 +13,7 @@
 ## 运行
 
 ```sh
-python python-sdk/04_workspace_agent.py \
+uv run --project python-sdk python python-sdk/04_workspace_agent.py \
   --workspace /tmp/dsh-demo-04
 ```
 

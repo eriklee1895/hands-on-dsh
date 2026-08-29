@@ -11,12 +11,11 @@
 - 在环境中设置 `DEEPSEEK_API_KEY`
 - 通过兼容代理提供模型时设置 `DEEPSEEK_BASE_URL`
 
-创建环境并安装 SDK：
+进入该项目并同步锁定的 runtime 与开发工具：
 
 ```sh
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install deepseek-harness-sdk
+cd python-sdk
+uv sync --group dev
 export DEEPSEEK_API_KEY=sk-your-key-here
 # export DEEPSEEK_BASE_URL=http://127.0.0.1:8000/v1
 # export DSH_MODEL=deepseek-v4-flash
@@ -33,18 +32,30 @@ export DEEPSEEK_API_KEY=sk-your-key-here
 | [`05_low_level_client.py`](05_low_level_client.py) | `HarnessClient` | 初始化、提示词入队、持久 inbox 回执、事件与空闲结算 | [驱动 `HarnessClient`](tutorials/05-low-level-client.zh.md) |
 | [`06_raw_jsonrpc.py`](06_raw_jsonrpc.py) | 原始 stdio JSON-RPC | 启动进程、JSONL 分帧、关联响应、消费通知与清理资源 | [手写 JSON-RPC](tutorials/06-raw-jsonrpc.zh.md) |
 
-从仓库根目录运行示例：
+从 `python-sdk` 目录运行示例：
 
 ```sh
-python python-sdk/01_hello.py
-python python-sdk/02_reuse_session.py
-python python-sdk/03_stream_events.py
-python python-sdk/04_workspace_agent.py
-python python-sdk/05_low_level_client.py
-python python-sdk/06_raw_jsonrpc.py
+uv run python 01_hello.py
+uv run python 02_reuse_session.py
+uv run python 03_stream_events.py
+uv run python 04_workspace_agent.py
+uv run python 05_low_level_client.py
+uv run python 06_raw_jsonrpc.py
 ```
 
 每个脚本都接受 `--help`。第一个、第三个、第五个与第六个脚本还接受位置参数形式的提示词。
+
+## 质量检查
+
+`dev` 依赖组提供 pytest 与 Ruff，无需安装全局工具即可检查行为、lint 和格式：
+
+```sh
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+```
+
+使用 `uv run ruff format .` 应用 Ruff 格式化。通过 uv 更新依赖，让 `pyproject.toml` 与 `uv.lock` 保持同步。
 
 ## 流式行为
 

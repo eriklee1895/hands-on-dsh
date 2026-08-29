@@ -13,7 +13,7 @@
 ## 运行
 
 ```sh
-python python-sdk/03_stream_events.py \
+uv run --project python-sdk python python-sdk/03_stream_events.py \
   --session-id python-demo-03 \
   --session-root /tmp/dsh-demo-03 \
   "Explain agent runtimes in three short bullets."

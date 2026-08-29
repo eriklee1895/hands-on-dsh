@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Project DSH session notifications into a live terminal stream."""
 
 from __future__ import annotations

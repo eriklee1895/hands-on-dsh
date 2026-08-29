@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Drive the DSH runtime through the Python SDK's low-level client."""
 
 from __future__ import annotations
@@ -26,7 +25,9 @@ def inbox_contains_message(notification: Notification, message_id: str) -> bool:
 
 def main() -> None:
     """Initialize, enqueue one prompt, and consume notifications through idle."""
-    parser = argparse.ArgumentParser(description="Drive the runtime through HarnessClient directly.")
+    parser = argparse.ArgumentParser(
+        description="Drive the runtime through HarnessClient directly."
+    )
     parser.add_argument("prompt", nargs="?", default="Reply with exactly: low level client ok")
     parser.add_argument("--provider", default="deepseek-official")
     parser.add_argument("--model", default=os.environ.get("DSH_MODEL", "deepseek-v4-flash"))
@@ -35,10 +36,12 @@ def main() -> None:
     args = parser.parse_args()
 
     cwd = Path.cwd().resolve()
-    config = HarnessConfig(env={
-        "DSH_CWD": str(cwd),
-        "DSH_SESSION_ROOT": str(args.session_root.resolve()),
-    })
+    config = HarnessConfig(
+        env={
+            "DSH_CWD": str(cwd),
+            "DSH_SESSION_ROOT": str(args.session_root.resolve()),
+        }
+    )
     with HarnessClient(config) as client:
         info = client.initialize(cwd=str(cwd), provider=args.provider, model=args.model)
         with client.subscribe_session_notifications(args.session_id) as subscription:

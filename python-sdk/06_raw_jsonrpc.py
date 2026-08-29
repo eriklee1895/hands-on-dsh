@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Drive the bundled DSH runtime with hand-written stdio JSON-RPC."""
 
 from __future__ import annotations
@@ -44,7 +43,9 @@ def inbox_message_ids(message: dict[str, Any]) -> set[str]:
 
 def main() -> None:
     """Spawn the bundled runtime and manually correlate one prompt with notifications."""
-    parser = argparse.ArgumentParser(description="Drive the bundled runtime without the SDK client.")
+    parser = argparse.ArgumentParser(
+        description="Drive the bundled runtime without the SDK client."
+    )
     parser.add_argument("prompt", nargs="?", default="Reply with exactly: raw json rpc ok")
     parser.add_argument("--provider", default="deepseek-official")
     parser.add_argument("--model", default=os.environ.get("DSH_MODEL", "deepseek-v4-flash"))
@@ -55,11 +56,13 @@ def main() -> None:
 
     cwd = Path.cwd().resolve()
     env = os.environ.copy()
-    env.update({
-        "DSH_CORDIS_CONFIG": str(bundled_default_config_path()),
-        "DSH_CWD": str(cwd),
-        "DSH_SESSION_ROOT": str(args.session_root.resolve()),
-    })
+    env.update(
+        {
+            "DSH_CORDIS_CONFIG": str(bundled_default_config_path()),
+            "DSH_CWD": str(cwd),
+            "DSH_SESSION_ROOT": str(args.session_root.resolve()),
+        }
+    )
     process = subprocess.Popen(
         resolve_bundled_launch_args(),
         stdin=subprocess.PIPE,
@@ -105,11 +108,15 @@ def main() -> None:
         return item
 
     try:
-        send(1, "initialize", {
-            "cwd": str(cwd),
-            "provider": args.provider,
-            "model": args.model,
-        })
+        send(
+            1,
+            "initialize",
+            {
+                "cwd": str(cwd),
+                "provider": args.provider,
+                "model": args.model,
+            },
+        )
         while True:
             message = next_message()
             if message.get("id") == 1:
@@ -118,10 +125,14 @@ def main() -> None:
                 print(f"initialized: {message.get('result')}")
                 break
 
-        send(2, "session/prompt", {
-            "sessionId": args.session_id,
-            "contentBlocks": [{"type": "text", "text": args.prompt}],
-        })
+        send(
+            2,
+            "session/prompt",
+            {
+                "sessionId": args.session_id,
+                "contentBlocks": [{"type": "text", "text": args.prompt}],
+            },
+        )
         prompt_message_id: str | None = None
         received_message_ids: set[str] = set()
         print("stream:")

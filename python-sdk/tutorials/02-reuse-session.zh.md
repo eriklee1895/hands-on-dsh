@@ -13,7 +13,7 @@
 ## 运行
 
 ```sh
-python python-sdk/02_reuse_session.py \
+uv run --project python-sdk python python-sdk/02_reuse_session.py \
   --session-id python-demo-02 \
   --session-root /tmp/dsh-demo-02
 ```

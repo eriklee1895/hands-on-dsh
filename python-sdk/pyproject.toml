@@ -1,0 +1,32 @@
+[project]
+name = "hands-on-dsh-python-sdk"
+version = "0.1.0"
+description = "Hands-on DeepSeek Harness Python SDK and JSON-RPC tutorials"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "deepseek-harness-sdk>=0.1.1rc1,<0.2",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8,<10",
+  "ruff>=0.12,<1",
+  "tomli>=2,<3; python_version < '3.11'",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.format]
+indent-style = "space"
+line-ending = "lf"
+quote-style = "double"

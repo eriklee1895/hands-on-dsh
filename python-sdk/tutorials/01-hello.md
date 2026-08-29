@@ -13,7 +13,7 @@ Complete the installation in the [demo index](../README.md). The command reads t
 ## Run it
 
 ```sh
-python python-sdk/01_hello.py \
+uv run --project python-sdk python python-sdk/01_hello.py \
   --session-root /tmp/dsh-demo-01 \
   "Reply with exactly: PYTHON_DEMO_01_OK"
 ```

@@ -11,12 +11,11 @@ These examples progress from one high-level call to direct newline-delimited JSO
 - `DEEPSEEK_API_KEY` in the environment
 - `DEEPSEEK_BASE_URL` when the model is served by a compatible proxy
 
-Create an environment and install the SDK:
+Enter this project and synchronize its locked runtime and development tools:
 
 ```sh
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install deepseek-harness-sdk
+cd python-sdk
+uv sync --group dev
 export DEEPSEEK_API_KEY=sk-your-key-here
 # export DEEPSEEK_BASE_URL=http://127.0.0.1:8000/v1
 # export DSH_MODEL=deepseek-v4-flash
@@ -33,18 +32,30 @@ export DEEPSEEK_API_KEY=sk-your-key-here
 | [`05_low_level_client.py`](05_low_level_client.py) | `HarnessClient` | Initialization, prompt enqueue, durable inbox receipt, events, and idle settlement | [Drive `HarnessClient`](tutorials/05-low-level-client.md) |
 | [`06_raw_jsonrpc.py`](06_raw_jsonrpc.py) | Raw stdio JSON-RPC | Process launch, JSONL framing, response correlation, notification consumption, and teardown | [Hand-write JSON-RPC](tutorials/06-raw-jsonrpc.md) |
 
-Run the examples from the repository root:
+Run the examples from the `python-sdk` directory:
 
 ```sh
-python python-sdk/01_hello.py
-python python-sdk/02_reuse_session.py
-python python-sdk/03_stream_events.py
-python python-sdk/04_workspace_agent.py
-python python-sdk/05_low_level_client.py
-python python-sdk/06_raw_jsonrpc.py
+uv run python 01_hello.py
+uv run python 02_reuse_session.py
+uv run python 03_stream_events.py
+uv run python 04_workspace_agent.py
+uv run python 05_low_level_client.py
+uv run python 06_raw_jsonrpc.py
 ```
 
 Every script accepts `--help`. The first, third, fifth, and sixth scripts also accept a positional prompt.
+
+## Quality checks
+
+The `dev` dependency group supplies pytest and Ruff. Check behavior, lint, and formatting without installing global tools:
+
+```sh
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+```
+
+Apply Ruff's formatter with `uv run ruff format .`. Update dependencies through uv so `pyproject.toml` and `uv.lock` remain synchronized.
 
 ## Streaming behavior
 

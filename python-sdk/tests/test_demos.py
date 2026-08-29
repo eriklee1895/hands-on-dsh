@@ -8,6 +8,10 @@ from types import ModuleType
 
 from deepseek_harness import Notification
 
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEMOS = REPO_ROOT / "python-sdk"
@@ -20,6 +24,37 @@ SCRIPTS = {
     "05_low_level_client.py": "Drive the runtime through HarnessClient",
     "06_raw_jsonrpc.py": "Drive the bundled runtime without the SDK client",
 }
+
+
+def test_python_sdk_is_an_uv_project_with_ruff() -> None:
+    config = tomllib.loads((DEMOS / "pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = config["project"]["dependencies"]
+    dev_dependencies = config["dependency-groups"]["dev"]
+
+    assert any(item.startswith("deepseek-harness-sdk") for item in dependencies)
+    assert any(item.startswith("pytest") for item in dev_dependencies)
+    assert any(item.startswith("ruff") for item in dev_dependencies)
+    assert config["tool"]["ruff"]["target-version"] == "py310"
+    assert {"F", "I", "UP", "B", "SIM"} <= set(config["tool"]["ruff"]["lint"]["select"])
+
+
+def test_python_sdk_uses_uv_as_its_documented_entrypoint() -> None:
+    for filename in SCRIPTS:
+        assert not (DEMOS / filename).read_text(encoding="utf-8").startswith("#!")
+
+    readmes = [
+        (DEMOS / "README.md").read_text(encoding="utf-8"),
+        (DEMOS / "README.zh.md").read_text(encoding="utf-8"),
+    ]
+    for content in readmes:
+        assert "python -m venv" not in content
+        assert "pip install" not in content
+        assert "uv sync --group dev" in content
+        assert "uv run pytest" in content
+        assert "uv run ruff check ." in content
+        assert "uv run ruff format --check ." in content
+
+
 TUTORIALS = {
     "01_hello.py": "01-hello",
     "02_reuse_session.py": "02-reuse-session",
@@ -57,7 +92,13 @@ def test_python_sdk_demos_compile_and_expose_help() -> None:
 
 
 def test_each_python_demo_has_a_complete_bilingual_tutorial() -> None:
-    required_headings = ["## Outcome", "## Run it", "## How it works", "## Verify it", "## Limitations"]
+    required_headings = [
+        "## Outcome",
+        "## Run it",
+        "## How it works",
+        "## Verify it",
+        "## Limitations",
+    ]
     for script, stem in TUTORIALS.items():
         english = TUTORIALS_ROOT / f"{stem}.md"
         chinese = TUTORIALS_ROOT / f"{stem}.zh.md"
@@ -72,35 +113,51 @@ def test_stream_demo_extracts_only_committed_text_deltas() -> None:
     module = load_demo("03_stream_events.py")
     text_delta_from = module.text_delta_from
 
-    assert text_delta_from({
-        "method": "session.event",
-        "params": {
-            "event": {
-                "type": "assistant/chunk",
-                "data": {"chunk": {"type": "text-delta", "text": "hello"}},
+    assert (
+        text_delta_from(
+            {
+                "method": "session.event",
+                "params": {
+                    "event": {
+                        "type": "assistant/chunk",
+                        "data": {"chunk": {"type": "text-delta", "text": "hello"}},
+                    }
+                },
             }
-        },
-    }) == "hello"
-    assert text_delta_from({
-        "method": "session.event",
-        "params": {
-            "event": {
-                "type": "assistant/chunk",
-                "data": {"chunk": {"type": "reasoning-delta", "text": "hidden"}},
+        )
+        == "hello"
+    )
+    assert (
+        text_delta_from(
+            {
+                "method": "session.event",
+                "params": {
+                    "event": {
+                        "type": "assistant/chunk",
+                        "data": {"chunk": {"type": "reasoning-delta", "text": "hidden"}},
+                    }
+                },
             }
-        },
-    }) is None
+        )
+        is None
+    )
     assert text_delta_from({"method": "session.status", "params": {"status": "running"}}) is None
-    assert text_delta_from({
-        "method": "session.event",
-        "params": {
-            "sessionId": "child",
-            "event": {
-                "type": "assistant/chunk",
-                "data": {"chunk": {"type": "text-delta", "text": "child text"}},
+    assert (
+        text_delta_from(
+            {
+                "method": "session.event",
+                "params": {
+                    "sessionId": "child",
+                    "event": {
+                        "type": "assistant/chunk",
+                        "data": {"chunk": {"type": "text-delta", "text": "child text"}},
+                    },
+                },
             },
-        },
-    }, session_id="root") is None
+            session_id="root",
+        )
+        is None
+    )
 
 
 def test_raw_jsonrpc_demo_builds_compact_protocol_frames() -> None:
@@ -108,7 +165,10 @@ def test_raw_jsonrpc_demo_builds_compact_protocol_frames() -> None:
 
     frame = module.encode_request(7, "session/prompt", {"sessionId": "demo"})
 
-    assert frame == b'{"jsonrpc":"2.0","id":7,"method":"session/prompt","params":{"sessionId":"demo"}}\n'
+    assert (
+        frame
+        == b'{"jsonrpc":"2.0","id":7,"method":"session/prompt","params":{"sessionId":"demo"}}\n'
+    )
 
 
 def test_low_level_demos_correlate_the_durable_inbox_receipt() -> None:

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Run DSH tools against a disposable or caller-selected workspace."""
 
 from __future__ import annotations

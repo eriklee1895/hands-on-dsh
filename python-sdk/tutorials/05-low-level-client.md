@@ -13,7 +13,7 @@ Complete [Tutorial 04](04-workspace-agent.md). This tutorial assumes you underst
 ## Run it
 
 ```sh
-python python-sdk/05_low_level_client.py \
+uv run --project python-sdk python python-sdk/05_low_level_client.py \
   --session-id python-demo-05 \
   --session-root /tmp/dsh-demo-05 \
   "Reply with exactly: PYTHON_DEMO_05_OK"

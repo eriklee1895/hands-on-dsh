@@ -13,7 +13,7 @@
 ## 运行
 
 ```sh
-python python-sdk/06_raw_jsonrpc.py \
+uv run --project python-sdk python python-sdk/06_raw_jsonrpc.py \
   --session-id python-demo-06 \
   --session-root /tmp/dsh-demo-06 \
   "Reply with exactly: PYTHON_DEMO_06_OK"

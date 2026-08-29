@@ -13,7 +13,7 @@ Complete [Tutorial 02](02-reuse-session.md). Use a fresh session ID so earlier q
 ## Run it
 
 ```sh
-python python-sdk/03_stream_events.py \
+uv run --project python-sdk python python-sdk/03_stream_events.py \
   --session-id python-demo-03 \
   --session-root /tmp/dsh-demo-03 \
   "Explain agent runtimes in three short bullets."
