@@ -1,0 +1,8 @@
+.runtime/
+dist/
+node_modules/
+*.db
+*.db-shm
+*.db-wal
+playwright-report/
+test-results/

@@ -45,20 +45,14 @@ cd tutorials/fastapi-101
 uv sync --group dev
 ```
 
-设置模型凭据。不要把密钥写进源码、`.env` 示例或 Git：
-
-```sh
-export DEEPSEEK_API_KEY=your-key
-# export DEEPSEEK_BASE_URL=http://127.0.0.1:8000/v1
-# export DSH_MODEL=deepseek-v4-flash
-```
+设置模型凭据。建议从本地根目录 `.env` 加载；在上面的 `cd tutorials/fastapi-101` 后，`../../.env` 指向该文件。不要把密钥写进源码、`.env` 示例或 Git。如果 shell 已经 `export` 了 `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL` 和 `DSH_MODEL`，启动命令可省略 `--env-file ../../.env`；本 README 不应写入真实值。
 
 项目依赖把 SDK 限制在 `>=0.1.1rc1,<0.2`。安装 SDK 会自动安装完全匹配的 runtime wheel，目标机器不需要 Node.js。
 
 ## 启动
 
 ```sh
-uv run python -m dsh_fastapi_101
+uv run --env-file ../../.env python -m dsh_fastapi_101
 ```
 
 打开：
