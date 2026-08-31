@@ -66,6 +66,8 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 
 ## 学习路线图
 
+路线按“先调用 runtime，再拥有业务恢复语义，随后理解协议、plugin、full-stack 与内部机制”的顺序推进：Python 集成 → recoverable service → SDK JSON-RPC / ACP → TypeScript SDK → Cordis/DSH plugin → AG-UI full-stack → fixed-revision internals。Phase 1–6 已有可运行产物和验收记录；Phase 7 保持未完成，只表示下一阶段的工程化学习方向。
+
 ### Phase 1 — Python 集成基础
 
 - [x] 使用 uv 管理 Python SDK 项目、依赖与 lockfile

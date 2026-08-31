@@ -10,6 +10,12 @@
 
 每篇都明确区分 `Verified from source`、`Observed at runtime`、`Inference`、`Proposal` 与 `Unconfirmed / version boundary`。源码链接固定到完整 commit；probe 在同一 revision 的独立 upstream checkout 中实际运行。后续升级 DSH 时，应重新审计入口和测试，不能把这些 developer-preview 结论直接平移。
 
+## 先理解 Cordis plugin lifecycle
+
+DSH 以 Cordis 组装 plugin tree。阅读 AgentLoop 或 Session 等内部机制前，先通过 [`labs/cordis-plugin-lifecycle`](../labs/cordis-plugin-lifecycle/README.md) 实际观察 `Context`、`Service`、`inject`、依赖消失后的重新挂载、`ctx.effect()`/listener disposer、typed events 与 waterfall `next()`，再练习 `cordis.yml`、HMR、PENDING diagnosis，以及 model-callable tool 和 live/durable listener。
+
+这一步回答“怎样安全扩展 DSH”，后面的源码笔记再回答“DSH 当前实现怎样使用同一套 lifecycle”。plugin 注册必须归属可逆 effect；配置行只描述 composition，真正的启动与清理由 service availability 和 owning fiber 决定。
+
 ## 阅读顺序
 
 | 顺序 | 机制 | 本轮 keyless 证据 |
@@ -24,7 +30,7 @@
 
 交付前又把 7 篇引用的 21 个 upstream test files 作为一个 combined keyless regression 运行，结果为 603/603 passed。表中的数字仍保留每篇最小 probe 的证据范围，combined run 不是完整 upstream suite。
 
-建议先完成 [`labs/cordis-plugin-lifecycle`](../labs/cordis-plugin-lifecycle/README.md)，亲手观察 `Context`、Service、effect、依赖重挂载、waterfall、HMR/PENDING、真实 tool 与 listener，再阅读第 1 篇；随后按表格顺序从 Agent 输入走到持久化、并发编排和外部协议。
+完成上述 Cordis lab 后，按表格顺序从 runtime 组装与 Agent 输入走到持久化、并发编排和外部协议。
 
 ## 内容边界
 
