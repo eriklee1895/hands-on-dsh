@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "recoverable-agent-service"
+version = "0.1.0"
+description = "A recoverable DeepSeek Harness service learning project"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "deepseek-harness-sdk==0.1.1rc1",
+    "fastapi>=0.116,<1",
+    "uvicorn[standard]>=0.35,<1",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2,<3",
+    "pytest>=8,<10",
+    "ruff>=0.12,<1",
+    "tomli>=2,<3 ; python_full_version < '3.11'",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/recoverable_agent_service"]
+
+[tool.pytest.ini_options]
+addopts = ["-q", "-m", "not e2e"]
+testpaths = ["tests"]
+markers = ["e2e: requires a real DSH provider credential and runtime"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.format]
+indent-style = "space"
+line-ending = "lf"
+quote-style = "double"

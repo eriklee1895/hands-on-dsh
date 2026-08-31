@@ -8,18 +8,16 @@ These examples progress from one high-level call to direct newline-delimited JSO
 
 - Python 3.10 or newer on a supported platform
 - A disposable workspace for examples that let the agent use local tools
-- `DEEPSEEK_API_KEY` in the environment
-- `DEEPSEEK_BASE_URL` when the model is served by a compatible proxy
+- A root `.env` file with `DEEPSEEK_API_KEY`; add `DEEPSEEK_BASE_URL` when the model is served by a compatible proxy
 
-Enter this project and synchronize its locked runtime and development tools:
+Enter this project and synchronize its locked runtime and development tools. For local real-model runs, load the root `.env` explicitly; after this `cd`, `../../.env` is that file:
 
 ```sh
 cd tutorials/python-sdk
 uv sync --group dev
-export DEEPSEEK_API_KEY=sk-your-key-here
-# export DEEPSEEK_BASE_URL=http://127.0.0.1:8000/v1
-# export DSH_MODEL=deepseek-v4-flash
 ```
+
+Keep credentials out of Git. When the variables are already exported in your shell, omit `--env-file ../../.env` from the same commands; do not put a real value in this README.
 
 ## Learning path
 
@@ -35,12 +33,12 @@ export DEEPSEEK_API_KEY=sk-your-key-here
 Run the examples from the `tutorials/python-sdk` directory:
 
 ```sh
-uv run python 01_hello.py
-uv run python 02_reuse_session.py
-uv run python 03_stream_events.py
-uv run python 04_workspace_agent.py
-uv run python 05_low_level_client.py
-uv run python 06_raw_jsonrpc.py
+uv run --env-file ../../.env python 01_hello.py
+uv run --env-file ../../.env python 02_reuse_session.py
+uv run --env-file ../../.env python 03_stream_events.py
+uv run --env-file ../../.env python 04_workspace_agent.py
+uv run --env-file ../../.env python 05_low_level_client.py
+uv run --env-file ../../.env python 06_raw_jsonrpc.py
 ```
 
 Every script accepts `--help`. The first, third, fifth, and sixth scripts also accept a positional prompt.

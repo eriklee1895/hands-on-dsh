@@ -1,0 +1,35 @@
+{"method":"session.status","params":{"sessionId":"root","status":"idle"}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"agent/inbox/spliced","seq":0,"time":0,"data":{"target":"next-turn","start":0,"inserted":[{"id":"stale-message","role":"user","content":[{"type":"text","text":"stale prompt"}],"source":{"kind":"user"}}]}}}}
+{"method":"subagent.started","params":{"parentSessionId":"root","childSessionId":"stale-child"}}
+{"method":"session.status","params":{"sessionId":"stale-child","status":"running"}}
+{"method":"subagent.finished","params":{"provider":"fake","agentId":"stale-child","parentSessionId":"root","childSessionId":"stale-child","status":"ok","stopReason":"completed","lastAssistantMessage":[{"type":"text","text":"stale child answer"}]}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"turn/start","seq":1,"time":0,"data":{"turn":1}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"agent/inbox/spliced","seq":2,"time":0,"data":{"target":"next-turn","start":0,"removedCount":1,"inserted":[]}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"step/start","seq":3,"time":0,"data":{"turn":1,"step":1}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"user/message","seq":4,"time":0,"data":{"id":"stale-message","role":"user","content":[{"type":"text","text":"stale prompt"}],"source":{"kind":"user"}},"surfaceOp":"append"}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"assistant/chunk","seq":5,"time":0,"data":{"turn":1,"step":1,"chunk":{"type":"text-delta","index":0,"text":"stale raw answer"}}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"assistant/message","seq":6,"time":0,"data":{"turn":1,"step":1,"message":{"id":"stale-assistant","role":"assistant","content":[{"type":"text","text":"stale answer"}],"source":{"kind":"model","provider":"fake","model":"fake"}}},"surfaceOp":"append","sourceEventSeqs":[5]}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"step/end","seq":7,"time":0,"data":{"turn":1,"step":1}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"turn/end","seq":8,"time":0,"data":{"turn":1,"reason":{"kind":"completed"}}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"agent/inbox/spliced","seq":9,"time":0,"data":{"target":"next-turn","start":0,"inserted":[{"id":"message-1","role":"user","content":[{"type":"text","text":"fixture prompt"}],"source":{"kind":"user"}}]}}}}
+{"method":"session.status","params":{"sessionId":"root","status":"running"}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"turn/start","seq":10,"time":0,"data":{"turn":2}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"agent/inbox/spliced","seq":11,"time":0,"data":{"target":"next-turn","start":0,"removedCount":1,"inserted":[]}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"step/start","seq":12,"time":0,"data":{"turn":2,"step":1}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"user/message","seq":13,"time":0,"data":{"id":"message-1","role":"user","content":[{"type":"text","text":"fixture prompt"}],"source":{"kind":"user"}},"surfaceOp":"append"}}}
+{"method":"subagent.started","params":{"parentSessionId":"root","childSessionId":"child-1"}}
+{"method":"session.status","params":{"sessionId":"child-1","status":"running"}}
+{"method":"session.event","params":{"sessionId":"child-1","event":{"type":"turn/start","seq":0,"time":0,"data":{"turn":1}}}}
+{"method":"session.event","params":{"sessionId":"child-1","event":{"type":"step/start","seq":1,"time":0,"data":{"turn":1,"step":1}}}}
+{"method":"session.event","params":{"sessionId":"child-1","event":{"type":"assistant/chunk","seq":2,"time":0,"data":{"turn":1,"step":1,"chunk":{"type":"text-delta","index":0,"text":"child answer"}}}}}
+{"method":"session.event","params":{"sessionId":"child-1","event":{"type":"assistant/message","seq":3,"time":0,"data":{"turn":1,"step":1,"message":{"id":"child-assistant-1","role":"assistant","content":[{"type":"text","text":"child answer"}],"source":{"kind":"model","provider":"fake","model":"fake"}}},"surfaceOp":"append","sourceEventSeqs":[2]}}}
+{"method":"session.event","params":{"sessionId":"child-1","event":{"type":"step/end","seq":4,"time":0,"data":{"turn":1,"step":1}}}}
+{"method":"session.event","params":{"sessionId":"child-1","event":{"type":"turn/end","seq":5,"time":0,"data":{"turn":1,"reason":{"kind":"completed"}}}}}
+{"method":"session.status","params":{"sessionId":"child-1","status":"idle"}}
+{"method":"subagent.finished","params":{"provider":"fake","agentId":"child-1","parentSessionId":"root","childSessionId":"child-1","status":"ok","stopReason":"completed","lastAssistantMessage":[{"type":"text","text":"child answer"}]}}
+{"method":"session.status","params":{"sessionId":"foreign","status":"running"}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"assistant/chunk","seq":14,"time":0,"data":{"turn":2,"step":1,"chunk":{"type":"text-delta","index":0,"text":"raw fixture answer"}}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"assistant/message","seq":15,"time":0,"data":{"turn":2,"step":1,"message":{"id":"assistant-1","role":"assistant","content":[{"type":"text","text":"fixture answer"}],"source":{"kind":"model","provider":"fake","model":"fake"}}},"surfaceOp":"append","sourceEventSeqs":[14]}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"step/end","seq":16,"time":0,"data":{"turn":2,"step":1}}}}
+{"method":"session.event","params":{"sessionId":"root","event":{"type":"turn/end","seq":17,"time":0,"data":{"turn":2,"reason":{"kind":"completed"}}}}}
+{"method":"session.status","params":{"sessionId":"root","status":"idle"}}

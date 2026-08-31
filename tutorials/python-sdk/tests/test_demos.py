@@ -55,6 +55,13 @@ def test_python_sdk_uses_uv_as_its_documented_entrypoint() -> None:
         assert "uv run ruff format --check ." in content
 
 
+def test_bilingual_readmes_load_the_root_env_file_for_live_runs() -> None:
+    for filename in ("README.md", "README.zh.md"):
+        content = (DEMOS / filename).read_text(encoding="utf-8")
+
+        assert "uv run --env-file ../../.env python 01_hello.py" in content
+
+
 TUTORIALS = {
     "01_hello.py": "01-hello",
     "02_reuse_session.py": "02-reuse-session",

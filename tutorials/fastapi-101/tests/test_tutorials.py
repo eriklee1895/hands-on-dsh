@@ -19,6 +19,12 @@ def test_project_declares_ruff_quality_checks() -> None:
     assert "[tool.ruff.lint]" in config
 
 
+def test_readme_loads_the_root_env_file_when_starting_the_app() -> None:
+    content = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "uv run --env-file ../../.env python -m dsh_fastapi_101" in content
+
+
 def test_every_case_has_a_complete_chinese_tutorial() -> None:
     required = ["## 学习目标", "## 运行", "## 源码分析", "## 验证", "## 限制"]
     for filename, title in TUTORIALS.items():

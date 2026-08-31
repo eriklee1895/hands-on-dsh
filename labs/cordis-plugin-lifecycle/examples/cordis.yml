@@ -1,0 +1,15 @@
+- id: system-prompt
+  name: "@deepseek-ai/dsh-system-prompt"
+- id: tools
+  name: "@deepseek-ai/dsh-tools"
+- id: stage4-proof-tool
+  name: "@hands-on-dsh/cordis-plugin-lifecycle/tool"
+  config:
+    workspaceRoot: !!js process.env.STAGE4_WORKSPACE_ROOT
+- id: stage4-proof-listener
+  name: "@hands-on-dsh/cordis-plugin-lifecycle/listener"
+  config:
+    rootSessionId: !!js process.env.STAGE4_ROOT_SESSION_ID
+    toolName: "write_stage4_proof"
+    auditPath: !!js process.env.STAGE4_AUDIT_PATH
+    auditOwnerToken: !!js process.env.STAGE4_AUDIT_OWNER_TOKEN

@@ -8,18 +8,16 @@
 
 - 在受支持的平台上安装 Python 3.10 或更高版本
 - 为允许 agent 使用本地工具的示例准备一个可丢弃的 workspace
-- 在环境中设置 `DEEPSEEK_API_KEY`
-- 通过兼容代理提供模型时设置 `DEEPSEEK_BASE_URL`
+- 根目录 `.env` 中设置 `DEEPSEEK_API_KEY`；通过兼容代理提供模型时再设置 `DEEPSEEK_BASE_URL`
 
-进入该项目并同步锁定的 runtime 与开发工具：
+进入该项目并同步锁定的 runtime 与开发工具。建议本地真实模型运行时显式加载根目录 `.env`；执行下面的 `cd` 后，`../../.env` 正是该文件：
 
 ```sh
 cd tutorials/python-sdk
 uv sync --group dev
-export DEEPSEEK_API_KEY=sk-your-key-here
-# export DEEPSEEK_BASE_URL=http://127.0.0.1:8000/v1
-# export DSH_MODEL=deepseek-v4-flash
 ```
+
+不要把凭据写入 Git。如果 shell 已经 `export` 这些变量，可从相同命令中省略 `--env-file ../../.env`；本 README 不应写入真实值。
 
 ## 学习路径
 
@@ -35,12 +33,12 @@ export DEEPSEEK_API_KEY=sk-your-key-here
 从 `tutorials/python-sdk` 目录运行示例：
 
 ```sh
-uv run python 01_hello.py
-uv run python 02_reuse_session.py
-uv run python 03_stream_events.py
-uv run python 04_workspace_agent.py
-uv run python 05_low_level_client.py
-uv run python 06_raw_jsonrpc.py
+uv run --env-file ../../.env python 01_hello.py
+uv run --env-file ../../.env python 02_reuse_session.py
+uv run --env-file ../../.env python 03_stream_events.py
+uv run --env-file ../../.env python 04_workspace_agent.py
+uv run --env-file ../../.env python 05_low_level_client.py
+uv run --env-file ../../.env python 06_raw_jsonrpc.py
 ```
 
 每个脚本都接受 `--help`。第一个、第三个、第五个与第六个脚本还接受位置参数形式的提示词。
