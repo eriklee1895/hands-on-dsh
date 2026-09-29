@@ -8,7 +8,7 @@
 
 ## 当前进度
 
-2026-09-28 分批更新：Python SDK 入门迁移到 `0.1.5rc1`，TypeScript SDK 入门迁移到 `0.1.7-rc.2`；当前验收见[SDK 迁移记录](docs/reviews/2026-09-28-sdk-migration.md)。FastAPI/可恢复服务仍为 `0.1.1rc1`，协议/Cordis/AG-UI/核心笔记仍为 `0.1.1-rc.2`，尚未整体升版。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；Phase 7.1 结果见[第一批记录](docs/reviews/2026-09-28-execution.md)。
+2026-09-28 分批更新：Python SDK 入门迁移到 `0.1.5rc1`，TypeScript SDK 入门迁移到 `0.1.7-rc.2`；当前验收见[SDK 迁移记录](docs/reviews/2026-09-28-sdk-migration.md)。2026-09-29 FastAPI 迁移到 `0.1.5rc1`、协议 lab 迁移到 `0.1.7-rc.2`，结果见[第三批验收](docs/reviews/2026-09-29-web-protocol-migration.md)。可恢复服务仍为 `0.1.1rc1`，Cordis/AG-UI/核心笔记仍为 `0.1.1-rc.2`，尚未整体升版。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；Phase 7.1 结果见[第一批记录](docs/reviews/2026-09-28-execution.md)。
 
 ### ✅ Python SDK：由浅入深
 
@@ -29,14 +29,14 @@
 
 - FastAPI lifespan 管理一个长期运行的 DSH runtime
 - 同步 JSON API
-- POST + SSE 流式事件
+- POST + SSE 状态、工具与已提交消息事件（非逐 token 输出）
 - 浏览器多轮 session
 - 工具调用、工具结果与 Agent 轨迹
 - 同 session 串行、跨 session 并发
 - runtime shutdown 与子进程回收
 - 原生 HTML/CSS/JavaScript 前端
 
-项目提交 keyless 单元测试、Mermaid 图和架构插图；新近完成的手动真实模型与浏览器验证记录在 [阶段 0 验收记录](docs/learning-paths/python-app-builder.md#阶段-0-验收记录-2026-08-31)。
+项目已迁移到 Python `0.1.5rc1` 的公开 profile/home 启动。真实 API、浏览器及 keyless 验收见[第三批记录](docs/reviews/2026-09-29-web-protocol-migration.md)；8 月记录保留为历史证据。
 
 ### ✅ Recoverable Agent Service：业务状态与断线恢复
 
@@ -44,7 +44,7 @@
 
 ### ✅ SDK JSON-RPC 与 ACP 协议语义
 
-[`labs/protocol-semantics/`](labs/protocol-semantics/README.md) 提供两个独立 wire lab：共享 JSONL peer、确定性 fake servers、SDK receipt-to-idle、ACP committed output/cancel/permission、错误与 typed close outcome。实验固定 DSH `0.1.1-rc.2` source revision，已通过 upstream keyless suites 和 review 后各一次真实 source prompt；SDK shutdown/exit 无 escalation，ACP 当次 EOF exit 0，两个 owned process group 均消失。选型见 [SDK JSON-RPC 与 ACP 对比](docs/comparisons/sdk-jsonrpc-vs-acp.md)。
+[`labs/protocol-semantics/`](labs/protocol-semantics/README.md) 使用 npm `0.1.7-rc.2` 的公开 SDK/ACP profiles 与独立 Python JSONL peer，保留 keyless fake 和 exploratory command 模式。新版 ACP 提供 list/resume/close、模型配置、cancel 与 permission；SDK 仍以 committed SessionEvent 和 receipt-to-idle 为核心。真实 ACP 跨进程恢复、wire identity 与 release 的区分，以及关闭结果见[第三批验收](docs/reviews/2026-09-29-web-protocol-migration.md)。选型见[SDK JSON-RPC 与 ACP 对比](docs/comparisons/sdk-jsonrpc-vs-acp.md)。
 
 ### ✅ TypeScript SDK：通过公开 profile 管理 runtime
 
@@ -86,6 +86,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 ### Phase 2 — ACP
 
 - [x] 理解 ACP 初始化、session、prompt、cancel 与 permission 语义
+- [x] 新版 ACP 持久 session list/resume/close 与配置选择实验
 - [x] 启动并手动驱动 DSH ACP server
 - [x] 编写最小 ACP 客户端
 - [x] 对比 SDK JSON-RPC 与 ACP 的能力和事件模型

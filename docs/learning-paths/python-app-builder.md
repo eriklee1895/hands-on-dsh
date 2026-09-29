@@ -1,6 +1,6 @@
 # Python App Builder
 
-目标：学会通过 Python SDK 管理 DSH runtime，并构建 Web Agent。当前 SDK 入门采用 `0.1.5rc1`；FastAPI 与可恢复服务仍固定 `0.1.1rc1`，不要把新版 SDK 直接装进后两个项目。状态与命令见[SDK 迁移记录](../reviews/2026-09-28-sdk-migration.md)。
+目标：学会通过 Python SDK 管理 DSH runtime，并构建 Web Agent。SDK 入门已采用 `0.1.5rc1`；FastAPI 本批迁移到同版本，SSE 输出已提交消息与状态/工具事件。可恢复服务仍固定 `0.1.1rc1`，它的升级要独立验证。状态见[SDK 记录](../reviews/2026-09-28-sdk-migration.md)与[Web/协议记录](../reviews/2026-09-29-web-protocol-migration.md)。
 
 ## 1. Python SDK 基础
 
@@ -18,7 +18,7 @@
 
 - 用 lifespan 拥有 runtime 进程
 - 把同步回调桥接到 asyncio
-- 通过 POST + SSE 输出浏览器事件
+- 通过 POST + SSE 输出已提交消息、工具和状态事件，正文替换而非模拟 token 追加
 - 展示工具轨迹
 - 管理 session 并发和优雅关闭
 

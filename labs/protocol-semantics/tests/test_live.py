@@ -1,365 +1,220 @@
 import asyncio
-from dataclasses import replace
+import json
+import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
+from protocol_labs.acp import __main__ as acp_main
+from protocol_labs.jsonl_peer import CloseOutcome
+from protocol_labs.sdk_jsonrpc import __main__ as sdk_main
 
-def _close_outcome(
-    *,
-    shutdown_succeeded: bool | None,
-    returncode: int = 0,
-    escalation_signal: str | None = None,
-    diagnostics: tuple[dict[str, object], ...] = (),
-):
-    from protocol_labs.jsonl_peer import CloseOutcome
 
-    return CloseOutcome(
-        returncode=returncode,
-        shutdown_request_succeeded=shutdown_succeeded,
-        eof_exited_cleanly=returncode == 0 and escalation_signal is None,
-        escalation_signal=escalation_signal,
-        group_gone=True,
-        diagnostics=diagnostics,
+def test_fake_cli_runs_both_protocols_and_reports_reaped_groups() -> None:
+    sdk = asyncio.run(sdk_main._run("fake"))
+    acp = asyncio.run(acp_main._run("fake"))
+    assert sdk["mode"] == "fake"
+    assert sdk["committedAnswer"] == "fixture answer"
+    assert sdk["receiptMatched"] is True
+    assert sdk["completedTurnObserved"] is True
+    assert sdk["processGroup"]["reapedAfterClose"] is True
+    assert sdk["closeOutcome"]["shutdownRequestSucceeded"] is True
+    assert acp["mode"] == "fake"
+    assert acp["fixture"]["committedAnswer"] == "fixture answer"
+    assert acp["cancellation"]["stopReason"] == "cancelled"
+    assert acp["permission"]["permissionResponses"] == [
+        {"outcome": {"outcome": "selected", "optionId": "allow-once"}}
+    ]
+    assert acp["lifecycle"]["listedAfterClose"] is True
+    assert acp["lifecycle"]["resumedOptionCount"] == 1
+    assert acp["selectedOptionIds"] == ["model"]
+    assert acp["processGroup"]["reapedAfterClose"] is True
+
+
+def test_command_mode_is_generic_and_not_published_package_acceptance(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "DSH_SDK_SERVER_ARGV",
+        json.dumps([sys.executable, "-m", "protocol_labs.sdk_jsonrpc.fake_server"]),
     )
-
-
-def test_probes_forward_complete_child_environment(tmp_path: Path, monkeypatch) -> None:
-    from protocol_labs.acp.probe import AcpProbe
-    from protocol_labs.jsonl_peer import JsonlPeer
-    from protocol_labs.launch import resolve_launch
-    from protocol_labs.sdk_jsonrpc.probe import SdkProbe
-
-    child_env = {"PATH": "/bin", "LAB_MARKER": "explicit"}
-    observed: list[dict[str, str] | None] = []
-    original = JsonlPeer.start.__func__
-
-    async def recording_start(cls, argv, **kwargs):
-        observed.append(kwargs.get("env"))
-        return await original(cls, argv, **kwargs)
-
-    monkeypatch.setattr(JsonlPeer, "start", classmethod(recording_start))
-
-    async def scenario() -> None:
-        sdk = await SdkProbe.start(
-            resolve_launch("fake", protocol="sdk", env={}),
-            cwd=tmp_path,
-            provider="deepseek",
-            model="deepseek-chat",
-            child_env=child_env,
-        )
-        await sdk.close()
-        acp = await AcpProbe.start(
-            resolve_launch("fake", protocol="acp", env={}),
-            cwd=tmp_path,
-            child_env=child_env,
-        )
-        await acp.close()
-
-    asyncio.run(scenario())
-    assert observed == [child_env, child_env]
-
-
-def test_source_cli_routes_to_real_probe_instead_of_rejecting_source(
-    monkeypatch, tmp_path: Path
-) -> None:
-    from protocol_labs.launch import resolve_launch
-    from protocol_labs.sdk_jsonrpc import __main__ as sdk_main
-
-    launch = replace(
-        resolve_launch("fake", protocol="sdk", env={}),
-        mode="source",
-        source_evidence={"trackedClean": True, "conforming": True, "mismatches": []},
+    monkeypatch.setenv(
+        "DSH_ACP_SERVER_ARGV",
+        json.dumps([sys.executable, "-m", "protocol_labs.acp.fake_server"]),
     )
-    observed: dict[str, object] = {}
-
-    class FakeProbe:
-        server_info = {"name": "source", "version": "0.0.1"}
-        process_group_id = 12345
-
-        async def prompt(self, prompt: str, *, timeout: float):
-            observed["prompt"] = prompt
-            observed["timeout"] = timeout
-            return {
-                "committedAnswer": "source answer",
-                "receiptMatched": True,
-                "settlement": "receipt-to-root-idle",
-                "diagnostics": [],
-            }
-
-        async def close(self):
-            observed["closed"] = True
-            return _close_outcome(
-                shutdown_succeeded=True,
-                diagnostics=({"kind": "post_close_diagnostic"},),
-            )
-
-    async def fake_start(*args, **kwargs):
-        observed["child_env"] = kwargs["child_env"]
-        observed["provider"] = kwargs["provider"]
-        return FakeProbe()
-
-    monkeypatch.setattr(sdk_main, "resolve_launch", lambda *args, **kwargs: launch)
-    monkeypatch.setattr(sdk_main.SdkProbe, "start", fake_start)
-    group_states = iter((True, False))
-    monkeypatch.setattr(sdk_main, "process_group_exists", lambda _group: next(group_states))
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "private-key")
-    monkeypatch.setenv("DSH_SOURCE_ROOT", str(tmp_path))
-
-    evidence = asyncio.run(sdk_main._run("source"))
-
-    assert evidence["mode"] == "source"
-    assert evidence["sourceEvidence"]["conforming"] is True
-    assert evidence["liveAcceptance"] is True
-    assert evidence["committedAnswer"] == "source answer"
-    assert evidence["processGroup"] == {"runningDuringProbe": True, "reapedAfterClose": True}
-    assert evidence["closeOutcome"] == {
-        "returncode": 0,
-        "shutdownRequestSucceeded": True,
-        "eofExitedCleanly": True,
-        "escalationSignal": None,
-        "groupGone": True,
-        "diagnostics": [{"kind": "post_close_diagnostic"}],
-    }
-    assert evidence["diagnostics"] == [{"kind": "post_close_diagnostic"}]
-    assert observed["timeout"] >= 60
-    assert observed["closed"] is True
-    assert observed["provider"] == "deepseek-official"
-    assert "DEEPSEEK_API_KEY" in observed["child_env"]
+    sdk = asyncio.run(sdk_main._run("command"))
+    acp = asyncio.run(acp_main._run("command"))
+    assert sdk["mode"] == "command"
+    assert sdk["packageEvidence"] == {}
+    assert sdk["liveAcceptance"] is None
+    assert sdk["committedAnswer"] == "fixture answer"
+    assert acp["mode"] == "command"
+    assert acp["packageEvidence"] == {}
+    assert acp["liveAcceptance"] is None
+    assert acp["firstPrompt"]["committedAnswer"] == "fixture answer"
+    assert acp["restart"] is None
 
 
-def test_acp_source_cli_runs_one_live_prompt_without_fake_scenarios(
-    monkeypatch, tmp_path: Path
-) -> None:
-    from protocol_labs.acp import __main__ as acp_main
-    from protocol_labs.launch import resolve_launch
+def test_sdk_close_failure_retains_owned_state(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
 
-    launch = replace(
-        resolve_launch("fake", protocol="acp", env={}),
-        mode="source",
-        source_evidence={"trackedClean": True, "conforming": True, "mismatches": []},
-    )
-    prompt_calls: list[object] = []
+    class FailingProbe:
+        server_info = {"name": "fake", "version": "0.0.1"}
+        process_group_id = 123
 
-    class FakeProbe:
-        agent_info = {"name": "source", "version": "0.0.1"}
-        agent_capabilities = {"promptCapabilities": {}}
-        auth_methods = []
-        process_group_id = 12346
-
-        async def prompt(self, prompt, *, timeout: float):
-            prompt_calls.append(prompt)
-            return {
-                "committedAnswer": "source answer",
-                "committedChunks": ["source answer"],
-                "stopReason": "end_turn",
-                "settlement": "committed-to-end-turn",
-                "diagnostics": [],
-            }
-
-        async def close(self):
-            return _close_outcome(shutdown_succeeded=None)
-
-    async def fake_start(*args, **kwargs):
-        return FakeProbe()
-
-    monkeypatch.setattr(acp_main, "resolve_launch", lambda *args, **kwargs: launch)
-    monkeypatch.setattr(acp_main.AcpProbe, "start", fake_start)
-    group_states = iter((True, False))
-    monkeypatch.setattr(acp_main, "process_group_exists", lambda _group: next(group_states))
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "private-key")
-    monkeypatch.setenv("DSH_SOURCE_ROOT", str(tmp_path))
-
-    evidence = asyncio.run(acp_main._run("source"))
-
-    assert len(prompt_calls) == 1
-    assert evidence["stopReason"] == "end_turn"
-    assert evidence["committedAnswer"] == "source answer"
-    assert evidence["processGroup"]["reapedAfterClose"] is True
-    assert evidence["closeOutcome"]["shutdownRequestSucceeded"] is None
-    assert evidence["liveAcceptance"] is True
-
-
-def test_sdk_command_mode_uses_one_generic_prompt_and_identity(monkeypatch) -> None:
-    from protocol_labs.launch import resolve_launch
-    from protocol_labs.sdk_jsonrpc import __main__ as sdk_main
-
-    launch = replace(resolve_launch("fake", protocol="sdk", env={}), mode="command")
-    observed: dict[str, object] = {}
-
-    class FakeProbe:
-        server_info = {"name": "command", "version": "0.0.1"}
-        process_group_id = 12347
-
-        async def prompt(self, prompt: str, *, timeout: float):
-            observed["prompt"] = prompt
-            return {
-                "committedAnswer": "command answer",
-                "receiptMatched": True,
-                "settlement": "receipt-to-root-idle",
-                "diagnostics": [],
-            }
-
-        async def close(self):
-            return _close_outcome(shutdown_succeeded=True)
-
-    async def fake_start(*args, **kwargs):
-        observed.update(kwargs)
-        return FakeProbe()
-
-    monkeypatch.setattr(sdk_main, "resolve_launch", lambda *args, **kwargs: launch)
-    monkeypatch.setattr(sdk_main.SdkProbe, "start", fake_start)
-    group_states = iter((True, False))
-    monkeypatch.setattr(sdk_main, "process_group_exists", lambda _group: next(group_states))
-
-    evidence = asyncio.run(sdk_main._run("command"))
-
-    assert observed["provider"] == "deepseek-official"
-    assert observed["model"] == "deepseek-v4-flash"
-    assert observed["prompt"] == sdk_main.GENERIC_PROMPT
-    assert observed["child_env"] is None
-    assert evidence["committedAnswer"] == "command answer"
-    assert "transcript" not in evidence
-
-
-def test_acp_command_mode_runs_only_one_generic_prompt(monkeypatch) -> None:
-    from protocol_labs.acp import __main__ as acp_main
-    from protocol_labs.launch import resolve_launch
-
-    launch = replace(resolve_launch("fake", protocol="acp", env={}), mode="command")
-    calls: list[str] = []
-
-    class FakeProbe:
-        agent_info = {"name": "command", "version": "0.0.1"}
-        agent_capabilities = {"promptCapabilities": {}}
-        auth_methods = []
-        process_group_id = 12348
-
-        async def prompt(self, prompt, *, timeout: float):
-            calls.append("prompt")
-            assert prompt == acp_main.GENERIC_PROMPT
-            return {
-                "committedAnswer": "command answer",
-                "committedChunks": ["command answer"],
-                "stopReason": "end_turn",
-                "settlement": "committed-to-end-turn",
-                "diagnostics": [],
-            }
-
-        async def cancel_prompt(self):
-            calls.append("cancel")
-
-        async def close(self):
-            return _close_outcome(shutdown_succeeded=None)
-
-    async def fake_start(*args, **kwargs):
-        return FakeProbe()
-
-    monkeypatch.setattr(acp_main, "resolve_launch", lambda *args, **kwargs: launch)
-    monkeypatch.setattr(acp_main.AcpProbe, "start", fake_start)
-    group_states = iter((True, False))
-    monkeypatch.setattr(acp_main, "process_group_exists", lambda _group: next(group_states))
-
-    evidence = asyncio.run(acp_main._run("command"))
-
-    assert calls == ["prompt"]
-    assert evidence["committedAnswer"] == "command answer"
-    assert "fixture" not in evidence and "permission" not in evidence
-
-
-def test_source_mismatch_mode_runs_but_cannot_satisfy_live_acceptance(
-    monkeypatch, tmp_path: Path
-) -> None:
-    from protocol_labs.launch import resolve_launch
-    from protocol_labs.sdk_jsonrpc import __main__ as sdk_main
-
-    launch = replace(
-        resolve_launch("fake", protocol="sdk", env={}),
-        mode="source",
-        source_evidence={
-            "trackedClean": True,
-            "conforming": False,
-            "mismatches": [{"field": "head", "expected": "expected", "actual": "actual"}],
-        },
-    )
-
-    class FakeProbe:
-        server_info = {"name": "source", "version": "0.0.1"}
-        process_group_id = 12349
-
-        async def prompt(self, prompt: str, *, timeout: float):
-            return {
-                "committedAnswer": "learning answer",
-                "receiptMatched": True,
-                "settlement": "receipt-to-root-idle",
-                "diagnostics": [],
-            }
-
-        async def close(self):
-            return _close_outcome(shutdown_succeeded=True)
-
-    async def fake_start(*args, **kwargs):
-        return FakeProbe()
-
-    monkeypatch.setattr(sdk_main, "resolve_launch", lambda *args, **kwargs: launch)
-    monkeypatch.setattr(sdk_main.SdkProbe, "start", fake_start)
-    group_states = iter((True, False))
-    monkeypatch.setattr(sdk_main, "process_group_exists", lambda _group: next(group_states))
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "private-key")
-    monkeypatch.setenv("DSH_SOURCE_ROOT", str(tmp_path))
-
-    evidence = asyncio.run(sdk_main._run("source", allow_version_mismatch=True))
-
-    assert evidence["committedAnswer"] == "learning answer"
-    assert evidence["sourceEvidence"]["conforming"] is False
-    assert evidence["sourceEvidence"]["mismatches"]
-    assert evidence["liveAcceptance"] is False
-
-
-@pytest.mark.parametrize(
-    "close_outcome",
-    [
-        _close_outcome(shutdown_succeeded=False),
-        _close_outcome(shutdown_succeeded=True, returncode=23),
-        _close_outcome(shutdown_succeeded=True, returncode=-15, escalation_signal="SIGTERM"),
-    ],
-)
-def test_conforming_sdk_source_rejects_any_close_contract_failure(
-    monkeypatch, tmp_path: Path, close_outcome
-) -> None:
-    from protocol_labs.launch import resolve_launch
-    from protocol_labs.sdk_jsonrpc import __main__ as sdk_main
-
-    launch = replace(
-        resolve_launch("fake", protocol="sdk", env={}),
-        mode="source",
-        source_evidence={"trackedClean": True, "conforming": True, "mismatches": []},
-    )
-
-    class FakeProbe:
-        server_info = {"name": "source", "version": "0.0.1"}
-        process_group_id = 12350
-
-        async def prompt(self, prompt: str, *, timeout: float):
+        async def prompt(self, *_args, **_kwargs):
             return {
                 "committedAnswer": "answer",
                 "receiptMatched": True,
                 "settlement": "receipt-to-root-idle",
-                "diagnostics": [],
             }
 
         async def close(self):
-            return close_outcome
+            raise RuntimeError("owned process group survived SIGKILL")
 
-    async def fake_start(*args, **kwargs):
-        return FakeProbe()
+    async def start(_cls, *_args, **_kwargs):
+        return FailingProbe()
 
-    monkeypatch.setattr(sdk_main, "resolve_launch", lambda *args, **kwargs: launch)
-    monkeypatch.setattr(sdk_main.SdkProbe, "start", fake_start)
-    group_states = iter((True, False))
-    monkeypatch.setattr(sdk_main, "process_group_exists", lambda _group: next(group_states))
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "private-key")
-    monkeypatch.setenv("DSH_SOURCE_ROOT", str(tmp_path))
+    monkeypatch.setattr(sdk_main.SdkProbe, "start", classmethod(start))
+    monkeypatch.setattr(sdk_main, "process_group_exists", lambda _pgid: True)
+    with pytest.raises(RuntimeError, match="survived SIGKILL"):
+        asyncio.run(sdk_main._run("fake"))
+    retained = list(tmp_path.iterdir())
+    assert len(retained) == 1
+    assert (retained[0] / "workspace").is_dir()
+    assert (retained[0] / "home").is_dir()
 
-    with pytest.raises(RuntimeError, match="live evidence contract"):
-        asyncio.run(sdk_main._run("source"))
+
+def test_sdk_start_failure_retains_owned_state(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+
+    async def fail_start(_cls, *_args, **_kwargs):
+        raise RuntimeError("startup could not confirm owner cleanup")
+
+    monkeypatch.setattr(sdk_main.SdkProbe, "start", classmethod(fail_start))
+    with pytest.raises(RuntimeError, match="startup could not confirm"):
+        asyncio.run(sdk_main._run("fake"))
+    retained = list(tmp_path.iterdir())
+    assert len(retained) == 1
+    assert (retained[0] / "dsh-home").is_dir()
+
+
+def test_successful_fake_run_removes_owned_state(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    asyncio.run(sdk_main._run("fake"))
+    asyncio.run(acp_main._run("fake"))
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_second_acp_owner_close_failure_retains_shared_state(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only-key")
+    close_ok = CloseOutcome(
+        returncode=0,
+        shutdown_request_succeeded=None,
+        eof_exited_cleanly=True,
+        escalation_signal=None,
+        group_gone=True,
+        diagnostics=(),
+    )
+
+    class Probe:
+        agent_info = {"name": "fake", "version": "0.0.1"}
+        agent_capabilities = {}
+        auth_methods = []
+        session_id = "session-1"
+        config_options = [{"id": "model"}]
+        process_group_id = 123
+
+        def __init__(self, second: bool):
+            self.second = second
+
+        async def prompt(self, *_args, **_kwargs):
+            return {"committedAnswer": "nonce", "stopReason": "end_turn"}
+
+        async def close_session(self):
+            return None
+
+        async def list_sessions(self, **_kwargs):
+            return {"sessions": [{"sessionId": self.session_id}]}
+
+        async def select_advertised_model(self):
+            return self.config_options
+
+        async def historical_replay_count(self):
+            return 0
+
+        async def close(self):
+            if self.second:
+                raise RuntimeError("second owned group survived SIGKILL")
+            return close_ok
+
+    async def start(_cls, *_args, resume_session_id=None, **_kwargs):
+        return Probe(resume_session_id is not None)
+
+    monkeypatch.setattr(acp_main.AcpProbe, "start", classmethod(start))
+    monkeypatch.setattr(acp_main, "process_group_exists", lambda _pgid: False)
+    with pytest.raises(RuntimeError, match="second owned group"):
+        asyncio.run(acp_main._run("package"))
+    retained = list(tmp_path.iterdir())
+    assert len(retained) == 1
+    assert (retained[0] / "dsh-home").is_dir()
+
+
+def test_acp_nonce_acceptance_rejects_tool_updates(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only-key")
+    monkeypatch.setattr(acp_main.secrets, "token_hex", lambda _size: "AB12")
+    prompts: list[str] = []
+    closed = CloseOutcome(
+        returncode=0,
+        shutdown_request_succeeded=None,
+        eof_exited_cleanly=True,
+        escalation_signal=None,
+        group_gone=True,
+        diagnostics=(),
+    )
+
+    class Probe:
+        agent_info = {"name": "fake", "version": "0.0.1"}
+        agent_capabilities = {}
+        auth_methods = []
+        session_id = "session-1"
+        config_options = [{"id": "model"}]
+        process_group_id = 123
+
+        def __init__(self, second: bool):
+            self.second = second
+
+        async def prompt(self, prompt, **_kwargs):
+            prompts.append(prompt[0]["text"])
+            return {
+                "committedAnswer": "AB12" if self.second else "remembered",
+                "stopReason": "end_turn",
+                "toolUpdates": 1 if self.second else 0,
+            }
+
+        async def close_session(self):
+            return None
+
+        async def list_sessions(self, **_kwargs):
+            return {"sessions": [{"sessionId": self.session_id}]}
+
+        async def select_advertised_model(self):
+            return self.config_options
+
+        async def historical_replay_count(self):
+            return 0
+
+        async def close(self):
+            return closed
+
+    async def start(_cls, *_args, resume_session_id=None, **_kwargs):
+        return Probe(resume_session_id is not None)
+
+    monkeypatch.setattr(acp_main.AcpProbe, "start", classmethod(start))
+    monkeypatch.setattr(acp_main, "process_group_exists", lambda _pgid: False)
+    with pytest.raises(RuntimeError, match="did not satisfy live acceptance"):
+        asyncio.run(acp_main._run("package"))
+    assert len(prompts) == 2
+    assert all(prompt.startswith("Do not use tools.") for prompt in prompts)
+    assert list(tmp_path.iterdir()) == []

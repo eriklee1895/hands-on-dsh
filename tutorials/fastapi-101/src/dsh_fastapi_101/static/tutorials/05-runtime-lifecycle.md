@@ -18,7 +18,7 @@ uv run python -m dsh_fastapi_101
 
 ## 源码分析
 
-FastAPI 的 lifespan 在第一次接收流量前调用 `RuntimeService.start()`，创建 workspace/session 目录、构造 `DeepSeekHarness` 并初始化 runtime。关闭时调用 `RuntimeService.close()`，先等待所有已接纳任务，再发送 shutdown 并回收子进程。仅仅 import `app` 不会创建目录或启动进程。
+FastAPI 的 lifespan 在第一次接收流量前调用 `RuntimeService.start()`，创建 workspace/Harness home 目录、构造 `DeepSeekHarness` 并初始化 runtime。关闭时调用 `RuntimeService.close()`，先停止接纳新任务，等待所有已接纳的 JSON 与 SSE 任务，再发送 shutdown 并回收子进程；初始化失败时也关闭已创建的 SDK owner。仅仅 import `app` 不会创建目录或启动进程。
 
 ```mermaid
 stateDiagram-v2
@@ -42,12 +42,12 @@ flowchart TD
     Runtime --> Model[DeepSeek endpoint]
 ```
 
-SSE 客户端断开时，响应生成器会停止消费队列，但已经交给 agent 的工作不会自动取消。后台 task 继续运行到 DSH `idle`，并仍被 `_tasks` 集合追踪；服务关闭会等待这些 task。该语义避免因为浏览器刷新而把 runtime 留在未知的半执行状态。
+SSE 客户端断开时，响应生成器会停止消费队列，但已经交给 agent 的工作不会自动取消。后台 task 继续运行到 DSH `idle`，并仍被 `_tasks` 集合追踪；JSON 请求即使断连，其已接纳的执行也会被追踪。服务关闭会等待两类任务。该语义避免因为浏览器刷新而把 runtime 留在未知的半执行状态。
 
 ## 验证
 
 1. `RuntimeService()` 构造后目录不存在，`start()` 后才出现。
-2. 两个不同 session 的测试运行可以重叠；相同 session 的最大并发为 1。
+2. 两个不同 session 的测试运行可以重叠；相同 session 的最大并发为 1。关闭开始后新 JSON/SSE 请求被拒绝。
 3. FastAPI lifespan 结束后 `DeepSeekHarness.close()` 已执行。
 4. 中断 SSE 客户端后，服务仍能在该 session 进入 idle 后接受下一轮。
 5. 进程退出时没有残留 runtime 子进程。

@@ -1,13 +1,13 @@
 # TypeScript Runtime Builder
 
-目标：理解 DSH 的 wire 语义后，用已发布 TypeScript SDK 管理 runtime，再进入 Cordis/plugin 和 full-stack Agent 应用。SDK 入门采用 `0.1.7-rc.2`；本页协议、Cordis 和 full-stack 产物仍固定 `0.1.1-rc.2`。验证状态见[SDK 迁移记录](../reviews/2026-09-28-sdk-migration.md)。
+目标：理解 DSH 的 wire 语义后，用已发布 TypeScript SDK 管理 runtime，再进入 Cordis/plugin 和 full-stack Agent 应用。SDK 入门采用 `0.1.7-rc.2`；协议 lab 本批迁移到同版本公开 profiles。Cordis 和 full-stack 产物仍固定 `0.1.1-rc.2`。验证状态见[SDK 记录](../reviews/2026-09-28-sdk-migration.md)与[Web/协议记录](../reviews/2026-09-29-web-protocol-migration.md)。
 
 ## 1. 协议语义
 
 先完成 [`labs/protocol-semantics`](../../labs/protocol-semantics/README.md)：
 
 - SDK JSON-RPC 的 initialize、prompt、notification、receipt-to-idle 和 shutdown
-- ACP 的 initialize、session、cancel 与 permission
+- ACP 的 initialize、持久 session list/resume/close、模型配置、cancel 与 permission
 - JSONL framing、request correlation、typed close outcome
 - 为什么 client adapter 不能增加 server 没有的语义
 
@@ -53,7 +53,7 @@
 
 本阶段最终门槛已通过：19 files / 117 keyless tests、三 compiler faces、Oxlint/Oxfmt、server+web build、foreign-cwd adapter smoke；四个真实 Run 均恰好一次 tool/result 与 exact Artifact；两 Conversation、AG-UI detach/business replay、desktop/375px zero-violation Axe、idle restart 和记忆、最终进程回收均有外部证据。
 
-## 协议、Cordis 与 Full-stack 的历史版本与证据
+## Cordis 与 Full-stack 的历史版本与证据
 
 - DSH：`0.1.1-rc.2`
 - tag：`dsh-v0.1.1-rc.2`

@@ -26,7 +26,7 @@
     <nav class="chapter-nav" aria-label="教程章节">
       <p class="eyebrow">学习路径</p>
       <a href="/chapter/1" data-chapter="1"><b>01</b><span>最小调用</span></a>
-      <a href="/chapter/2" data-chapter="2"><b>02</b><span>SSE 流式输出</span></a>
+      <a href="/chapter/2" data-chapter="2"><b>02</b><span>SSE 事件通知</span></a>
       <a href="/chapter/3" data-chapter="3"><b>03</b><span>多轮会话</span></a>
       <a href="/chapter/4" data-chapter="4"><b>04</b><span>工具轨迹</span></a>
       <a href="/chapter/5" data-chapter="5"><b>05</b><span>并发与生命周期</span></a>
@@ -63,7 +63,7 @@
           <label for="prompt">Prompt</label>
           <textarea id="prompt" name="prompt" rows="6" required>用三句话解释 agent runtime 的职责。</textarea>
 
-          <div class="preset-row" aria-label="提示词预设">
+          <div class="preset-row" role="group" aria-label="提示词预设">
             <button class="chip" type="button" data-prompt="记住项目代号 ORBIT，只回复：已记录">记住代号</button>
             <button class="chip" type="button" data-prompt="项目代号是什么？只回复代号。">召回代号</button>
             <button class="chip" type="button" data-prompt="使用 bash 执行 printf 'TOOL_EVENT_OK\\n'，然后只回复它的输出。">调用工具</button>
@@ -96,8 +96,8 @@
             </div>
             <span id="event-count" class="badge">0 events</span>
           </div>
-          <ol id="timeline" class="timeline">
-            <li class="timeline-empty">第二章起会展示实时事件。</li>
+          <ol id="timeline" class="timeline" tabindex="0" aria-labelledby="timeline-title">
+            <li class="timeline-empty">第二章起会展示运行事件。</li>
           </ol>
         </article>
       </section>

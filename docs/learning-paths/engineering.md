@@ -22,7 +22,8 @@
 
 - [x] Python：入门已迁移到 `0.1.5rc1`，公开 profile/home 启动并重新实跑六例；验收见 [SDK 迁移记录](../reviews/2026-09-28-sdk-migration.md)。
 - [x] TypeScript：入门已迁移到 `0.1.7-rc.2`，公开 profile/home/patch 启动、committed-message 投影与四例验证；同上记录。
-- [ ] 协议与 FastAPI：决定可用的实时 transport；区分 committed replay 与实时 token。
+- [x] 协议与 FastAPI：公开 profiles、SSE 已提交消息投影与 ACP 持久会话控制，见[第三批验收](../reviews/2026-09-29-web-protocol-migration.md)。
+- [ ] 真正的实时 token transport：另行选择并验证，当前 SDK/ACP 教程不提供。
 - [ ] Session V4：历史日志复制、相邻迁移、不可覆盖旧 generation、恢复后的业务 reconciliation。
 - [ ] Cordis/preset：公开 profile patch、plugin package 安装与 effect teardown。
 - [ ] AG-UI：重新审计 resume adapter、流式 projector、跨 generation 与浏览器重连。

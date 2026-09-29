@@ -138,7 +138,6 @@ class SdkProbe:
         descendant_events = 0
         subagent_finished = 0
         foreign_events = 0
-        raw_text: list[str] = []
         committed_answer: str | None = None
         turn_completed = False
         deadline = asyncio.get_running_loop().time() + timeout
@@ -216,15 +215,7 @@ class SdkProbe:
                 continue
             event_type = event.get("type")
             data = event["data"]
-            if event_type == "assistant/chunk":
-                chunk = data.get("chunk")
-                if (
-                    isinstance(chunk, dict)
-                    and chunk.get("type") == "text-delta"
-                    and isinstance(chunk.get("text"), str)
-                ):
-                    raw_text.append(chunk["text"])
-            elif event_type == "assistant/message":
+            if event_type == "assistant/message":
                 message = data.get("message")
                 if isinstance(message, dict):
                     committed_answer = _content_text(message.get("content"))
@@ -242,7 +233,6 @@ class SdkProbe:
             "settlement": "receipt-to-root-idle",
             "staleRootIdleIgnored": stale_root_idle,
             "staleRootEventsIgnored": stale_root_events,
-            "rawTextDeltas": raw_text,
             "committedAnswer": committed_answer,
             "completedTurnObserved": turn_completed,
             "transcript": (

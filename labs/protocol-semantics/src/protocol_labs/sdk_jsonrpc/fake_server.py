@@ -170,20 +170,6 @@ class FakeSdkServer:
             await self._session_event(
                 session_id,
                 5,
-                "assistant/chunk",
-                {
-                    "turn": 1,
-                    "step": 1,
-                    "chunk": {
-                        "type": "text-delta",
-                        "index": 0,
-                        "text": "stale raw answer",
-                    },
-                },
-            )
-            await self._session_event(
-                session_id,
-                6,
                 "assistant/message",
                 {
                     "turn": 1,
@@ -200,18 +186,18 @@ class FakeSdkServer:
                     },
                 },
                 surface_op="append",
-                source_event_seqs=[5],
+                source_event_seqs=[],
             )
-            await self._session_event(session_id, 7, "step/end", {"turn": 1, "step": 1})
+            await self._session_event(session_id, 6, "step/end", {"turn": 1, "step": 1})
             await self._session_event(
                 session_id,
-                8,
+                7,
                 "turn/end",
                 {"turn": 1, "reason": {"kind": "completed"}},
             )
             await self._session_event(
                 session_id,
-                9,
+                8,
                 "agent/inbox/spliced",
                 {
                     "target": "next-turn",
@@ -291,10 +277,10 @@ class FakeSdkServer:
         if prompt == "lab:continuation-error":
             raise RuntimeError("scripted continuation failure")
         await self._notify("session.status", {"sessionId": session_id, "status": "running"})
-        await self._session_event(session_id, 10, "turn/start", {"turn": 2})
+        await self._session_event(session_id, 9, "turn/start", {"turn": 2})
         await self._session_event(
             session_id,
-            11,
+            10,
             "agent/inbox/spliced",
             {
                 "target": "next-turn",
@@ -303,10 +289,10 @@ class FakeSdkServer:
                 "inserted": [],
             },
         )
-        await self._session_event(session_id, 12, "step/start", {"turn": 2, "step": 1})
+        await self._session_event(session_id, 11, "step/start", {"turn": 2, "step": 1})
         await self._session_event(
             session_id,
-            13,
+            12,
             "user/message",
             {
                 "id": message_id,
@@ -326,20 +312,6 @@ class FakeSdkServer:
         await self._session_event(
             CHILD_SESSION,
             2,
-            "assistant/chunk",
-            {
-                "turn": 1,
-                "step": 1,
-                "chunk": {
-                    "type": "text-delta",
-                    "index": 0,
-                    "text": "child answer",
-                },
-            },
-        )
-        await self._session_event(
-            CHILD_SESSION,
-            3,
             "assistant/message",
             {
                 "turn": 1,
@@ -356,12 +328,12 @@ class FakeSdkServer:
                 },
             },
             surface_op="append",
-            source_event_seqs=[2],
+            source_event_seqs=[],
         )
-        await self._session_event(CHILD_SESSION, 4, "step/end", {"turn": 1, "step": 1})
+        await self._session_event(CHILD_SESSION, 3, "step/end", {"turn": 1, "step": 1})
         await self._session_event(
             CHILD_SESSION,
-            5,
+            4,
             "turn/end",
             {"turn": 1, "reason": {"kind": "completed"}},
         )
@@ -381,21 +353,7 @@ class FakeSdkServer:
         await self._notify("session.status", {"sessionId": FOREIGN_SESSION, "status": "running"})
         await self._session_event(
             session_id,
-            14,
-            "assistant/chunk",
-            {
-                "turn": 2,
-                "step": 1,
-                "chunk": {
-                    "type": "text-delta",
-                    "index": 0,
-                    "text": "raw fixture answer",
-                },
-            },
-        )
-        await self._session_event(
-            session_id,
-            15,
+            13,
             "assistant/message",
             {
                 "turn": 2,
@@ -412,12 +370,12 @@ class FakeSdkServer:
                 },
             },
             surface_op="append",
-            source_event_seqs=[14],
+            source_event_seqs=[],
         )
-        await self._session_event(session_id, 16, "step/end", {"turn": 2, "step": 1})
+        await self._session_event(session_id, 14, "step/end", {"turn": 2, "step": 1})
         await self._session_event(
             session_id,
-            17,
+            15,
             "turn/end",
             {"turn": 2, "reason": {"kind": "completed"}},
         )

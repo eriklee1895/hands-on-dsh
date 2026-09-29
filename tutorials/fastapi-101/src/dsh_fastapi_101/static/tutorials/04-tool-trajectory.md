@@ -20,7 +20,7 @@ uv run python -m dsh_fastapi_101
 使用 bash 执行 printf 'TOOL_EVENT_OK\n'，然后只回复它的输出。
 ```
 
-页面右侧时间线应依次出现 `status`、`lifecycle`、`tool_call`、`tool_result`、新的 step、`text_delta` 与 `final`。
+页面右侧时间线应依次出现 `status`、`lifecycle`、`tool_call`、`tool_result`、新的 step、`assistant_message` 与 `final`。
 
 ## 源码分析
 
@@ -29,7 +29,7 @@ uv run python -m dsh_fastapi_101
 ```mermaid
 flowchart LR
     Raw[DSH Notification] --> Project[project_notification]
-    Project --> Text[text_delta]
+    Project --> Text[assistant_message]
     Project --> ToolCall[tool_call]
     Project --> ToolResult[tool_result]
     Project --> Lifecycle[lifecycle]
@@ -46,7 +46,7 @@ flowchart LR
 
 为什么不直接把完整 `session.event` 原样发给浏览器？因为 runtime 事件集合会随插件扩展，而且包含模型推理、请求头和大量内部细节。业务前端应消费自己版本化的展示事件，后端保留原始 DSH 日志用于诊断与审计。
 
-subagent 的根文本和子文本必须分开。SDK 回调可能收到整个已知后代树的通知，本项目只把根 session 的 `text-delta` 拼进主回复，子 session 通过 `subagent_started`、`subagent_finished` 和各自的工具/生命周期事件显示。
+subagent 的根文本和子文本必须分开。SDK 回调可能收到整个已知后代树的通知，本项目只把根 session 的 `assistant/message` 文本替换为主回复，子 session 通过 `subagent_started`、`subagent_finished` 和各自的工具/生命周期事件显示。
 
 ## 验证
 

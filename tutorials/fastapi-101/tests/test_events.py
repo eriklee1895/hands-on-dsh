@@ -7,14 +7,14 @@ from deepseek_harness import Notification
 from dsh_fastapi_101.events import BrowserEvent, encode_sse, project_notification
 
 
-def test_projects_root_text_and_excludes_descendant_text() -> None:
+def test_projects_root_committed_message_and_excludes_descendant_text() -> None:
     root = Notification(
         method="session.event",
         payload={
             "sessionId": "root",
             "event": {
-                "type": "assistant/chunk",
-                "data": {"chunk": {"type": "text-delta", "text": "hello"}},
+                "type": "assistant/message",
+                "data": {"message": {"content": [{"type": "text", "text": "hello"}]}},
             },
         },
     )
@@ -23,14 +23,14 @@ def test_projects_root_text_and_excludes_descendant_text() -> None:
         payload={
             "sessionId": "child",
             "event": {
-                "type": "assistant/chunk",
-                "data": {"chunk": {"type": "text-delta", "text": "hidden child"}},
+                "type": "assistant/message",
+                "data": {"message": {"content": [{"type": "text", "text": "hidden child"}]}},
             },
         },
     )
 
     assert project_notification(root, "root") == BrowserEvent(
-        type="text_delta",
+        type="assistant_message",
         session_id="root",
         data={"text": "hello"},
     )
@@ -73,10 +73,14 @@ def test_projects_status_tool_and_subagent_events() -> None:
 
 
 def test_encodes_one_browser_event_as_sse() -> None:
-    event = BrowserEvent(type="text_delta", session_id="root", data={"text": "你好\nworld"})
+    event = BrowserEvent(type="assistant_message", session_id="root", data={"text": "你好\nworld"})
 
     frame = encode_sse(event).decode()
 
-    assert frame.startswith("event: text_delta\n")
+    assert frame.startswith("event: assistant_message\n")
     payload = json.loads(frame.split("data: ", 1)[1].strip())
-    assert payload == {"type": "text_delta", "session_id": "root", "data": {"text": "你好\nworld"}}
+    assert payload == {
+        "type": "assistant_message",
+        "session_id": "root",
+        "data": {"text": "你好\nworld"},
+    }

@@ -83,3 +83,7 @@ Agent composition 已由 profile YAML 中的 preset rows 声明，plugin manager
 | E | 工程化其余专题 | 按[工程化路线](../learning-paths/engineering.md)逐课独立验收 |
 
 不以阶段数量百分比估算剩余工作：C/D 的 transport 与恢复选择需要实验结果后才能定实现量。
+
+## 2026-09-29 补充：ACP 持久会话控制
+
+后续定向审查发现 `0.1.7-rc.2` 的 ACP 已使用 SDK `1.4.0`，支持 `session/list`、`session/resume`、`session/close` 与 `session/set_config_option`；这不改变上文关于 SDK JSON-RPC 缺少 resume RPC 的结论。list 只返回 inactive 可恢复 root；resume 校验 cwd 且不回放旧 updates。固定源码与最新对照见[协议选型](../comparisons/sdk-jsonrpc-vs-acp.md)，实际 probe 范围见[第三批记录](2026-09-29-web-protocol-migration.md)。
