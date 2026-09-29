@@ -27,9 +27,10 @@
 - [x] Session V4 基础实验：synthetic plaintext V1/V3 副本的只读迁移、写入 successor 与不可变 generation，见[第四批验收](../reviews/2026-09-29-recovery-storage.md)。
 - [ ] 更复杂历史数据：压缩历史日志、附件、子会话 catalog 和实际版本采集样例；当前最小 fixture 不代表这些已覆盖。
 - [x] 可恢复服务升级：Python `0.1.5rc1`、旧事件原样重放、reconciliation/恢复确认和产物/幂等兼容，与 Session 格式分开验收。
-- [ ] Cordis/preset：公开 profile patch、plugin package 安装与 effect teardown。
-- [ ] AG-UI：重新审计 resume adapter、流式 projector、跨 generation 与浏览器重连。
-- [ ] 核心机制：逐篇重跑新版 probes，替换已变化的事实；旧证据保留日期。
+- [x] Cordis/preset：固定新版公开 profile patch、packed plugin、effect teardown 和 preset composition probe。
+- [x] AG-UI：重新审计 SDK deployment resume adapter、V4 committed projector、公开 package runtime、跨 generation 与浏览器 hydration。
+- [x] 核心机制正文：七篇按固定新版源码更新，3 个新公开库 probe 和相关 lab 证据，旧结果独立归档。
+- [ ] 核心机制剩余运行验证：完整 compaction、workflow-ptc、child cold resume、官方 Web Host 与复杂并行/retry；见逐篇证据表。
 
 先读[业务恢复、会话恢复与格式迁移](../comparisons/recovery-and-session-migration.md)，避免把底层可读或 resume 成功当成业务执行成功。
 

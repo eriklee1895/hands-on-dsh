@@ -1,45 +1,58 @@
 # How DSH Works
 
-> 版本提示（2026-09-28）：本文及已有验收记录基于 `0.1.1-rc.2`。新版启动与事件接口已有变化；升级前先读[迁移审查](../docs/reviews/2026-09-28-upstream-refresh.md)，不要直接替换版本号。
+本目录从可观察问题追踪 DSH 的生产方、事件、状态与读侧。七篇当前正文均按 **`dsh-v0.1.7-rc.2` / `477b4f420553e8a52c2fbccc464d7561b239c443`** 审查，日期 2026-09-29。源码核对不等于所有执行链都已重新验收。
 
-这里从自学视角解释 DSH 为什么这样运行。内容不逐文件翻译源码，而是围绕可观察机制记录入口、调用路径、最小探针与版本边界。
+先完成 [Cordis lifecycle lab](../labs/cordis-plugin-lifecycle/README.md)，理解 Context、Service、inject、scope、effect 与 waterfall next，再按下表阅读。业务 Run/Task、DSH Agent、Session 与协议中的 prompt 各自拥有不同语义。
 
-本轮研究统一固定到：
+## 阅读顺序与证据范围
 
-- DSH tag：`dsh-v0.1.1-rc.2`
-- revision：`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`
-- 验证日期：2026-08-31
+| 篇目 | 当前主要事实 | 当前运行证据 | 尚未验证 |
+| --- | --- | --- | --- |
+| [01 Plugin tree 与组装](01-plugin-tree-and-runtime-assembly.md) | profile 有序 patch；sdk-minimal 独立树；preset 修订与 scope | 已有新版 SDK profile initialize/close | preset 热更新、完整 HMR、平台矩阵 |
+| [02 Agent Inbox 与 loop](02-agent-inbox-and-loop.md) | durable Inbox、Agent scope、initiator、write-handle resume | 新 probe：idle inject、followup 唤醒、whenIdle | maintenance/初始化/取消的全部竞争 |
+| [03 Turn、Step 与工具](03-turn-step-tool-pipeline.md) | prepared admission、embedded stream、V4 tool message | 新 probe：未知工具 error → 下一 step；live/committed 输出 | parallel 顺序、retry、工具副作用与 repair |
+| [04 Session 与 projection](04-session-event-log-and-projection.md) | V4 surface；read/write 迁移；不可变 generation；required projections | 已有 V1/V3 synthetic migration lab 7 项；新 probe 的内存日志 | 复杂真实历史、附件/catalog、压缩历史迁移 |
+| [05 Context 与 compaction](05-compaction-and-context-assembly.md) | system 在 surface；request series；压缩 bracket | 新 probe：context snapshot 去重/改变 | compaction engine、overflow retry、摘要质量 |
+| [06 Subagent 与 workflow](06-subagent-and-workflow.md) | parent catalog、continuable capacity、PTC 进程执行 | 本篇没有当前执行链的 runtime probe | child cold resume、PTC 与 cleanup、外部 provider |
+| [07 SDK、ACP 与 Web Host](07-sdk-jsonrpc-acp-and-web-host.md) | ACP control 与 generic tools；Remote mux；SDK 缺少 resume/cancel | 已有同版本 SDK/ACP 跨进程实跑；fake/keyless 协议测试 | 官方 Web Host、真实 cancel/permission |
 
-每篇都明确区分 `Verified from source`、`Observed at runtime`、`Inference`、`Proposal` 与 `Unconfirmed / version boundary`。源码链接固定到完整 commit；probe 在同一 revision 的独立 upstream checkout 中实际运行。后续升级 DSH 时，应重新审计入口和测试，不能把这些 developer-preview 结论直接平移。
+这些限定直接对应每篇的 Verified from source、Observed at runtime、Inference/Proposal 和未确认部分；不以一条成功命令推断其他能力可用。
 
-## 先理解 Cordis plugin lifecycle
+## 新版证据与重跑
 
-DSH 以 Cordis 组装 plugin tree。阅读 AgentLoop 或 Session 等内部机制前，先通过 [`labs/cordis-plugin-lifecycle`](../labs/cordis-plugin-lifecycle/README.md) 实际观察 `Context`、`Service`、`inject`、依赖消失后的重新挂载、`ctx.effect()`/listener disposer、typed events 与 waterfall `next()`，再练习 `cordis.yml`、HMR、PENDING diagnosis，以及 model-callable tool 和 live/durable listener。
+本目录的 [published-core.test.mjs](probes/published-core.test.mjs) 是库级诊断测试，直接挂载发布的 Cordis/Agent/Session/Loop plugins；它不是另一种 DSH 应用 launcher。运行完整应用仍用公开 dsh profile。
 
-这一步回答“怎样安全扩展 DSH”，后面的源码笔记再回答“DSH 当前实现怎样使用同一套 lifecycle”。plugin 注册必须归属可逆 effect；配置行只描述 composition，真正的启动与清理由 service availability 和 owning fiber 决定。
+该脚本只读解析 sibling `labs/runtime-supervision` 的精确锁文件安装，从 SDK 的同版本 dsh 和 sdk-minimal bundle 获取依赖，并逐包断言 DSH `0.1.7-rc.2` / Cordis `4.0.4`。不自动安装、不写 sibling 文件、不依赖 upstream master、不读取 key、不使用网络、文件工具或子进程。唯一模型 adapter 输出脚本内的确定性 fixture。若单独复制本目录而不安装 sibling lab，测试不可运行。
 
-## 阅读顺序
+从仓库根目录准备并执行：
 
-| 顺序 | 机制 | 本轮 keyless 证据 |
-| --- | --- | --- |
-| 1 | [Plugin tree 与 runtime 组装](01-plugin-tree-and-runtime-assembly.md)：profile、bundle、Loader、fiber、inject 与 effect teardown | profile composition：1 selected test |
-| 2 | [Agent Inbox 与 AgentLoop](02-agent-inbox-and-loop.md)：followup、steer、inject、receipt 与 whole-agent idle | loop input semantics：3 selected tests |
-| 3 | [Turn、Step 与工具流水线](03-turn-step-tool-pipeline.md)：model request、tool scheduler、retry 与 outcome unknown | loop/tool ordering：2 selected tests |
-| 4 | [Session Event Log 与 Projection](04-session-event-log-and-projection.md)：JSONL persistence、surface、derived messages 与 projection | persistence/projection：4 selected tests |
-| 5 | [Compaction 与 Context Assembly](05-compaction-and-context-assembly.md)：request header、runtime snapshot、surface replacement 与摘要事务 | compaction + prompt/context：45 tests |
-| 6 | [Subagent 与 Workflow](06-subagent-and-workflow.md)：one-shot、continuable Activation、worker bridge 与 durable run record | subagent/workflow：46 tests |
-| 7 | [SDK JSON-RPC、ACP 与 Web Host](07-sdk-jsonrpc-acp-and-web-host.md)：三套面向不同调用者的协议/Host 语义 | SDK/ACP/Web carrier：170 tests |
+```sh
+pnpm --dir labs/runtime-supervision install --frozen-lockfile
+node --test how-dsh-works/probes/published-core.test.mjs
+```
 
-交付前又把 7 篇引用的 21 个 upstream test files 作为一个 combined keyless regression 运行，结果为 603/603 passed。表中的数字仍保留每篇最小 probe 的证据范围，combined run 不是完整 upstream suite。
+2026-09-29 在 macOS arm64、Node 26.7.0 上执行 `node --test` 完整探针，**3 tests passed**。第一次编写 probe 时两项断言因误读新版字段而失败；按固定源码将工具结果关联改为 `message.toolCallId`、展开 stream 改为读取 `{ time, chunk }` 后通过。这是探针校正，不是 DSH bug 修复。它没有运行上游完整测试，也没有真实模型结论。
 
-完成上述 Cordis lab 后，按表格顺序从 runtime 组装与 Agent 输入走到持久化、并发编排和外部协议。
+同版本已有的独立证据由原目录持有，本次笔记编辑不重复模型调用：
 
-## 内容边界
+- [runtime supervisor 执行记录](../docs/reviews/2026-09-28-execution.md)：公开 profile initialize/close 与一次 prompt，仅支持对应正常路径。
+- [protocol 执行记录](../docs/reviews/2026-09-29-web-protocol-migration.md)：SDK receipt-to-idle、ACP close/list/第二进程 resume 与无工具 nonce 回忆；fake/keyless 与真实范围分开。
+- [storage 执行记录](../docs/reviews/2026-09-29-recovery-storage.md)：synthetic V1/V3 到 V4、source hash、reopen 和拒绝路径；不证明 Agent 或业务任务恢复。
 
-- 面向使用者的步骤留在 [`tutorials/`](../tutorials/README.md)。
-- 单一语义与 protocol transcript 实验留在 [`labs/`](../labs/README.md)。
-- 可恢复应用与 browser acceptance 留在 [`projects/`](../projects/README.md)。
-- 本目录保存 source fact、runtime observation 与可以被后续 revision 推翻的推断，不复制 upstream 核心源码。
-- 一篇 focused probe 只证明列出的路径；它不替代上游完整 suite、真实 provider、平台矩阵或生产安全审计。
+所有源码链接固定完整 revision。在任意 upstream checkout 中可只读核对，无须切换当前分支：
 
-新版持久化机制的可执行补充见 [Session V1/V3 → V4 lab](../labs/session-format-migration/README.md)。该实验固定 `0.1.7-rc.2`；本目录七篇正文仍保持上述旧 revision，不能把新实验当作所有文章均已更新。
+```sh
+git rev-parse 'dsh-v0.1.7-rc.2^{commit}'
+git describe --tags --always dsh-v0.1.7-rc.2
+git show dsh-v0.1.7-rc.2:docs/architecture.md
+```
+
+预期分别为上述 SHA、`dsh-v0.1.7-rc.2` 与该版本架构。每篇另列实际入口或最小 git-show 命令；这是源码复核，不能伪称 runtime test。
+
+## 历史结果
+
+2026-08-31 的 `dsh-v0.1.1-rc.2` / `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e` 曾运行七组 focused probes，并将 21 个 test files 合并验证为 **603/603 passed**。原命令、结果和局限保留在[历史 probes](historical-2026-08-31.md)。它们没有在新版重新执行，尤其旧 worker-thread 与 Web carrier 测试不能证明新版 PTC/Remote 行为。
+
+## 内容归属
+
+教程步骤放在 [tutorials](../tutorials/README.md)，完整业务作品放在 [projects](../projects/README.md)，单一机制实验放在 [labs](../labs/README.md)。本目录保存版本明确的机制说明和最小诊断 probes，不复制 upstream 实现。源码事实与运行观察允许未来版本推翻；业务正确性、生产安全与平台覆盖需要各自的验收。

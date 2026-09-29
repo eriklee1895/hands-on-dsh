@@ -8,7 +8,7 @@
 
 ## 当前进度
 
-当前已升级的 Python SDK、FastAPI 与可恢复服务固定 `0.1.5rc1`；TypeScript SDK、协议和存储实验固定 npm `0.1.7-rc.2`。Cordis/AG-UI/核心笔记仍为 `0.1.1-rc.2`，尚未整体升版。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；最新结果见[第四批验收](docs/reviews/2026-09-29-recovery-storage.md)，先前结果保留在各批记录中。
+当前已升级的 Python SDK、FastAPI 与可恢复服务固定 `0.1.5rc1`；TypeScript SDK、协议和存储实验固定 npm `0.1.7-rc.2`。Cordis 与 AG-UI 已迁移到同一 npm 版本，七篇机制笔记也按该 tag 审查；文章中没有重跑的执行链单独标明。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；最新结果见[第五批验收](docs/reviews/2026-09-29-plugin-agui-internals.md)，先前结果保留在各批记录中。
 
 ### ✅ Python SDK：由浅入深
 
@@ -54,17 +54,17 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 
 ### ✅ Cordis 与 DSH Plugin：原创生命周期与工具实验
 
-[`labs/cordis-plugin-lifecycle/`](labs/cordis-plugin-lifecycle/README.md) 完整实跑官方七章但不复制其源码，并实现原创 proof journal package：Service/inject/reactivation、typed events/waterfall、ordered effect cleanup、stable-ID HMR/PENDING、`write_stage4_proof` tool 和 live/durable listener。package 暴露稳定 `./tool`、`./listener` subpath，当前 25 个 keyless tests、plain-Node packed consumer 和 authoritative 真实 DeepSeek tool call 均已通过；root tool call、独立 live observer 和 durable result 均恰好一次且 call ID/content 一致，外部核对 27 字节 artifact、audit、idle 与正常进程退出。
+[`labs/cordis-plugin-lifecycle/`](labs/cordis-plugin-lifecycle/README.md) 的原创 package 已升级到 `0.1.7-rc.2` / Cordis `4.0.4`：Service/inject、typed events/waterfall、effect cleanup、HMR/PENDING、proof tool 和 live/durable listener 保持可运行，新增 preset composition probe。稳定 `./tool`、`./listener` subpath 继续供毕业项目消费；26 个 keyless tests、packed consumer 与真实 27 字节 proof/audit 验证通过。
 
 ### ✅ AG-UI / CopilotKit Full-stack：业务权威状态与 Runtime 恢复
 
-[`projects/ag-ui-dsh-runtime/`](projects/ag-ui-dsh-runtime/README.md) 是 TypeScript full-stack 毕业项目：Fastify 显式拥有 DSH source runtime，SQLite 持有 Conversation / Run / RunEvent / Artifact，React + CopilotKit 通过 AG-UI 显示对话、工具和持久 Run Inspector。项目提交 117 个 keyless tests，并通过 production build、foreign-cwd adapter smoke、桌面/375px 浏览器与 Axe 零违规验收。
+[`projects/ag-ui-dsh-runtime/`](projects/ag-ui-dsh-runtime/README.md) 通过公开 npm dsh profile/patch 启动 runtime，SQLite 持有业务 Conversation / Run / RunEvent / Artifact，React/CopilotKit 显示已提交消息、工具和持久 Run Inspector。V4 tool/result、package 模式和 generation lifecycle 已迁移。
 
-真实 rc.2 gate 发现 stock SDK JSON-RPC server 不会跨进程 resume 已有 JSONL session。项目保留 upstream clean，以 generation-local deployment adapter 复用官方 server 并把持久 identity 路由到官方 `agents.resume()`。最终两个 Conversation、四个真实 Run 均得到恰好一次 tool/result 与 exact Artifact；runtime generation 1→2 后同一 DSH session 的 JSONL turn 连续为 `[1,2,3]`，模型准确回忆 `ONYX-842`；AG-UI fetch 分离后 business cursor 仍到达 terminal，最终 server/runtime 与 generation 目录全部回收。
+跨 generation 恢复仍由项目的 deployment adapter 调用官方 `agents.resume()`，不是 stock SDK 的新增 RPC。当前两 Conversation、工具/产物、重启回读、detach/business cursor、桌面/375px UI 和 review 结果见[第五批验收](docs/reviews/2026-09-29-plugin-agui-internals.md)。
 
 ### ✅ How DSH Works：固定 revision 的核心机制追踪
 
-[`how-dsh-works/`](how-dsh-works/README.md) 提供 7 篇按调用链排列的中文机制笔记：plugin tree/runtime 组装、Agent Inbox/AgentLoop、Turn/Step/tool pipeline、SessionEvent persistence/projection、compaction/context assembly、subagent/workflow，以及 SDK JSON-RPC/ACP/Web Host。全部固定到 `dsh-v0.1.1-rc.2` 的完整 commit，区分源码事实、运行观察、推断、建议和未确认边界；每篇包含一个经过 Mermaid parser 验证的图与实际运行的 keyless focused probe，交付前 combined regression 覆盖 21 个 upstream test files / 603 tests。
+[`how-dsh-works/`](how-dsh-works/README.md) 的七篇中文机制笔记已按 `0.1.7-rc.2` 完整 SHA 逐条审查，覆盖 profile/preset、Agent/loop、V4 tool/session、context/compaction、subagent/workflow-ptc 和 SDK/ACP/Web Host。新增 3 个发布包 keyless probes，并引用直接相关的新版 lab 证据；完整 compaction/workflow-ptc/官方 Web Host 等执行链未重跑。旧版 603 tests 保存在独立历史页，不归入新版结果。
 
 ### ✅ Session V1 / V3 → V4：存储迁移实验
 
@@ -112,7 +112,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] 从最小 `apply(ctx)` plugin 开始，验证安装、配置、reload 与 teardown
 - [x] 通过 `cordis.yml` 组合 plugin，理解 profile、bundle 与运行时配置
 - [x] 扩展一个 DSH tool 和 result/session listener，并正确清理注册资源
-- [x] 阅读并实跑官方七章及目标 subsystem reference
+- [x] 历史官方七章学习；新版原创 lifecycle/preset 与 tool/listener 验证
 - [x] 完成自定义 DSH plugin 的 keyless、packed consumer 与真实模型端到端实验
 
 ### Phase 5 — TypeScript full-stack Agent 应用
@@ -125,7 +125,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] 断线恢复、背压、错误、execution-unknown 与优雅关闭
 - [x] 记录 loopback、danger-full-access、认证和多租户边界
 - [x] 通过 tracked `file:` dependency 消费 Cordis lab 的 `./tool` 与 `./listener`
-- [x] 固定 rc.2 进程重启后通过项目 adapter 恢复持久 DSH session
+- [x] 固定 `0.1.7-rc.2` 的公开 profile 与项目 adapter 跨 generation 恢复
 
 ### Phase 6 — DSH 内部机制与源码学习
 
@@ -237,8 +237,8 @@ corepack pnpm build
 corepack pnpm server:fake
 corepack pnpm dev:web
 
-# 真实 source runtime 先对 disposable rc.2 checkout 生成 attestation，
-# 再通过显式 --runtime source / --source-root 启动；详见项目 README。
+# 真实发布包模式需要本地 .env 与独立 state root，详见项目 README。
+# 具体 node --env-file 启动命令见项目 README。
 ```
 
 ## 验证
@@ -289,6 +289,6 @@ corepack pnpm smoke:server
 
 ## 安全说明
 
-DSH 工具和 plugin 可能使用本地文件与进程权限。文件与命令示例只应针对可丢弃 workspace、容器或明确配置的 DSH sandbox 运行。TypeScript 教程固定使用的 minimal composition 是 `danger-full-access`；Cordis 真实 gate 即使移除 Bash/editor，custom plugin 与 runtime 仍拥有 host authority。disposable workspace 是任务目标目录，不是安全隔离边界。AG-UI 项目是无认证、单用户、loopback-only 的开发集成；其 resume adapter 是固定 rc.2 的项目部署补丁，不代表 stock DSH SDK JSON-RPC 已支持跨进程恢复。
+DSH 工具和 plugin 可能使用本地文件与进程权限。文件与命令示例只应针对可丢弃 workspace、容器或明确配置的 DSH sandbox 运行。TypeScript 教程固定使用的 minimal composition 是 `danger-full-access`；Cordis 真实 gate 即使移除 Bash/editor，custom plugin 与 runtime 仍拥有 host authority。disposable workspace 是任务目标目录，不是安全隔离边界。AG-UI 项目是无认证、单用户、loopback-only 的开发集成；其 resume adapter 是固定 `0.1.7-rc.2` 的项目部署适配器，不代表 stock DSH SDK JSON-RPC 已支持跨进程恢复。
 
-本仓库不复制 DSH 核心源码。Python 教程使用已发布 SDK 与 bundled runtime；TypeScript 入门使用同版本 npm dsh 的公开 profile。尚未迁移的 full-stack 项目仍显式启动固定旧 revision 的 source runtime。机制学习通过固定 commit 链接到 [DeepSeek Harness 官方仓库](https://github.com/deepseek-ai/deepseek-harness)。
+本仓库不复制 DSH 核心源码。Python 教程使用已发布 SDK 与 bundled runtime；TypeScript 入门使用同版本 npm dsh 的公开 profile。full-stack 项目通过同版本公开 profile/patch 加载编译后的项目插件。机制学习通过固定 commit 链接到 [DeepSeek Harness 官方仓库](https://github.com/deepseek-ai/deepseek-harness)。

@@ -17,9 +17,9 @@ afterEach(async () => {
 });
 
 describe("server options", () => {
-  test("requires an explicit fake or source runtime and keeps the host on loopback", () => {
-    expect(() => parseServerOptions([], {})).toThrow(/--runtime fake\|source is required/);
-    expect(() => parseServerOptions(["--runtime", "other"], {})).toThrow(/fake\|source/);
+  test("requires an explicit fake or package runtime and keeps the host on loopback", () => {
+    expect(() => parseServerOptions([], {})).toThrow(/--runtime fake\|package is required/);
+    expect(() => parseServerOptions(["--runtime", "other"], {})).toThrow(/fake\|package/);
     expect(() => parseServerOptions(["--runtime", "fake", "--host", "0.0.0.0"], {})).toThrow(
       /loopback/,
     );
@@ -31,17 +31,13 @@ describe("server options", () => {
       port: 0,
       fakeDelayMs: 25,
     });
-    expect(() => parseServerOptions(["--runtime", "source"], {})).toThrow(
-      /source-root|DSH_SOURCE_ROOT/i,
-    );
+    expect(parseServerOptions(["--runtime", "package", "--serve-web"], {})).toMatchObject({
+      runtime: "package",
+      serveWeb: true,
+    });
     expect(() =>
-      parseServerOptions(["--runtime", "source", "--source-root", "relative/dsh"], {}),
-    ).toThrow(/absolute/);
-    expect(
-      parseServerOptions(["--runtime", "source", "--serve-web"], {
-        DSH_SOURCE_ROOT: "/disposable/dsh",
-      }),
-    ).toMatchObject({ runtime: "source", sourceRoot: "/disposable/dsh", serveWeb: true });
+      parseServerOptions(["--runtime", "package", "--source-root", "/disposable/dsh"], {}),
+    ).toThrow(/unknown argument/);
   });
 });
 
@@ -141,28 +137,25 @@ describe("owned fake server", () => {
     await server.close();
   });
 
-  test("source mode delegates only to the explicit trusted source-runtime factory", async () => {
-    const stateRoot = await mkdtemp(join(tmpdir(), "agui-source-entry-"));
+  test("package mode delegates only to the explicit trusted package-runtime factory", async () => {
+    const stateRoot = await mkdtemp(join(tmpdir(), "agui-package-entry-"));
     roots.push(stateRoot);
     const workspace = join(stateRoot, "workspace");
     await mkdir(workspace, { mode: 0o700 });
     const factory = vi.fn(async () => new FakeDshRuntime(workspace));
     const server = await createApplicationServer(
       {
-        runtime: "source",
+        runtime: "package",
         host: "127.0.0.1",
         port: 0,
         fakeDelayMs: 0,
         serveWeb: false,
         stateRoot,
-        sourceRoot: "/disposable/dsh",
       },
-      { testOnlySourceRuntimeFactory: factory },
+      { testOnlyPackageRuntimeFactory: factory },
     );
 
-    expect(factory).toHaveBeenCalledWith(
-      expect.objectContaining({ sourceRoot: "/disposable/dsh", appStateRoot: stateRoot }),
-    );
+    expect(factory).toHaveBeenCalledWith(expect.objectContaining({ appStateRoot: stateRoot }));
     expect(server.runtime).toBeInstanceOf(FakeDshRuntime);
     await server.close();
     await expect(access(stateRoot)).resolves.toBeUndefined();

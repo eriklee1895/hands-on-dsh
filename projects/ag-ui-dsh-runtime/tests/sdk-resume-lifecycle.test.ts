@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Context } from "@deepseek-ai/cordis";
@@ -11,7 +11,8 @@ import LlmRuntime, {
   type LlmResolvedModelInfo,
   type StreamChunk,
 } from "@deepseek-ai/dsh-llm";
-import SessionStore, { SessionId } from "@deepseek-ai/dsh-session";
+import SessionProjections from "@deepseek-ai/dsh-session-projection";
+import SessionStore, { SessionId, SESSION_FORMAT_VERSION } from "@deepseek-ai/dsh-session";
 import JsonlSessionPersistence from "@deepseek-ai/dsh-session-persistence-jsonl";
 import SystemPrompt from "@deepseek-ai/dsh-system-prompt";
 import ToolRuntime from "@deepseek-ai/dsh-tools";
@@ -57,12 +58,13 @@ async function mount(root: string, adapter: ScriptedAdapter): Promise<Context> {
   const ctx = new Context();
   await ctx.plugin(LlmRuntime);
   await ctx.plugin(SessionStore);
+  await ctx.plugin(SessionProjections);
   await ctx.plugin(SystemPrompt);
   await ctx.plugin(ToolRuntime);
   await ctx.plugin(AgentRegistry);
   await ctx.plugin(AgentLoop, { agents: [] });
   await ctx.plugin(JsonlSessionPersistence, { root, compression: "none" });
-  ctx.llm.registerAdapter(["mock"], adapter);
+  ctx.effect(() => ctx.llm.registerAdapter(["mock"], adapter));
   return ctx;
 }
 
@@ -81,6 +83,17 @@ function userMessage(text: string) {
     content: [{ type: "text", text }],
     source: { kind: "user" },
   });
+}
+
+async function onlyCurrentLogPath(root: string): Promise<string> {
+  const entries = await readdir(root, { recursive: true, withFileTypes: true });
+  const logs = entries.filter(
+    (entry) => entry.isFile() && entry.name === `session.v${SESSION_FORMAT_VERSION}.jsonl`,
+  );
+  expect(logs).toHaveLength(1);
+  const log = logs[0];
+  if (log === undefined) throw new Error("current JSONL generation is required");
+  return join(log.parentPath, log.name);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -106,13 +119,11 @@ test("adapter resumes one JSONL session across Context lifecycles and appends tu
   firstHandle.agent.followup(userMessage("old question"));
   await firstIdle;
   await first.sessions.flush(firstHandle.agent.session);
-  const location = first.sessionPersistence.locate(firstHandle.agent.session.header);
-  if (location === undefined) throw new Error("JSONL location is required");
-  const firstBytes = await readFile(location.path, "utf8");
-  expect(firstHandle.agent.session.deriveMessages()).toMatchObject([
-    { role: "user" },
-    { role: "assistant" },
-  ]);
+  const logPath = await onlyCurrentLogPath(storageRoot);
+  const firstBytes = await readFile(logPath, "utf8");
+  expect(
+    firstHandle.agent.session.deriveMessages().filter((message) => message.role !== "system"),
+  ).toMatchObject([{ role: "user" }, { role: "assistant" }]);
   await firstHandle.dispose();
   await first.fiber.dispose();
 
@@ -124,19 +135,21 @@ test("adapter resumes one JSONL session across Context lifecycles and appends tu
     meta: { cwd: canonicalWorkspace },
     agentOptions: { provider: "mock", model: "mock" },
   });
-  expect(secondHandle.agent.session.deriveMessages()).toMatchObject([
-    { role: "user" },
-    { role: "assistant" },
-  ]);
+  expect(
+    secondHandle.agent.session.deriveMessages().filter((message) => message.role !== "system"),
+  ).toMatchObject([{ role: "user" }, { role: "assistant" }]);
   const secondIdle = waitForIdle(second, secondHandle.agent);
   secondHandle.agent.followup(userMessage("new question"));
   await secondIdle;
   await second.sessions.flush(secondHandle.agent.session);
 
-  const messages = secondHandle.agent.session.deriveMessages();
+  const messages = secondHandle.agent.session
+    .deriveMessages()
+    .filter((message) => message.role !== "system");
   expect(messages).toHaveLength(4);
   expect(
-    secondHandle.agent.session.events
+    secondHandle.agent.session
+      .snapshotEvents()
       .filter((event) => event.type === "turn/start")
       .map((event) => (event.data as { turn: number }).turn),
   ).toEqual([1, 2]);
@@ -144,7 +157,7 @@ test("adapter resumes one JSONL session across Context lifecycles and appends tu
   expect(JSON.stringify(secondAdapter.requests[0]?.messages)).toContain("old answer");
   expect(JSON.stringify(secondAdapter.requests[0]?.messages)).toContain("new question");
 
-  const secondBytes = await readFile(location.path, "utf8");
+  const secondBytes = await readFile(logPath, "utf8");
   expect(secondBytes.length).toBeGreaterThan(firstBytes.length);
   const records = secondBytes
     .trim()
@@ -154,12 +167,12 @@ test("adapter resumes one JSONL session across Context lifecycles and appends tu
     (record): record is Record<string, unknown> =>
       isRecord(record) &&
       record["id"] === sessionId &&
-      record["version"] === 0 &&
+      record["version"] === SESSION_FORMAT_VERSION &&
       record["cwd"] === canonicalWorkspace,
   );
   expect(headers).toHaveLength(1);
   expect(
-    (await second.sessionPersistence.list()).filter((item) => item.id === sessionId),
+    (await second.sessionPersistence.list()).filter((item) => item.header.id === sessionId),
   ).toHaveLength(1);
 
   await secondHandle.dispose();
@@ -183,17 +196,18 @@ test("a corrupt persisted log rejects resume without falling back to create", as
   firstHandle.agent.followup(userMessage("old question"));
   await idle;
   await first.sessions.flush(firstHandle.agent.session);
-  const location = first.sessionPersistence.locate(firstHandle.agent.session.header);
-  if (location === undefined) throw new Error("JSONL location is required");
+  const logPath = await onlyCurrentLogPath(storageRoot);
   await firstHandle.dispose();
   await first.fiber.dispose();
-  const durable = await readFile(location.path, "utf8");
+  const durable = await readFile(logPath, "utf8");
   const corrupted = durable.replace('"surfaceOp":"append"', '"surfaceOp":"invalid"');
   if (corrupted === durable) throw new Error("fixture has no committed surface event");
-  await writeFile(location.path, corrupted);
+  await writeFile(logPath, corrupted);
 
   const second = await mount(storageRoot, new ScriptedAdapter([textResponse("unused")]));
-  expect((await second.sessionPersistence.list()).map((item) => item.id)).toContain(sessionId);
+  expect((await second.sessionPersistence.list()).map((item) => item.header.id)).toContain(
+    sessionId,
+  );
   const create = vi.spyOn(second.agents, "create");
   let failure: unknown;
   try {

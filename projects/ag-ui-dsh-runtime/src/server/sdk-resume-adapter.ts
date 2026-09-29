@@ -1,5 +1,5 @@
 /**
- * Deployment adapter for `dsh-v0.1.1-rc.2` (`b150a551`). That release's
+ * Deployment adapter for `dsh-v0.1.7-rc.2` (`477b4f4`). That release's
  * SDK JSON-RPC server always routes a first prompt through `ctx.agents.create()`;
  * this wrapper changes only that call when the exact session is already durable.
  */
@@ -33,18 +33,15 @@ function bindMethods<T extends object>(target: T, override?: Map<PropertyKey, un
   });
 }
 
-/** Build the exact Context facade passed to the official rc.2 server. */
+/** Build the Context facade passed to the fixed-release official SDK server. */
 export function createResumeAwareContext(ctx: Context): Context {
   const agents = ctx.agents;
   const persistence: SessionPersistence = ctx.sessionPersistence;
   const create = async (options: CreateAgentOptions) => {
-    const headers = await persistence.list(options.signal);
-    const matching = headers.filter((header) => header.id === options.sessionId);
-    if (matching.length === 0) return agents.create(options);
-    if (matching.length !== 1)
-      throw new Error(`persisted session "${options.sessionId}" has duplicate headers`);
+    const snapshot = await persistence.stat(options.sessionId, { signal: options.signal });
+    if (snapshot === undefined) return agents.create(options);
     const requestedCwd = options.meta?.cwd;
-    const persistedCwd = matching[0]?.cwd;
+    const persistedCwd = snapshot.header.cwd;
     if (requestedCwd === undefined || persistedCwd === undefined)
       throw new Error(
         `persisted cwd does not match requested cwd for session "${options.sessionId}"`,
@@ -68,7 +65,7 @@ export function createResumeAwareContext(ctx: Context): Context {
   return bindMethods(ctx, new Map([["agents", proxiedAgents]]));
 }
 
-/** Delegate the complete wire server to rc.2 with only resume-aware creation. */
+/** Delegate the wire server with only resume-aware creation changed. */
 export function apply(ctx: Context, config: Config): void {
   applyOfficial(createResumeAwareContext(ctx), config);
 }
