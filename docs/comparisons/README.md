@@ -7,6 +7,8 @@
 - [SDK JSON-RPC 与 ACP](sdk-jsonrpc-vs-acp.md)：方法、事件、控制、错误、打包与适用场景
 - [Python SDK 与 TypeScript SDK](python-vs-typescript-sdk.md)：发布包、runtime 启动、流式通知、生命周期与选型
 
+- [业务恢复、会话恢复与格式迁移](recovery-and-session-migration.md)：SQLite、ACP resume 与不可变 Session generation 各自保证什么
+
 计划中的主题：
 
 - DSH session events 与 AG-UI events

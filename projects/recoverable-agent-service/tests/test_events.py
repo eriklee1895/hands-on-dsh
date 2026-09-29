@@ -21,8 +21,8 @@ def test_projection_keeps_root_text_and_filters_descendant_reasoning_and_unknown
         payload={
             "sessionId": "root",
             "event": {
-                "type": "assistant/chunk",
-                "data": {"chunk": {"type": "text-delta", "text": "hello"}},
+                "type": "assistant/message",
+                "data": {"message": {"content": [{"type": "text", "text": "hello"}]}},
             },
         },
     )
@@ -31,8 +31,8 @@ def test_projection_keeps_root_text_and_filters_descendant_reasoning_and_unknown
         payload={
             "sessionId": "child",
             "event": {
-                "type": "assistant/chunk",
-                "data": {"chunk": {"type": "text-delta", "text": "private child text"}},
+                "type": "assistant/message",
+                "data": {"message": {"content": [{"type": "text", "text": "private child text"}]}},
             },
         },
     )
@@ -49,7 +49,7 @@ def test_projection_keeps_root_text_and_filters_descendant_reasoning_and_unknown
     unknown = Notification(method="future.notification", payload={"value": "ignore me"})
 
     assert events.project_notification(root_text, "root") == events.RuntimeEvent(
-        type="text_delta",
+        type="assistant_message",
         data={"session_id": "root", "text": "hello"},
     )
     assert events.project_notification(child_text, "root") is None

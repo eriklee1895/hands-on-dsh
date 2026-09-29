@@ -37,7 +37,7 @@ from .store import SQLiteStore
 
 DEFAULT_DATABASE_PATH = ".data/service.db"
 DEFAULT_WORKSPACE_PATH = "workspace"
-DEFAULT_SESSION_ROOT = ".sessions"
+DEFAULT_DSH_HOME = ".dsh-recoverable-home"
 DEFAULT_PROVIDER = "deepseek-official"
 DEFAULT_MODEL = "deepseek-v4-flash"
 DEFAULT_HEARTBEAT_SECONDS = 15.0
@@ -49,7 +49,7 @@ def create_app(
     coordinator: RunCoordinator | Any | None = None,
     database_path: str | Path | None = None,
     workspace: str | Path | None = None,
-    session_root: str | Path | None = None,
+    dsh_home: str | Path | None = None,
     provider: str | None = None,
     model: str | None = None,
     heartbeat_interval: float = DEFAULT_HEARTBEAT_SECONDS,
@@ -64,7 +64,7 @@ def create_app(
     if coordinator is None:
         adapter = DSHRuntimeAdapter(
             workspace_path,
-            session_root or os.environ.get("RECOVERABLE_AGENT_SESSION_ROOT", DEFAULT_SESSION_ROOT),
+            dsh_home or os.environ.get("RECOVERABLE_AGENT_DSH_HOME", DEFAULT_DSH_HOME),
             provider=provider or os.environ.get("DSH_PROVIDER", DEFAULT_PROVIDER),
             model=model or os.environ.get("DSH_MODEL", DEFAULT_MODEL),
         )

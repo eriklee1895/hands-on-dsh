@@ -24,9 +24,13 @@
 - [x] TypeScript：入门已迁移到 `0.1.7-rc.2`，公开 profile/home/patch 启动、committed-message 投影与四例验证；同上记录。
 - [x] 协议与 FastAPI：公开 profiles、SSE 已提交消息投影与 ACP 持久会话控制，见[第三批验收](../reviews/2026-09-29-web-protocol-migration.md)。
 - [ ] 真正的实时 token transport：另行选择并验证，当前 SDK/ACP 教程不提供。
-- [ ] Session V4：历史日志复制、相邻迁移、不可覆盖旧 generation、恢复后的业务 reconciliation。
+- [x] Session V4 基础实验：synthetic plaintext V1/V3 副本的只读迁移、写入 successor 与不可变 generation，见[第四批验收](../reviews/2026-09-29-recovery-storage.md)。
+- [ ] 更复杂历史数据：压缩历史日志、附件、子会话 catalog 和实际版本采集样例；当前最小 fixture 不代表这些已覆盖。
+- [x] 可恢复服务升级：Python `0.1.5rc1`、旧事件原样重放、reconciliation/恢复确认和产物/幂等兼容，与 Session 格式分开验收。
 - [ ] Cordis/preset：公开 profile patch、plugin package 安装与 effect teardown。
 - [ ] AG-UI：重新审计 resume adapter、流式 projector、跨 generation 与浏览器重连。
 - [ ] 核心机制：逐篇重跑新版 probes，替换已变化的事实；旧证据保留日期。
+
+先读[业务恢复、会话恢复与格式迁移](../comparisons/recovery-and-session-migration.md)，避免把底层可读或 resume 成功当成业务执行成功。
 
 每次只把实际验收的单元标为完成。[执行记录](../reviews/2026-09-28-execution.md)保存本批结果与明确的后续起点。

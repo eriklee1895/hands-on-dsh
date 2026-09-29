@@ -752,6 +752,56 @@ def test_acknowledgement_rotates_session_and_keeps_historical_run_snapshot(tmp_p
     assert repository.get_run(historical.id).dsh_session_id == conversation.dsh_session_id
 
 
+def test_reopen_v1_database_preserves_legacy_delta_artifact_and_idempotency(
+    tmp_path: Path,
+) -> None:
+    import hashlib
+
+    database_path = tmp_path / "legacy.db"
+    repository, module = make_store(database_path)
+    conversation = repository.create_conversation()
+    run = repository.submit_run(conversation.id, "legacy-key", "legacy prompt", ["proof.txt"]).run
+    repository.claim_oldest_run()
+    repository.append_event(run.id, "text_delta", {"text": "old committed words"})
+    proof = b"legacy immutable proof"
+    repository.complete_run_success(
+        run.id,
+        final_response="old committed words",
+        finish_reason="completed",
+        artifacts=[
+            module.ArtifactUpdate(
+                requested_name="proof.txt",
+                state="available",
+                content=proof,
+                media_type="text/plain",
+            )
+        ],
+    )
+    before = [(event.seq, event.type, event.data) for event in repository.list_events(run.id)]
+    with sqlite3.connect(database_path) as connection:
+        raw_before = connection.execute(
+            "SELECT seq, type, data_json FROM run_events WHERE run_id = ? ORDER BY seq", (run.id,)
+        ).fetchall()
+
+    reopened = module.SQLiteStore(database_path)
+    reopened.migrate()
+    replay = [(event.seq, event.type, event.data) for event in reopened.list_events(run.id)]
+    assert replay == before
+    assert (3, "text_delta", {"text": "old committed words"}) in replay
+    artifact = reopened.list_artifacts(run.id)[0]
+    assert artifact.content == proof
+    assert artifact.sha256 == hashlib.sha256(proof).hexdigest()
+    repeated = reopened.submit_run(conversation.id, "legacy-key", "legacy prompt", ["proof.txt"])
+    assert repeated.created is False
+    assert repeated.run.id == run.id
+    with sqlite3.connect(database_path) as connection:
+        assert connection.execute("SELECT version FROM schema_migrations").fetchall() == [(1,)]
+        raw_after = connection.execute(
+            "SELECT seq, type, data_json FROM run_events WHERE run_id = ? ORDER BY seq", (run.id,)
+        ).fetchall()
+    assert raw_after == raw_before
+
+
 def test_concurrent_same_key_submissions_create_one_run_and_one_queued_event(
     tmp_path: Path,
 ) -> None:

@@ -82,16 +82,20 @@ def project_notification(notification: Notification, root_session_id: str) -> Ru
     if not isinstance(event_type, str) or not isinstance(data, dict):
         return None
 
-    if event_type == "assistant/chunk":
+    if event_type == "assistant/message":
         if session_id != root_session_id:
             return None
-        chunk = data.get("chunk")
-        if not isinstance(chunk, dict) or chunk.get("type") != "text-delta":
+        message = data.get("message")
+        content_owner = message if isinstance(message, dict) else data
+        content = content_owner.get("content")
+        if not isinstance(content, list):
             return None
-        text = chunk.get("text")
-        if not isinstance(text, str):
-            return None
-        return RuntimeEvent(type="text_delta", data={"session_id": session_id, "text": text})
+        text = "".join(
+            str(block.get("text") or "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+        return RuntimeEvent(type="assistant_message", data={"session_id": session_id, "text": text})
 
     if event_type == "tool/call":
         call_id = data.get("callId")

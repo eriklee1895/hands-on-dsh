@@ -41,3 +41,5 @@ DSH 以 Cordis 组装 plugin tree。阅读 AgentLoop 或 Session 等内部机制
 - 可恢复应用与 browser acceptance 留在 [`projects/`](../projects/README.md)。
 - 本目录保存 source fact、runtime observation 与可以被后续 revision 推翻的推断，不复制 upstream 核心源码。
 - 一篇 focused probe 只证明列出的路径；它不替代上游完整 suite、真实 provider、平台矩阵或生产安全审计。
+
+新版持久化机制的可执行补充见 [Session V1/V3 → V4 lab](../labs/session-format-migration/README.md)。该实验固定 `0.1.7-rc.2`；本目录七篇正文仍保持上述旧 revision，不能把新实验当作所有文章均已更新。

@@ -4,6 +4,8 @@
 
 已完成：
 
+- [session-format-migration](session-format-migration/README.md)：发布版 backend 的 synthetic V1/V3 → V4、只读/写入区别与不可变 generation。
+
 - [runtime-supervision](runtime-supervision/README.md)：基于新版公开 SDK 的单 runtime 所有权、超时、隔离与显式重建。
 - [protocol-semantics](protocol-semantics/README.md)：固定 npm `0.1.7-rc.2` 的 SDK/ACP profiles、JSONL、committed output、cancel/permission、持久 session list/resume/close 与进程生命周期
 - [cordis-plugin-lifecycle](cordis-plugin-lifecycle/README.md)：原创 proof journal、Cordis lifecycle/HMR/PENDING、可复用 DSH tool/listener 与真实模型调用

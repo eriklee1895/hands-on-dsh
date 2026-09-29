@@ -21,7 +21,7 @@ def test_project_declares_the_approved_python_toolchain() -> None:
 
     project = config["project"]
     assert project["requires-python"] == ">=3.10"
-    assert "deepseek-harness-sdk==0.1.1rc1" in project["dependencies"]
+    assert "deepseek-harness-sdk==0.1.5rc1" in project["dependencies"]
     assert any(dependency.startswith("fastapi") for dependency in project["dependencies"])
     assert any(dependency.startswith("uvicorn[standard]") for dependency in project["dependencies"])
     assert config["build-system"]["build-backend"] == "hatchling.build"

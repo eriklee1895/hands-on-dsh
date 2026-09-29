@@ -1,10 +1,10 @@
 # Recoverable Agent Service
 
-> 版本提示（2026-09-28）：本文及已有验收记录基于 `0.1.1rc1`。新版启动与事件接口已有变化；升级前先读[迁移审查](../../docs/reviews/2026-09-28-upstream-refresh.md)，不要直接替换版本号。
+> 已验收版本（2026-09-29）：PyPI `deepseek-harness-sdk==0.1.5rc1` 与匹配的 runtime wheel；对应上游 [`dsh-v0.1.5-rc.1`](https://github.com/deepseek-ai/deepseek-harness/tree/183f08e9c6dde7e36cd2318eaee70b0da08fb35e)。
 
 这是一个可直接运行的 Python 3.10+ FastAPI 学习项目。它演示怎样把 DSH 用作 Agent runtime，同时由应用自己的 SQLite 数据库持有权威业务状态。项目没有浏览器 UI；调用方通过 JSON HTTP API、SSE 和不可变产物下载接口完成整个流程。
 
-项目锁定 `deepseek-harness-sdk==0.1.1rc1`，对应 DSH upstream tag `dsh-v0.1.1-rc.1` 和 commit `528c682e061696f5a160f363f236ecbf53cbd006`。
+项目精确锁定 `deepseek-harness-sdk==0.1.5rc1`，安装时带入同版本 `deepseek-harness-runtime-bin`。adapter 通过公开的 `sdk-minimal` profile 和独立 Harness home 启动 runtime；运行不依赖单独安装 Node.js。
 
 ## 架构
 
@@ -31,7 +31,7 @@ flowchart LR
 
 新 Run 先以 `queued` 持久化，再由单 worker 条件领取为 `running`。只有正常返回且 `finish_reason == "completed"` 才进入 `succeeded`。调用 `Session.run()` 前的启动错误记为 `runtime_unavailable`；调用开始后的异常无法证明 prompt 未被接受，因此记为 `execution_uncertain`，并把 Conversation 置为 `attention_required`。
 
-服务重启时，历史 `running` Run 会保守地失败为 `execution_uncertain`，不会自动重跑。调用恢复确认接口后，Conversation 回到 `active` 并获得全新的 DSH session ID；旧 Run 保留原 session 快照。这个动作不重试旧 Run，也不声称外部工具副作用安全。
+服务重启时，历史 `running` Run 会保守地失败为 `execution_uncertain`，不会自动重跑。调用恢复确认接口后，Conversation 回到 `active` 并获得全新的 DSH session ID；旧 Run 保留原 session 快照。这个动作不重试旧 Run，也不声称外部工具副作用安全或 stock Python SDK 提供跨进程会话恢复。SDK 构造、启动、运行和关闭使用独立执行线程；等待方取消后先让已经提交的线程工作结算。回收失败时 adapter 禁止复用该 harness。
 
 ## 安装与启动
 
@@ -49,7 +49,7 @@ uv run python -m recoverable_agent_service
 | --- | --- | --- |
 | `RECOVERABLE_AGENT_DATABASE` | `.data/service.db` | SQLite 数据库 |
 | `RECOVERABLE_AGENT_WORKSPACE` | `workspace` | DSH workspace 与产物 staging 根目录 |
-| `RECOVERABLE_AGENT_SESSION_ROOT` | `.sessions` | DSH session 持久目录 |
+| `RECOVERABLE_AGENT_DSH_HOME` | `.dsh-recoverable-home` | 独立 Harness home，保存 profile 与 DSH session 数据 |
 | `DSH_PROVIDER` | `deepseek-official` | DSH provider |
 | `DSH_MODEL` | `deepseek-v4-flash` | DSH model |
 | `DEEPSEEK_API_KEY` | 无 | 真实 provider 凭据，只从环境传入 |
@@ -94,11 +94,11 @@ curl -sS -X POST http://127.0.0.1:8000/api/conversations/CONVERSATION_ID/runs \
 
 ```text
 id: 3
-event: text_delta
-data: {"text":"hello"}
+event: assistant_message
+data: {"session_id":"session-example","text":"hello"}
 ```
 
-stream 会回放 `seq > Last-Event-ID`，在每次 notifier wake 或心跳后重新查询 SQLite，并在 `run.succeeded` 或 `run.failed` 后关闭。若游标已等于终态事件 seq，则返回空的正常 SSE 响应。断线后使用最后收到的 `id` 重连即可；notifier 不是重放存储。
+新运行的 `assistant_message` 是根会话已提交的完整文本，不是逐 token 增量。旧 SQLite 中已有的 `text_delta` RunEvent 保留原来的 seq、type 和 data，按原样重放；仅增加事件类型不会升级业务 schema。stream 会回放 `seq > Last-Event-ID`，在每次 notifier wake 或心跳后重新查询 SQLite，并在 `run.succeeded` 或 `run.failed` 后关闭。若游标已等于终态事件 seq，则返回空的正常 SSE 响应。断线后使用最后收到的 `id` 重连即可；notifier 不是重放存储。
 
 ## 产物安全
 
@@ -121,7 +121,9 @@ uv lock --check
 uv run --env-file ../../.env pytest -m e2e
 ```
 
-该测试通过完整 FastAPI lifespan 创建 Conversation 和 Run，让真实 Agent 在服务指定路径写入无换行 proof artifact，等待终态，然后核对下载字节、SHA-256 和 SSE 终态。没有 `DEEPSEEK_API_KEY` 时它会自跳过。
+该测试通过完整 FastAPI lifespan 创建 Conversation 和 Run，让真实 Agent 在服务指定路径写入无换行 proof artifact，等待终态，然后核对下载字节、SHA-256、幂等重放、SSE 游标重连及终态。测试还修改 workspace 中的原文件，再确认下载仍来自 SQLite 的不可变 BLOB。没有 `DEEPSEEK_API_KEY` 时它会自跳过。
+
+2026-09-29 实跑：139 个 keyless 测试通过；显式真实 E2E 1 个通过，artifact 精确字节和哈希、重连游标与幂等响应均由断言确认。外部 `ps` 父子进程检查在运行中观察到 6 个后代 PID，FastAPI lifespan 关闭后存活数为 0。这些结果只覆盖本次模型运行与本机环境，不代表任意历史 DSH session 可自动恢复。
 
 ## 生产限制
 

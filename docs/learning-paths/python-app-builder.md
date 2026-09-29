@@ -1,6 +1,6 @@
 # Python App Builder
 
-目标：学会通过 Python SDK 管理 DSH runtime，并构建 Web Agent。SDK 入门已采用 `0.1.5rc1`；FastAPI 本批迁移到同版本，SSE 输出已提交消息与状态/工具事件。可恢复服务仍固定 `0.1.1rc1`，它的升级要独立验证。状态见[SDK 记录](../reviews/2026-09-28-sdk-migration.md)与[Web/协议记录](../reviews/2026-09-29-web-protocol-migration.md)。
+目标：学会通过 Python SDK 管理 DSH runtime，并构建 Web Agent。SDK 入门已采用 `0.1.5rc1`；FastAPI 本批迁移到同版本，SSE 输出已提交消息与状态/工具事件。可恢复服务也已升级到 `0.1.5rc1`，旧数据库事件与产物兼容验证见[第四批记录](../reviews/2026-09-29-recovery-storage.md)。状态见[SDK 记录](../reviews/2026-09-28-sdk-migration.md)与[Web/协议记录](../reviews/2026-09-29-web-protocol-migration.md)。
 
 ## 1. Python SDK 基础
 
@@ -47,7 +47,9 @@
 
 本阶段的完成门槛是：无凭据测试、Ruff、lock 检查通过；显式真实 E2E 能创建 proof artifact、核对下载字节与哈希、观察 SSE 终态，并在 lifespan 退出后回收 runtime 进程。需要深入协议时再进入 `labs/`，需要理解 DSH 生命周期实现时进入 `how-dsh-works/`。
 
-### 阶段 1 验收记录（2026-08-31）
+新版采用公开 profile/home，并以已提交 assistant_message 作为新正文事件。旧 text_delta 按原始 seq/type/data 保留；业务恢复、ACP resume 与格式升级的区别见[对照说明](../comparisons/recovery-and-session-migration.md)。
+
+### 阶段 1 历史验收记录（2026-08-31，Python 0.1.1rc1）
 
 显式真实 DSH E2E 已实际运行，结果为 `1 passed in 9.68s`。完整 FastAPI lifespan 创建了 Conversation 和 Run，最终状态为 `succeeded`、`finish_reason=completed`；SQLite 持久化 134 条按 seq 排序的 RunEvents，末条为 `run.succeeded`，terminal SSE replay 正常结束。
 

@@ -44,6 +44,7 @@ class RunCoordinator:
         self._lifecycle_lock = asyncio.Lock()
         self._close_requested = asyncio.Event()
         self._worker: asyncio.Task[None] | None = None
+        self._shutdown_task: asyncio.Task[None] | None = None
         self._lifecycle_state = "new"
         self._accepting = False
         self._stopping = False
@@ -122,6 +123,16 @@ class RunCoordinator:
     async def close(self) -> None:
         """Stop admission, settle active uncancellable work, then close the adapter."""
         self._close_requested.set()
+        if self._lifecycle_state == "closed":
+            return
+        if self._shutdown_task is None or self._shutdown_task.done():
+            self._shutdown_task = asyncio.create_task(self._close_owned())
+            self._shutdown_task.add_done_callback(self._observe_shutdown)
+        await asyncio.wait({self._shutdown_task})
+        self._shutdown_task.result()
+
+    async def _close_owned(self) -> None:
+        """Own the shutdown independently of a caller's cancelled waiter."""
         async with self._lifecycle_lock:
             if self._lifecycle_state == "closed":
                 return
@@ -153,6 +164,11 @@ class RunCoordinator:
                 raise worker_error
             if cleanup_error is not None:
                 raise cleanup_error
+
+    @staticmethod
+    def _observe_shutdown(task: asyncio.Task[None]) -> None:
+        if not task.cancelled():
+            task.exception()
 
     async def _worker_loop(self) -> None:
         while True:
@@ -271,7 +287,7 @@ class RunCoordinator:
         self.notifier.publish(run_id)
 
     def _require_accepting(self) -> None:
-        if not self._accepting:
+        if not self._accepting or self._close_requested.is_set():
             raise CoordinatorClosedError("coordinator is not accepting new work")
 
     def _require_startable(self) -> None:

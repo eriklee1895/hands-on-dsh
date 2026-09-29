@@ -8,7 +8,7 @@
 
 ## 当前进度
 
-2026-09-28 分批更新：Python SDK 入门迁移到 `0.1.5rc1`，TypeScript SDK 入门迁移到 `0.1.7-rc.2`；当前验收见[SDK 迁移记录](docs/reviews/2026-09-28-sdk-migration.md)。2026-09-29 FastAPI 迁移到 `0.1.5rc1`、协议 lab 迁移到 `0.1.7-rc.2`，结果见[第三批验收](docs/reviews/2026-09-29-web-protocol-migration.md)。可恢复服务仍为 `0.1.1rc1`，Cordis/AG-UI/核心笔记仍为 `0.1.1-rc.2`，尚未整体升版。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；Phase 7.1 结果见[第一批记录](docs/reviews/2026-09-28-execution.md)。
+当前已升级的 Python SDK、FastAPI 与可恢复服务固定 `0.1.5rc1`；TypeScript SDK、协议和存储实验固定 npm `0.1.7-rc.2`。Cordis/AG-UI/核心笔记仍为 `0.1.1-rc.2`，尚未整体升版。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；最新结果见[第四批验收](docs/reviews/2026-09-29-recovery-storage.md)，先前结果保留在各批记录中。
 
 ### ✅ Python SDK：由浅入深
 
@@ -40,7 +40,7 @@
 
 ### ✅ Recoverable Agent Service：业务状态与断线恢复
 
-[`projects/recoverable-agent-service/`](projects/recoverable-agent-service/README.md) 是一个没有浏览器 UI 的完整 FastAPI 服务：SQLite 持有 Conversation、Run、RunEvent 和 Artifact 权威状态；单 worker 驱动 DSH；命名 SSE 支持持久游标重放；执行不确定性需要显式确认并旋转 session；产物通过不可变 SQLite BLOB 下载。项目提供 Python 3.10 keyless 测试和显式真实 DSH E2E。
+[`projects/recoverable-agent-service/`](projects/recoverable-agent-service/README.md) 是一个没有浏览器 UI 的完整 FastAPI 服务：SQLite 持有 Conversation、Run、RunEvent 和 Artifact 权威状态；单 worker 驱动 DSH；命名 SSE 支持持久游标重放；执行不确定性需要显式确认并旋转 session；产物通过不可变 SQLite BLOB 下载。项目已升级到 Python `0.1.5rc1` 的公开 profile/home，新增正文使用已提交消息，旧 SQLite 事件原样重放；提供 Python 3.10 keyless 测试和显式真实 DSH E2E。
 
 ### ✅ SDK JSON-RPC 与 ACP 协议语义
 
@@ -65,6 +65,10 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 ### ✅ How DSH Works：固定 revision 的核心机制追踪
 
 [`how-dsh-works/`](how-dsh-works/README.md) 提供 7 篇按调用链排列的中文机制笔记：plugin tree/runtime 组装、Agent Inbox/AgentLoop、Turn/Step/tool pipeline、SessionEvent persistence/projection、compaction/context assembly、subagent/workflow，以及 SDK JSON-RPC/ACP/Web Host。全部固定到 `dsh-v0.1.1-rc.2` 的完整 commit，区分源码事实、运行观察、推断、建议和未确认边界；每篇包含一个经过 Mermaid parser 验证的图与实际运行的 keyless focused probe，交付前 combined regression 覆盖 21 个 upstream test files / 603 tests。
+
+### ✅ Session V1 / V3 → V4：存储迁移实验
+
+[`labs/session-format-migration/`](labs/session-format-migration/README.md) 通过真实发布版 persistence backend 与 worker，在 synthetic fixture 副本上验证只读逻辑迁移、写入 V4 successor、旧 generation 字节/hash 不变、重新打开稳定及 future/corrupt 拒绝。历史迁移覆盖 plaintext；默认 Zstd 只验证新建 V4 header。它不读取个人会话，也不等同于业务 Run 恢复。
 
 ## 学习路线图
 
@@ -129,6 +133,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] `Agent`、inbox 与 agent loop
 - [x] turn / step / tool 执行流水线
 - [x] durable session event log、持久化与 projection
+- [x] synthetic V1/V3 → V4 的只读/写入与不可变 predecessor 实验
 - [x] compaction 与 context assembly
 - [x] one-shot/continuable subagent 与 workflow
 - [x] SDK JSON-RPC server/client 源码追踪
