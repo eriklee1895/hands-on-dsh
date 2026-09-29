@@ -4,6 +4,8 @@
 
 已完成：
 
+- [sandbox-isolation](sandbox-isolation/README.md)：macOS 三模式真实 provider 矩阵、两种受限模式的模型 Bash 调用，以及读取/网络/进程能力的实测限制。
+
 - [session-format-migration](session-format-migration/README.md)：发布版 backend 的 synthetic V1/V3 → V4、只读/写入区别与不可变 generation。
 
 - [runtime-supervision](runtime-supervision/README.md)：基于新版公开 SDK 的单 runtime 所有权、超时、隔离与显式重建；[第二课](runtime-supervision/POOL.md)扩展有界 FIFO 池与容量控制。
@@ -12,8 +14,7 @@
 
 计划中的实验：
 
-- runtime supervisor / process-pool failure injection
-- 认证、多租户与 sandbox isolation probes
+- 容器/远程 executor 与多租户执行环境验证
 - DSH / ACP / Codex / Hermes adapter 的共同 transcript fixture
 
 教程可以引用 lab，但不复制其实现。完整应用则放在 `projects/`。

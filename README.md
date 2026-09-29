@@ -147,7 +147,8 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] 单 runtime supervisor：新版 profile、超时回收、关闭失败隔离与显式重建
 - [x] [有界进程池](labs/runtime-supervision/POOL.md)：FIFO、排队取消、故障注入与真实双 runtime 验证
 - [x] [身份认证与租户 API 数据访问](projects/recoverable-agent-service/TENANCY.md)：Bearer 验证、独立业务存储与跨租户拒绝
-- [ ] sandbox、容器化 workspace 与远程执行隔离
+- [x] [本机 sandbox 探针](labs/sandbox-isolation/README.md)：真实文件写入、网络/进程观察与平台差异
+- [ ] 容器化 workspace 与远程执行环境集成
 - [ ] 可观测性、token 用量与审计
 - [ ] eval、回放与 keyless 测试
 - [ ] 协议适配层：DSH / ACP / Codex / Hermes
