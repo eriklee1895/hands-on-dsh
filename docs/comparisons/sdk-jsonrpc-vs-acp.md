@@ -1,5 +1,7 @@
 # SDK JSON-RPC 与 ACP：如何选择
 
+> 版本提示（2026-09-28）：本文及已有验收记录基于 `0.1.1-rc.2`。新版启动与事件接口已有变化；升级前先读[迁移审查](../reviews/2026-09-28-upstream-refresh.md)，不要直接替换版本号。
+
 这两个协议都能驱动 DSH，但服务的调用方不同。需要读取 DSH 原生 `SessionEvent`、工具轨迹和 subagent 活动时，优先 SDK JSON-RPC；需要与支持 ACP 的 Agent 客户端互操作，或需要 wire-level cancel 与一次性 permission decision 时，优先 ACP。两者都不是业务任务控制平面。
 
 本文只描述 [`labs/protocol-semantics`](../../labs/protocol-semantics/README.md) 固定的 DSH `0.1.1-rc.2` source revision。ACP 的 committed text 是 **DSH 的 ACP 投影**；ACP 协议本身不保证每个实现都只投影相同事件。

@@ -17,11 +17,11 @@ uv run python 04_workspace_agent.py \
   --workspace /tmp/dsh-demo-04
 ```
 
-The script creates `input.txt`, asks the agent to sort it into `output.txt`, then reads `output.txt` itself.
+The script creates `input.txt`, asks the agent to sort it into `output.txt`, then compares the output file with the exact bytes `blue\ngreen\nred\n`.
 
 ## How it works
 
-`cwd` selects the agent workspace and `session_root` keeps logs beside it. The model sees tools registered by the bundled Cordis composition, chooses the necessary calls, and can execute several model steps before the turn ends. The Python caller remains responsible for checking external state after the run.
+`cwd` selects the agent workspace; `dsh_home` independently holds profile and session data. The model sees tools registered by the bundled Cordis composition, chooses the necessary calls, and can execute several model steps before the turn ends. The Python caller remains responsible for checking external state after the run.
 
 ```mermaid
 sequenceDiagram
@@ -38,11 +38,11 @@ sequenceDiagram
     App->>Disk: read output.txt directly
 ```
 
-The `cwd` and environment mapping are constructed by [`DeepSeekHarness.__init__`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/api.py). The actual tool set belongs to the runtime's Cordis configuration, not to the Python SDK.
+The `cwd` and environment mapping are constructed by [`DeepSeekHarness.__init__`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/api.py). The actual tool set belongs to the runtime's Cordis configuration, not to the Python SDK.
 
 ## Verify it
 
-Confirm `output.txt` exists and contains `blue`, `green`, and `red` in that order. The file content is stronger evidence than the assistant response. Inspect `.dsh-sessions` for the durable tool-call and tool-result events.
+The script fails unless the run completes and `output.txt` contains exactly `b"blue\ngreen\nred\n"`. Inspect a retained `--dsh-home` for session events if needed. The default temporary home and workspace are removed only after the runtime closes.
 
 ## Limitations
 

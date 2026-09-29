@@ -1,73 +1,62 @@
 # Python SDK 与 TypeScript SDK
 
-本文比较本仓库实际锁定并验证的两个已发布 client surface：Python 教程使用 `deepseek-harness-sdk==0.1.1rc1`（tag `dsh-v0.1.1-rc.1`），TypeScript 教程使用 `@deepseek-ai/dsh-sdk-client@0.1.1-rc.2`（tag `dsh-v0.1.1-rc.2`、commit `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`）。它们不是一次同版本 benchmark；本文比较集成方式，不把一个语言或 release 的包装能力推断到另一个。
-
-## 先给结论
-
-- Python 适合最快开始本地 Agent 应用：SDK wheel 提供 Python 风格的 bundled-runtime resolver，`uv` 项目可以直接从高层 API 起步。
-- TypeScript 适合 Node BFF 和后续 React/full-stack：已发布的 `@deepseek-ai/dsh-sdk-client` 同时提供高层 `DeepSeekHarness` 和底层 `HarnessClient`，但调用方必须显式提供 runtime command、args、cwd 和完整子进程环境。
-- 两者在各自锁定 release 上都投影 SDK JSON-RPC runtime；raw JSON-RPC 不能增加服务器没有的 cancel 或 approval 语义。
-- 需要 ACP 的即时 cancel/permission 时，选择 ACP adapter，而不是因为语言不同就假设 SDK JSON-RPC 获得了这些控制。
-
-## 能力矩阵
-
-| 维度 | Python SDK | TypeScript SDK |
-| --- | --- | --- |
-| 本仓库固定版本 | `deepseek-harness-sdk==0.1.1rc1` | `@deepseek-ai/dsh-sdk-client@0.1.1-rc.2` |
-| 高层 API | `DeepSeekHarness`、session、`run()` | `DeepSeekHarness`、`HarnessSession`、`run()` |
-| 底层 API | `HarnessClient` | `HarnessClient` |
-| runtime 获取 | wheel 提供 bundled runtime resolver | npm client 不提供 Python 式 bundled-runtime resolver |
-| runtime 启动 | resolver 产生 launch，再由 SDK 拉起子进程 | 调用方显式传入 `launch.command/args/cwd/env` |
-| 流式观察 | `on_notification` callback | `onNotification` callback 或 subscription |
-| 结算 | matching inbox receipt 到 whole-agent idle | matching inbox receipt 到 whole-agent idle |
-| session 复用 | 同一 harness/runtime 和稳定 session ID | 同一 harness/runtime 和稳定 session ID |
-| 低层通知 | SDK JSON-RPC session/subagent notifications | SDK JSON-RPC session/subagent notifications |
-| cancel / approval | SDK JSON-RPC 不提供 | SDK JSON-RPC 不提供 |
-| 推荐项目工具 | uv、Ruff、pytest | pnpm、strict TypeScript、Vitest、Oxlint/Oxfmt |
-
-## Runtime 启动差异
-
-Python 教程可以从 wheel 自带的 runtime 解析开始；TypeScript 教程必须把 runtime 当作显式部署依赖。本仓库的 TypeScript 示例因此只接受固定 rc.2、tracked-clean、已经 fresh build 的 upstream checkout，并验证：
-
-```text
-HEAD / tag / package version
-  -> built jsonrpc bin + minimal cordis.yml
-  -> replacement child env
-  -> DeepSeekHarness or HarnessClient
-```
-
-TypeScript 的显式启动不是“没有 SDK”。高层 API 已发布且经过真实模型验证；缺少的是 Python 风格的 runtime 分发/解析层。部署时仍应把 runtime 版本、配置和进程监督作为应用拥有的依赖。
-
-## 流式与低层控制
-
-两个高层 SDK 都通过 callback 观察 notification stream。TypeScript 教程把 root `assistant/chunk` 的 `text-delta` 投影为实时文本，同时保留 tool、subagent 和 running/idle 计数；最终答案仍来自 committed `assistant/message`。
-
-底层 `HarnessClient` 适合学习或实现自有 adapter：先 subscribe，再 prompt；prompt response 只返回 inbox message identity；客户端必须丢弃 matching receipt 之前的全部通知，并等下一次 root idle。它不是持久业务 Run，也不提供 wire cancel。
-
-## 已验证范围
-
-2026-08-31 的 fresh gate 完成：
-
-- Python rc.1 教程的六个真实 API 示例与 FastAPI 浏览器链路；
-- TypeScript 的四个真实 rc.2 source-runtime 示例；
-- TypeScript 两轮 session 返回唯一 nonce；
-- TypeScript tool 示例由外部进程核对 34 字节 artifact 和 SHA-256；
-- 正常关闭后，外部进程表确认所有当次观察到的 runtime/descendant PID 消失；
-- TypeScript keyless suite 覆盖协议 transcript、错误、deadline、环境清理和直接 runtime 回收。
-
-正常关闭的进程表观察不能扩展为异常 descendant-tree 保证：rc.2 npm client 只直接拥有 runtime 子进程，没有 detached process-group handle。
+本页比较课程当前采用的两种发行版本：Python `deepseek-harness-sdk==0.1.5rc1` 与 TypeScript `@deepseek-ai/dsh-sdk-client@0.1.7-rc.2`。这不是同版本性能对比；发行渠道不同步，不能把某一侧的能力或数据格式推断到另一侧。[本批验收](../reviews/2026-09-28-sdk-migration.md)单独记录运行范围。
 
 ## 如何选择
 
-优先 Python，当你的目标是快速熟悉 DSH、编写后端服务或沿用现有 Python/uv 工程。优先 TypeScript，当 DSH 将运行在 Node BFF 中，后续要对接 React、AG-UI 或 CopilotKit，并且团队愿意显式管理 runtime artifact 和进程生命周期。
+Python 适合 Python 后端和快速入门：平台 wheel 提供带 Node 的 runtime，使用 uv 管理即可。TypeScript 适合 Node BFF 与前端共用语言的项目：SDK 已能解析同版本 npm `dsh`，无需像旧教程那样准备 source checkout 和手写 runtime command。两者都通过公开 profile 选择和 patch 定制应用。
 
-无论选择哪一个，都让业务 `Conversation / Run / Artifact` 保持权威；DSH session ID 只是 runtime 引用。协议控制要求优先于语言偏好：需要 ACP 语义时单独使用 ACP adapter。
+语言选择不能补齐 wire 能力。需要即时 cancel、permission 时应另查 ACP；需要持久业务恢复时，应用仍然拥有 Conversation、Run、Approval 与 Artifact 状态。SDK 的 session ID 不是业务执行结果。
 
-## 真源
+## 能力矩阵
 
-- Python 教程：[`tutorials/python-sdk`](../../tutorials/python-sdk/README.zh.md)
-- TypeScript 教程：[`tutorials/typescript-sdk`](../../tutorials/typescript-sdk/README.md)
-- 协议比较：[SDK JSON-RPC 与 ACP](sdk-jsonrpc-vs-acp.md)
-- 固定源码入口：`python/sdk/src/deepseek_harness/`、`packages/sdk/client/src/`、`packages/sdk/protocol/src/`
+| 维度 | Python 教程 | TypeScript 教程 |
+| --- | --- | --- |
+| SDK/runtime 版本 | PyPI `0.1.5rc1` | npm `0.1.7-rc.2` |
+| 固定源码 | `dsh-v0.1.5-rc.1` / `183f08e9c6dde7e36cd2318eaee70b0da08fb35e` | `dsh-v0.1.7-rc.2` / `477b4f420553e8a52c2fbccc464d7561b239c443` |
+| Runtime 来源 | `deepseek-harness-runtime-bin` 平台 wheel | SDK 的同版本 `@deepseek-ai/dsh` dependency，需要 Node |
+| 公开启动配置 | `profile`、`patches`、`dsh_home`、`runtime_cwd`，可选 `dsh_bin` | `profile`、`patches`、`dshHome`、`processCwd`，可选 `dshBin` |
+| 环境语义 | `env` 合并到继承的父环境；不自动清空其他变量 | 显式 `env` 整体替换父环境；省略时继承 |
+| 高层 API | 同步 `DeepSeekHarness` / `Session.run()` | Promise 风格 `DeepSeekHarness` / `HarnessSession.run()` |
+| 低层 API | `HarnessClient` | `HarnessClient` |
+| 通知 | `on_notification`，Notification 使用 `payload` | `onNotification`，Notification 使用 `params` |
+| 本课文本观察 | root `assistant/message` 的已提交文本 | root `assistant/message` 的已提交文本 |
+| 活动结算 | 对应 Inbox receipt 到 whole-agent idle | 对应 Inbox receipt 到 whole-agent idle |
+| 最终回复 | `RunResult.final_response` | `RunResult.finalResponse` |
+| 模型终态 | `finish_reason` 从 `turn/end` 提取 | 从 `events` 的最后一个 root `turn/end` 提取 |
+| Session writer | V3 | V4 |
+| 官方模型传输 | 该发行版仍为 Chat Completions | 该发行版为 Messages/Files |
+| SDK wire cancel / approval / resume | 无公开对应方法 | 无公开对应方法 |
 
-在这个固定 revision，官方站点有 Python SDK guide，但没有对等的 TypeScript SDK quickstart；TypeScript 结论以发行包声明、固定 tag 源码和本仓库运行证据为准。
+## 启动与版本
+
+Python 的 `dsh_home` 必须显式传入，或由非空 `DSH_HOME` 提供；该 SDK 不隐式使用个人 `~/.dsh`。TypeScript SDK 默认解析同版本 npm dsh；本教程也传独立 `dshHome`。`profile: sdk-minimal` 是上游提供的完整 profile，不等于调用方传完整 Cordis tree。
+
+部署仍要拥有 runtime 版本、home、patch、workspace 和进程生命周期，但不需要另写 SDK transport 或启动私有 package bin。Python 的 bundled executable 与 TypeScript 的 Node CLI module 不是同一种文件，不能交换 `dsh_bin` / `dshBin` 路径。
+
+两边的默认 provider endpoint 也不同：Python 对应源码的 root 为 `https://api.deepseek.com`；TS 对应源码的 root 为 `https://api.deepseek.com/anthropic`。设置 `DEEPSEEK_BASE_URL` 时先确认网关支持该版本的协议；不要因为变量名相同就复制同一个 URL。凭据不写入教程或版本库。
+
+## 通知流不等于逐 token 输出
+
+这两个固定版本都不再把 `assistant/chunk` 作为独立 durable event。进程内实时帧走 `agent/assistant-stream`，持久 stream 嵌入 `assistant/message.stream` / `assistant/attempt.stream`；当前 SDK server 没有转发这条进程内实时事件。
+
+因此第三个示例展示的是通知到达后投影 root 已提交消息。它可以收到工具、status、subagent 与已完成消息，但不能据此承诺边生成边逐字更新。收到一条 committed message 后把它拆成字符发送给浏览器，也不会变成真实 token streaming。
+
+最终回复取活动区间最后一条 root assistant message；不混入 child 文本，不把中间消息与最终消息拼接成重复回答。需要实时 UI 的项目应单独验证支持实时帧的 transport，FastAPI/AG-UI 后续迁移会处理这个选择。
+
+## 生命周期与恢复
+
+低层 client 先订阅，再提交 prompt，接收对应 message ID 的 durable Inbox receipt 后才收集到 root idle。receipt 可能早于 prompt response 到达，不能在拿到 response 后才开始订阅。裸协议客户端在 response 迟到时还可能已经收到了后续活动的通知，文本和 `turn/end` 都必须限制在对应 receipt 到首次 root idle 的同一区间，不能让后续终态覆盖它。idle 表示整个 agent 不再欠工作，并不提供每个并发输入的独立结果。
+
+同一 runtime 内复用 session 与跨进程恢复是两件事。这两个版本的 stock SDK server 都会为未知 session 创建 Agent，没有公开 resume RPC。旧 AG-UI 项目的 adapter 仍固定在自己的版本，不能直接挪到新版而不验证。
+
+Python 使用 context manager 或 `close()`；TypeScript 使用 `try/finally`、`close()` 或 `await using`。二者的 close 实现和超时配置不同，不应声称回收所有工具后代进程。正常退出的外部进程观察只覆盖当次被观察到的 PID。业务层对 timeout/断线仍需记录执行不确定，不能自动重放可能有副作用的 prompt。参见 [runtime supervisor](../../labs/runtime-supervision/README.md)。
+
+## 验证与真源
+
+2026-08-31 的验收只适用于原 Python `0.1.1rc1` 与 TS `0.1.1-rc.2` source runtime；新版本的命令和结果在[SDK 迁移记录](../reviews/2026-09-28-sdk-migration.md)。历史 FastAPI、Cordis、AG-UI 的成功记录不会随此页面更新而自动升级。
+
+- [Python 教程](../../tutorials/python-sdk/README.zh.md)与[对应 client 源码](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/client.py)。
+- [TypeScript 教程](../../tutorials/typescript-sdk/README.md)与[对应 launch resolver](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/client/src/launch.ts)。
+- [Python 版本 SDK server](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/packages/sdk/server/src/server.ts)与[TS 版本 SDK server](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/server/src/server.ts)。
+- [Python 版本 provider](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/packages/llm/llm-deepseek/src/index.ts)与[TS 版本 provider](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/README.md)。

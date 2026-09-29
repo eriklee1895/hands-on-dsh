@@ -1,5 +1,7 @@
 # Cordis Plugin Lifecycle Lab
 
+> 版本提示（2026-09-28）：本文及已有验收记录基于 `0.1.1-rc.2`。新版启动与事件接口已有变化；升级前先读[迁移审查](../../docs/reviews/2026-09-28-upstream-refresh.md)，不要直接替换版本号。
+
 这是一个原创、keyless 的 DSH plugin 实验，不复制官方七章示例。领域主题是 proof journal：用一组可验证的 proof 记录来练习 Cordis service、inject、effect、typed event、waterfall、Loader/HMR，以及真实 DSH AgentLoop 的工具提交链路。
 
 ## 固定版本

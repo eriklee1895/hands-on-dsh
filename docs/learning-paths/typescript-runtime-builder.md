@@ -1,6 +1,6 @@
 # TypeScript Runtime Builder
 
-目标：理解 DSH 的 wire 语义后，用已发布 TypeScript SDK 显式管理 runtime，再进入 Cordis/plugin 和 full-stack Agent 应用。
+目标：理解 DSH 的 wire 语义后，用已发布 TypeScript SDK 管理 runtime，再进入 Cordis/plugin 和 full-stack Agent 应用。SDK 入门采用 `0.1.7-rc.2`；本页协议、Cordis 和 full-stack 产物仍固定 `0.1.1-rc.2`。验证状态见[SDK 迁移记录](../reviews/2026-09-28-sdk-migration.md)。
 
 ## 1. 协议语义
 
@@ -17,18 +17,18 @@
 
 完成 [`tutorials/typescript-sdk`](../../tutorials/typescript-sdk/README.md)：
 
-1. 显式验证并启动固定 rc.2 source runtime；
+1. 通过同版本 npm dsh 与公开 `sdk-minimal` profile 启动 runtime；
 2. 复用一个 harness/runtime 和稳定 session；
-3. 投影 root text delta、tool、subagent 与生命周期通知；
+3. 投影 root 已提交文本、tool、subagent 与生命周期通知；
 4. 使用底层 `HarnessClient` 完成 receipt-to-idle。
 
-本阶段门槛是：pnpm frozen install、48 个 keyless 测试、typecheck、lint、format 全部通过；四个真实模型示例结束后 `.runtime` 为空，外部进程表确认正常关闭的 runtime 和当次观察到的 descendant 全部消失。
+本阶段门槛是：pnpm frozen install、keyless 测试、typecheck、lint、format 全部通过；四个真实模型示例验证回复、会话复用、工具文件字节和 receipt-to-idle，并从外部观察正常关闭后的 runtime/descendant 回收。旧版的 48 tests 与 source-runtime 验收不充当新版证据。
 
 ## 3. Python 与 TypeScript 边界
 
-阅读 [Python SDK 与 TypeScript SDK](../comparisons/python-vs-typescript-sdk.md)，确认 npm client 已有高层 API，但不携带 Python 式 bundled-runtime resolver。应用必须显式锁定 DSH revision、built artifact、Cordis 配置和子进程环境。
+阅读 [Python SDK 与 TypeScript SDK](../comparisons/python-vs-typescript-sdk.md)，确认 npm client 已有高层 API，并自动解析同版本 npm dsh。它与 Python 平台 wheel 的分发方式不同；应用仍需锁定版本、profile/patch、home、workspace 与子进程环境。
 
-## 4. Cordis 与 Plugin（已完成）
+## 4. Cordis 与 Plugin（旧版已完成）
 
 先进入 Cordis/plugin，而不是直接堆叠 UI：
 
@@ -41,7 +41,7 @@
 
 已完成 [`labs/cordis-plugin-lifecycle`](../../labs/cordis-plugin-lifecycle/README.md)：官方七章全部 keyless 实跑；原创 package 当前通过 25 个 keyless tests、packed plain-Node Loader consumer 和一次真实 model-callable tool gate。稳定复用入口是 package subpath `./tool` 与 `./listener`。
 
-## 5. TypeScript Full-stack（已完成）
+## 5. TypeScript Full-stack（旧版已完成）
 
 完成 plugin 阶段后构建 `projects/ag-ui-dsh-runtime`：TypeScript BFF 拥有 DSH runtime，React + CopilotKit/AG-UI 只消费稳定北向事件；业务 Conversation/Run/Artifact 和事件重放仍由应用层持有。
 
@@ -53,7 +53,7 @@
 
 本阶段最终门槛已通过：19 files / 117 keyless tests、三 compiler faces、Oxlint/Oxfmt、server+web build、foreign-cwd adapter smoke；四个真实 Run 均恰好一次 tool/result 与 exact Artifact；两 Conversation、AG-UI detach/business replay、desktop/375px zero-violation Axe、idle restart 和记忆、最终进程回收均有外部证据。
 
-## 版本与证据
+## 协议、Cordis 与 Full-stack 的历史版本与证据
 
 - DSH：`0.1.1-rc.2`
 - tag：`dsh-v0.1.1-rc.2`

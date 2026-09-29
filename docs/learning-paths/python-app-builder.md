@@ -1,6 +1,6 @@
 # Python App Builder
 
-目标：学会通过 Python SDK 管理 DSH runtime，并构建一个带流式前端的 Web Agent。
+目标：学会通过 Python SDK 管理 DSH runtime，并构建 Web Agent。当前 SDK 入门采用 `0.1.5rc1`；FastAPI 与可恢复服务仍固定 `0.1.1rc1`，不要把新版 SDK 直接装进后两个项目。状态与命令见[SDK 迁移记录](../reviews/2026-09-28-sdk-migration.md)。
 
 ## 1. Python SDK 基础
 
@@ -8,7 +8,7 @@
 
 - 运行与关闭 runtime
 - 复用 session
-- 读取流式通知
+- 读取通知流并投影已提交的 root assistant message；不承诺逐 token streaming
 - 验证工具产生的外部状态
 - 对照高层 SDK、`HarnessClient` 与裸 JSON-RPC
 
@@ -23,6 +23,8 @@
 - 管理 session 并发和优雅关闭
 
 ## 阶段 0 验收记录 2026-08-31
+
+以下为旧 Python `0.1.1rc1` 的历史记录，包含当时的 `assistant/chunk`；新版 SDK 入门验收单列于 SDK 迁移记录。
 
 已完成六次全新的 Python SDK 真模型运行，分别验证高层调用的最终回复、两轮 session 复用、完成前到达的 text-delta、在模型回复之外检查输出的 workspace 工具任务、`HarnessClient` 在匹配的持久 inbox 回执和 idle 后完成结算，以及原始 JSON-RPC 的初始化、通知关联、关闭与 runtime 干净终止。
 

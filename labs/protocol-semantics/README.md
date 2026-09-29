@@ -1,5 +1,7 @@
 # DSH protocol semantics labs
 
+> 版本提示（2026-09-28）：本文及已有验收记录基于 `0.1.1-rc.2`。新版启动与事件接口已有变化；升级前先读[迁移审查](../../docs/reviews/2026-09-28-upstream-refresh.md)，不要直接替换版本号。
+
 本项目通过可重复的 JSONL wire 实验学习 DSH SDK JSON-RPC 与 ACP 的协议语义。它包含共享 JSONL peer、两个确定性 fake server、显式 command 模式，以及固定 revision 的 source server 验证。选型结论见 [SDK JSON-RPC 与 ACP 对比](../../docs/comparisons/sdk-jsonrpc-vs-acp.md)。
 
 ## 学习问题

@@ -9,3 +9,5 @@
 - [DSH Internals Reader](../../how-dsh-works/README.md)：固定 rc.2 revision，从 plugin tree → AgentLoop → Session/compaction → subagent/workflow → 外部协议。
 
 三条路径都已经有可运行产物和验证记录。下一阶段进入 runtime supervisor、认证/多租户、sandbox、可观测性、eval/replay 与跨 runtime adapter 等工程专题。
+
+- [工程化路线](engineering.md)：版本迁移与 Phase 7 的逐课产物、依赖和验收。

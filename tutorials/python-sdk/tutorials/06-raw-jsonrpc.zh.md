@@ -15,15 +15,15 @@
 ```sh
 uv run python 06_raw_jsonrpc.py \
   --session-id python-demo-06 \
-  --session-root /tmp/dsh-demo-06 \
+  --dsh-home /tmp/dsh-demo-06 \
   "Reply with exactly: PYTHON_DEMO_06_OK"
 ```
 
-脚本会输出初始化结果、提示词消息 ID 和实时文本，并在收到成功的关闭响应后退出。
+脚本输出提示词消息 ID 与根会话已提交的最终回复，在收到成功的关闭响应后退出。
 
 ## 工作原理
 
-脚本从 `deepseek_harness_runtime` 解析运行时载体与默认 Cordis 配置，使用管道 stdio 启动进程，并发排空 stdout 与 stderr，每行编码一个紧凑 JSON-RPC 对象，按 ID 关联响应，消费通知，并执行与 SDK 相同的持久回执到空闲活动区间。
+脚本从 `deepseek_harness_runtime` 解析已发布运行时载体，并经公开的 `dsh --profile sdk-minimal` 入口启动，使用管道 stdio 启动进程，并发排空 stdout 与 stderr，每行编码一个紧凑 JSON-RPC 对象，按 ID 关联响应，消费通知，并执行与 SDK 相同的持久回执到空闲活动区间。
 
 ```mermaid
 flowchart TD
@@ -38,11 +38,11 @@ flowchart TD
     Shutdown --> Reap[Close stdin and reap process]
 ```
 
-把本文件与 [`client.py`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/client.py)比较：SDK 还负责并发请求等待器、过滤订阅、后代发现、诊断、超时行为、传输关闭错误和可复用生命周期管理。
+把本文件与 [`client.py`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/client.py)比较：SDK 还负责并发请求等待器、过滤订阅、后代发现、诊断、超时行为、传输关闭错误和可复用生命周期管理。
 
 ## 验证
 
-确认三个响应 ID 都完成、流式文本存在，而且退出后没有遗留运行时进程。失败信息应包含近期 stderr 诊断，但不能泄露凭据。
+确认提示词 ID 和已提交回复、正常关闭，以及退出后没有遗留运行时后代进程。总活动时限与 EOF 错误避免无限等待；stderr 会被排空，但不会回显可能包含凭据的内容。
 
 ## 限制
 

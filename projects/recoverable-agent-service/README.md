@@ -1,5 +1,7 @@
 # Recoverable Agent Service
 
+> 版本提示（2026-09-28）：本文及已有验收记录基于 `0.1.1rc1`。新版启动与事件接口已有变化；升级前先读[迁移审查](../../docs/reviews/2026-09-28-upstream-refresh.md)，不要直接替换版本号。
+
 这是一个可直接运行的 Python 3.10+ FastAPI 学习项目。它演示怎样把 DSH 用作 Agent runtime，同时由应用自己的 SQLite 数据库持有权威业务状态。项目没有浏览器 UI；调用方通过 JSON HTTP API、SSE 和不可变产物下载接口完成整个流程。
 
 项目锁定 `deepseek-harness-sdk==0.1.1rc1`，对应 DSH upstream tag `dsh-v0.1.1-rc.1` 和 commit `528c682e061696f5a160f363f236ecbf53cbd006`。

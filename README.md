@@ -8,18 +8,20 @@
 
 ## 当前进度
 
+2026-09-28 分批更新：Python SDK 入门迁移到 `0.1.5rc1`，TypeScript SDK 入门迁移到 `0.1.7-rc.2`；当前验收见[SDK 迁移记录](docs/reviews/2026-09-28-sdk-migration.md)。FastAPI/可恢复服务仍为 `0.1.1rc1`，协议/Cordis/AG-UI/核心笔记仍为 `0.1.1-rc.2`，尚未整体升版。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；Phase 7.1 结果见[第一批记录](docs/reviews/2026-09-28-execution.md)。
+
 ### ✅ Python SDK：由浅入深
 
 [`tutorials/python-sdk/`](tutorials/python-sdk/README.zh.md)包含 6 个已实现并实测的示例：
 
 1. `DeepSeekHarness.run()` 最小调用
 2. runtime 进程与多轮 session 复用
-3. `assistant/chunk` 流式文本输出
+3. 通知流中的 root 已提交消息投影（非逐 token streaming）
 4. workspace 文件与工具调用
 5. 底层 `HarnessClient` 生命周期
 6. 手写 stdio JSON-RPC
 
-每个示例都有独立教程、源码说明和 Mermaid 流程图。示例已经使用真实 DeepSeek API 验证。
+每个示例都有独立教程和固定版本的源码说明。新版采用公开 profile、独立 home 与 workspace；工具结果由外部文件字节验证。逐例真实模型与 keyless 验收见 SDK 迁移记录。
 
 ### ✅ FastAPI 101：从零构建 Web Agent
 
@@ -44,9 +46,9 @@
 
 [`labs/protocol-semantics/`](labs/protocol-semantics/README.md) 提供两个独立 wire lab：共享 JSONL peer、确定性 fake servers、SDK receipt-to-idle、ACP committed output/cancel/permission、错误与 typed close outcome。实验固定 DSH `0.1.1-rc.2` source revision，已通过 upstream keyless suites 和 review 后各一次真实 source prompt；SDK shutdown/exit 无 escalation，ACP 当次 EOF exit 0，两个 owned process group 均消失。选型见 [SDK JSON-RPC 与 ACP 对比](docs/comparisons/sdk-jsonrpc-vs-acp.md)。
 
-### ✅ TypeScript SDK：显式管理 source runtime
+### ✅ TypeScript SDK：通过公开 profile 管理 runtime
 
-[`tutorials/typescript-sdk/`](tutorials/typescript-sdk/README.md) 提供四个已实现并实测的示例：显式启动固定 rc.2 runtime、高层 session 两轮复用、root notification/tool 投影，以及底层 `HarnessClient` receipt-to-idle。项目锁定 Node/pnpm/TypeScript/Vitest/Oxlint/Oxfmt，提交 48 个 keyless 测试，并完成四个真实模型 gate。tool 示例的 34 字节产物由外部监视器在 cleanup 前核对；每次正常退出后匹配的 runtime 和观察到的 descendant 均从进程表消失。
+[`tutorials/typescript-sdk/`](tutorials/typescript-sdk/README.md) 提供四个渐进示例：启动同版本 npm dsh、高层 session 两轮复用、root committed-message/tool 投影，以及底层 `HarnessClient` receipt-to-idle。新版采用公开 `profile` / `dshHome` / `patches`，不再要求构建旧 source runtime；工具示例核对 34 字节产物。当前测试和真实运行结果见 [SDK 迁移记录](docs/reviews/2026-09-28-sdk-migration.md)。
 
 Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/python-vs-typescript-sdk.md)。
 
@@ -66,7 +68,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 
 ## 学习路线图
 
-路线按“先调用 runtime，再拥有业务恢复语义，随后理解协议、plugin、full-stack 与内部机制”的顺序推进：Python 集成 → recoverable service → SDK JSON-RPC / ACP → TypeScript SDK → Cordis/DSH plugin → AG-UI full-stack → fixed-revision internals。Phase 1–6 已有可运行产物和验收记录；Phase 7 保持未完成，只表示下一阶段的工程化学习方向。
+路线按“先调用 runtime，再拥有业务恢复语义，随后理解协议、plugin、full-stack 与内部机制”的顺序推进：Python 集成 → recoverable service → SDK JSON-RPC / ACP → TypeScript SDK → Cordis/DSH plugin → AG-UI full-stack → fixed-revision internals。Phase 1–6 已有可运行产物和验收记录；Phase 7 已从单 runtime 生命周期实验开始，其余单元与旧课程迁移状态见工程化路线。
 
 ### Phase 1 — Python 集成基础
 
@@ -74,7 +76,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] 使用 Ruff 统一 lint 与格式检查
 - [x] 安装 Python SDK 与匹配的 runtime wheel
 - [x] 高层单轮与多轮调用
-- [x] 流式通知和事件过滤
+- [x] 通知投影与 root/child 事件过滤
 - [x] workspace 工具任务
 - [x] 底层 `HarnessClient`
 - [x] 裸 JSON-RPC 对照实验
@@ -92,7 +94,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 ### Phase 3 — TypeScript 调用 DSH
 
 - [x] 安装并体验 `@deepseek-ai/dsh-sdk-client`
-- [x] 管理 TypeScript 侧 runtime 命令与子进程生命周期
+- [x] 管理 TypeScript 侧 profile/home/patch 与子进程生命周期
 - [x] 使用高层 `DeepSeekHarness` 与底层 `HarnessClient`
 - [x] 处理 notification stream、session 与 subagent 事件
 - [x] 用一个协议 parity smoke 对齐 Python JSON-RPC lab，不重复实现 raw transport
@@ -134,7 +136,10 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 
 ### Phase 7 — 工程化专题
 
-- [ ] runtime supervisor 与进程池
+[详细顺序与验收条件](docs/learning-paths/engineering.md)；第一课见 [runtime-supervision](labs/runtime-supervision/README.md)。
+
+- [x] 单 runtime supervisor：新版 profile、超时回收、关闭失败隔离与显式重建
+- [ ] 进程池、容量控制与 worker 故障注入
 - [ ] 认证与多租户隔离
 - [ ] sandbox、容器化 workspace 与远程执行隔离
 - [ ] 可观测性、token 用量与审计
@@ -201,9 +206,8 @@ uv run python -m protocol_labs.acp --server fake
 
 ```sh
 cd tutorials/typescript-sdk
-corepack pnpm install --frozen-lockfile
-DSH_SOURCE_ROOT=/absolute/path/to/disposable-deepseek-harness \
-  node --env-file=../../.env --import tsx examples/01_explicit_launch.ts
+pnpm install --frozen-lockfile
+pnpm exec node --env-file=../../.env --import tsx examples/01_explicit_launch.ts
 ```
 
 ### Cordis Plugin Lifecycle
@@ -281,4 +285,4 @@ corepack pnpm smoke:server
 
 DSH 工具和 plugin 可能使用本地文件与进程权限。文件与命令示例只应针对可丢弃 workspace、容器或明确配置的 DSH sandbox 运行。TypeScript 教程固定使用的 minimal composition 是 `danger-full-access`；Cordis 真实 gate 即使移除 Bash/editor，custom plugin 与 runtime 仍拥有 host authority。disposable workspace 是任务目标目录，不是安全隔离边界。AG-UI 项目是无认证、单用户、loopback-only 的开发集成；其 resume adapter 是固定 rc.2 的项目部署补丁，不代表 stock DSH SDK JSON-RPC 已支持跨进程恢复。
 
-本仓库不复制 DSH 核心源码。Python 教程使用已发布 SDK 与 bundled runtime；TypeScript 教程和 full-stack 项目使用已发布客户端/package，并显式启动固定 revision 的 source runtime。机制学习通过固定 commit 链接到 [DeepSeek Harness 官方仓库](https://github.com/deepseek-ai/deepseek-harness)。
+本仓库不复制 DSH 核心源码。Python 教程使用已发布 SDK 与 bundled runtime；TypeScript 入门使用同版本 npm dsh 的公开 profile。尚未迁移的 full-stack 项目仍显式启动固定旧 revision 的 source runtime。机制学习通过固定 commit 链接到 [DeepSeek Harness 官方仓库](https://github.com/deepseek-ai/deepseek-harness)。

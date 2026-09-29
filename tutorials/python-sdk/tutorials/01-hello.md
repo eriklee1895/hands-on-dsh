@@ -8,13 +8,13 @@ Run one prompt through [`01_hello.py`](../01_hello.py), observe the generated se
 
 ## Prerequisites
 
-Complete the installation in the [demo index](../README.md). The command reads the API credential from the environment and writes durable session logs below the selected `--session-root`.
+Complete the installation in the [demo index](../README.md). The command reads the API credential from the environment and stores profile and session data in its selected `--dsh-home`.
 
 ## Run it
 
 ```sh
 uv run python 01_hello.py \
-  --session-root /tmp/dsh-demo-01 \
+  --dsh-home /tmp/dsh-demo-01 \
   "Reply with exactly: PYTHON_DEMO_01_OK"
 ```
 
@@ -28,7 +28,7 @@ The response contains a generated `session_id`, `finish_reason: completed`, and 
 sequenceDiagram
     participant App as 01_hello.py
     participant SDK as DeepSeekHarness
-    participant Runtime as dsh-jsonrpc-agent
+    participant Runtime as public dsh profile
     App->>SDK: enter context
     SDK->>Runtime: spawn and initialize
     App->>SDK: run(prompt)
@@ -40,11 +40,11 @@ sequenceDiagram
     SDK->>Runtime: shutdown
 ```
 
-The high-level lifecycle is implemented by [`DeepSeekHarness`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/api.py) and the subprocess transport by [`HarnessClient`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/client.py).
+The high-level lifecycle is implemented by [`DeepSeekHarness`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/api.py) and the subprocess transport by [`HarnessClient`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/client.py).
 
 ## Verify it
 
-Confirm all three facts: the process exits with status 0, `finish_reason` is `completed`, and the response matches the prompt. Inspect `/tmp/dsh-demo-01` to confirm a durable session log was created.
+Confirm all three facts: the process exits with status 0, `finish_reason` is `completed`, and the response matches the prompt. The selected home holds the initialized profile and session data; remove it after closing the runtime when no longer needed.
 
 ## Limitations
 

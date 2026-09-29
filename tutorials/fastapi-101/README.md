@@ -1,5 +1,7 @@
 # DSH FastAPI 101：从零构建 Web Agent
 
+> 版本提示（2026-09-28）：本文及已有验收记录基于 `0.1.1rc1`。新版启动与事件接口已有变化；升级前先读[迁移审查](../../docs/reviews/2026-09-28-upstream-refresh.md)，不要直接替换版本号。
+
 这是一套独立于 DeepSeek Harness 原仓文档的中文入门教程。“101”表示从零开始的基础课程，不是案例编号。项目用 FastAPI、原生 HTML/CSS/JavaScript 和已发布的 `deepseek-harness-sdk`，演示如何把 DSH 作为本地 agent runtime 嵌入自己的 Web 业务。
 
 ![浏览器、FastAPI、异步桥与 DSH runtime 的概念架构](assets/dsh-fastapi-architecture.png)

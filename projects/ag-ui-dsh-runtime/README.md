@@ -1,5 +1,7 @@
 # AG-UI DSH Runtime
 
+> 版本提示（2026-09-28）：本文及已有验收记录基于 `0.1.1-rc.2`。新版启动与事件接口已有变化；升级前先读[迁移审查](../../docs/reviews/2026-09-28-upstream-refresh.md)，不要直接替换版本号。
+
 这是 Stage 5 的 TypeScript full-stack 毕业项目。Task 5A–5D 已完成：SQLite 权威业务状态、DSH runtime manager、Run coordinator、AG-UI projector、持久化 replay/subscription、loopback Fastify API、React/CopilotKit 对话与 Run Inspector，以及固定 rc.2 的真实模型、跨进程 session resume、断线重放和浏览器验收。
 
 本应用是**仅限 loopback 的本地开发集成**。浏览器通过 `agents__unsafe_dev_only` 直连同源 `/api/ag-ui`；它不是生产 CopilotKit 部署，不提供认证、多租户、wire cancel 或 approval。

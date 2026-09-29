@@ -1,6 +1,7 @@
 import { DeepSeekHarness } from "@deepseek-ai/dsh-sdk-client";
 import { parseCommonArguments, printHelp, runCli, sanitizedJson } from "../src/cli.ts";
 import { withOwnerDeadline } from "../src/owner-deadline.ts";
+import { requireCompletedTurn } from "../src/run-outcome.ts";
 import { cleanupRuntimeState, resolveRuntimeLaunch } from "../src/runtime-launch.ts";
 
 await runCli(async () => {
@@ -12,43 +13,39 @@ await runCli(async () => {
 
   const launch = await resolveRuntimeLaunch({
     exampleName: "01-explicit-launch",
-    ...(args.sourceRoot === undefined ? {} : { sourceRoot: args.sourceRoot }),
-    ...(args.configPath === undefined ? {} : { configPath: args.configPath }),
+    ...(args.patch === undefined ? {} : { patches: [args.patch] }),
   });
-  const harness = new DeepSeekHarness({
-    launch: launch.options,
-    cwd: launch.state.workspace,
-    provider: launch.provider,
-    model: launch.model,
-  });
+  let harness: DeepSeekHarness | undefined;
 
   try {
-    const result = await withOwnerDeadline("example 01", args.deadlineMs, harness, () =>
-      harness.run(args.prompt ?? "请只用文字回答：TypeScript SDK 已连接。不要调用工具。", {
+    const owner = new DeepSeekHarness({
+      ...launch.options,
+      cwd: launch.state.workspace,
+      provider: launch.provider,
+      model: launch.model,
+    });
+    harness = owner;
+    const result = await withOwnerDeadline("example 01", args.deadlineMs, owner, () =>
+      owner.run(args.prompt ?? "请只用文字回答：TypeScript SDK 已连接。不要调用工具。", {
         sessionId: args.sessionId ?? "typescript-explicit-launch",
       }),
     );
+    requireCompletedTurn(result.events);
     process.stdout.write(
       `${sanitizedJson(
         {
-          source: {
-            tag: launch.source.tag,
-            revision: launch.source.revision,
-            version: launch.source.version,
-          },
           result: {
             sessionId: result.sessionId,
             finalResponse: result.finalResponse,
             eventCount: result.events.length,
           },
         },
-        launch.source,
         launch.state,
         process.env.DEEPSEEK_API_KEY,
       )}\n`,
     );
   } finally {
-    await harness.close();
+    if (harness !== undefined) await harness.close();
     await cleanupRuntimeState(launch.state);
   }
 });

@@ -10,7 +10,7 @@ describe("pinned tutorial toolchain", () => {
     expect(manifest).toMatchObject({
       private: true,
       type: "module",
-      packageManager: "pnpm@11.7.0",
+      packageManager: "pnpm@12.3.4",
       engines: { node: "^22.19.0 || >=24.0.0" },
       scripts: {
         test: "vitest run",
@@ -19,12 +19,11 @@ describe("pinned tutorial toolchain", () => {
         "format:check": "oxfmt --check .",
       },
       dependencies: {
-        "@deepseek-ai/cordis": "4.0.1",
-        "@deepseek-ai/dsh-invariants": "0.1.1-rc.2",
-        "@deepseek-ai/dsh-llm": "0.1.1-rc.2",
-        "@deepseek-ai/dsh-sdk-client": "0.1.1-rc.2",
-        "@deepseek-ai/dsh-sdk-protocol": "0.1.1-rc.2",
-        "@deepseek-ai/dsh-session": "0.1.1-rc.2",
+        "@deepseek-ai/cordis": "4.0.4",
+        "@deepseek-ai/dsh-llm": "0.1.7-rc.2",
+        "@deepseek-ai/dsh-sdk-client": "0.1.7-rc.2",
+        "@deepseek-ai/dsh-sdk-protocol": "0.1.7-rc.2",
+        "@deepseek-ai/dsh-session": "0.1.7-rc.2",
       },
       devDependencies: {
         "@types/node": "22.20.0",

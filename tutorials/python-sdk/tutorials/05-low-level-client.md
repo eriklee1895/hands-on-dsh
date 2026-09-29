@@ -4,7 +4,7 @@ English | [中文](05-low-level-client.zh.md)
 
 ## Outcome
 
-Use [`05_low_level_client.py`](../05_low_level_client.py) to perform the lifecycle hidden by `Session.run()`: initialize the runtime, subscribe before enqueueing, capture the `messageId`, correlate its durable inbox receipt, stream root text, and settle at idle.
+Use [`05_low_level_client.py`](../05_low_level_client.py) to perform the lifecycle hidden by `Session.run()`: initialize the runtime, subscribe before enqueueing, capture the `messageId`, correlate its durable inbox receipt, project root committed messages, and settle at idle.
 
 ## Prerequisites
 
@@ -15,11 +15,11 @@ Complete [Tutorial 04](04-workspace-agent.md). This tutorial assumes you underst
 ```sh
 uv run python 05_low_level_client.py \
   --session-id python-demo-05 \
-  --session-root /tmp/dsh-demo-05 \
+  --dsh-home /tmp/dsh-demo-05 \
   "Reply with exactly: PYTHON_DEMO_05_OK"
 ```
 
-The output includes streamed text, server metadata, the accepted message ID, and the number of observed session events.
+The output includes the committed root response, server metadata, the accepted message ID, and the number of observed session events.
 
 ## How it works
 
@@ -33,19 +33,19 @@ sequenceDiagram
     App->>Client: subscribe(session tree)
     App->>Client: session_prompt
     Client->>Runtime: session/prompt
-    Runtime-->>Client: result messageId
     Runtime-->>Client: agent/inbox/spliced
+    Runtime-->>Client: result messageId
     Note over App,Runtime: Owned activity interval starts
     Runtime-->>Client: session.event stream
     Runtime-->>Client: session.status idle
     Note over App,Runtime: Owned activity interval ends
 ```
 
-The public methods are in [`HarnessClient`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/client.py). The high-level implementation in [`Session.run()`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/api.py) applies the same receipt-to-idle rule and then derives `final_response` and `finish_reason`.
+The public methods are in [`HarnessClient`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/client.py). The high-level implementation in [`Session.run()`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/api.py) applies the same receipt-to-idle rule and then derives `final_response` and `finish_reason`.
 
 ## Verify it
 
-Confirm the server identifies itself, `message_id` is non-empty, text arrives before the final counters, and the process exits cleanly. The event count varies by model behavior and configuration; do not assert an exact value in business code.
+Confirm the server identifies itself, `message_id` is non-empty, the committed response is printed with the final counters, and the process exits cleanly. The event count varies by model behavior and configuration; do not assert an exact value in business code.
 
 ## Limitations
 

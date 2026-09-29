@@ -5,7 +5,7 @@ description = "Hands-on DeepSeek Harness Python SDK and JSON-RPC tutorials"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "deepseek-harness-sdk>=0.1.1rc1,<0.2",
+  "deepseek-harness-sdk==0.1.5rc1",
 ]
 
 [dependency-groups]
