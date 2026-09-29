@@ -149,7 +149,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] [身份认证与租户 API 数据访问](projects/recoverable-agent-service/TENANCY.md)：Bearer 验证、独立业务存储与跨租户拒绝
 - [x] [本机 sandbox 探针](labs/sandbox-isolation/README.md)：真实文件写入、网络/进程观察与平台差异
 - [ ] 容器化 workspace 与远程执行环境集成
-- [ ] 可观测性、token 用量与审计
+- [x] [Run 观测与用量估算](labs/run-observability/README.md)：白名单元数据、重放去重与显式教学费率
 - [ ] eval、回放与 keyless 测试
 - [ ] 协议适配层：DSH / ACP / Codex / Hermes
 

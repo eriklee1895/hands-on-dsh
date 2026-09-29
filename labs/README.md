@@ -4,6 +4,8 @@
 
 已完成：
 
+- [run-observability](run-observability/README.md)：Run/session/attempt 时间线、用量去重、缺失项与费用估算；仅导出白名单元数据。
+
 - [sandbox-isolation](sandbox-isolation/README.md)：macOS 三模式真实 provider 矩阵、两种受限模式的模型 Bash 调用，以及读取/网络/进程能力的实测限制。
 
 - [session-format-migration](session-format-migration/README.md)：发布版 backend 的 synthetic V1/V3 → V4、只读/写入区别与不可变 generation。
