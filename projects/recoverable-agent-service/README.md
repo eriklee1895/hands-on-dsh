@@ -43,7 +43,7 @@ uv sync --group dev
 uv run python -m recoverable_agent_service
 ```
 
-服务仅绑定 `127.0.0.1:8000`。本项目没有认证或公网部署配置，不应直接改成公共监听地址。
+服务仅绑定 `127.0.0.1:8000`。这个原始单租户入口没有认证或公网部署配置，不应直接改成公共监听地址。新增[第 7.3 课认证入口](TENANCY.md)监听独立的 8001 端口，提供 Bearer 认证与按租户分开的业务数据库。
 
 | 环境变量 | 默认值 | 用途 |
 | --- | --- | --- |
@@ -125,10 +125,12 @@ uv run --env-file ../../.env pytest -m e2e
 
 2026-09-29 实跑：139 个 keyless 测试通过；显式真实 E2E 1 个通过，artifact 精确字节和哈希、重连游标与幂等响应均由断言确认。外部 `ps` 父子进程检查在运行中观察到 6 个后代 PID，FastAPI lifespan 关闭后存活数为 0。这些结果只覆盖本次模型运行与本机环境，不代表任意历史 DSH session 可自动恢复。
 
+第 7.3 课新增认证入口后的完整 keyless 回归为 171 项；双租户 HTTP 与模型验证见[独立验收记录](../../docs/reviews/2026-09-29-tenant-auth.md)。原始入口与认证入口都拒绝 Conversation/Run 请求中未知的字段，返回 422。
+
 ## 生产限制
 
 - V1 只有一个应用进程和一个 worker，没有多进程 lease 或分布式 claim。
-- 没有 cancel、approval、ask-user、认证、租户隔离、配额或远程 sandbox。
+- 原始入口没有认证；[认证入口](TENANCY.md)提供租户 API 数据访问隔离，两个入口都没有 cancel、approval、ask-user、配额或远程 sandbox。
 - 卡住的 provider 调用可能无限延迟优雅关闭，因为当前切片不伪造安全取消语义。
 - `execution_uncertain` 必须由人确认后开启新 session；服务不会自动续跑不确定执行。
 - 健康接口只报告数据库、coordinator 和 worker 当前可用，不保证外部副作用可恢复。

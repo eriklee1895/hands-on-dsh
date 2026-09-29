@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | 7.1 单 runtime 的所有权与超时 | 新版 profile/home、receipt-to-idle | [runtime-supervision lab](../../labs/runtime-supervision/README.md) | 只接纳一个调用；失败不重放；close 成功才重建；close 失败隔离 | 已完成，证据见执行记录 |
 | 7.2 进程池与容量控制 | 7.1、业务 Run | [有界 runtime 池](../../labs/runtime-supervision/POOL.md) | 有界 FIFO、独占 lease、排队取消、故障回收与隔离；不自动重跑不确定任务 | 已完成，[32 项测试与真实双进程验收](../reviews/2026-09-29-runtime-pool.md) |
-| 7.3 身份认证与租户 | 业务状态、7.2 | 扩展 recoverable service | 伪造 tenant/session ID 被拒绝；跨租户 artifact/event 不可读；凭据不进入日志 | 待做 |
+| 7.3 身份认证与租户 | 业务状态、7.2 | [租户认证入口](../../projects/recoverable-agent-service/TENANCY.md) | 伪造身份字段被拒绝；跨租户读写/事件/产物不可访问；认证 token 不进入业务存储和服务日志 | 已完成，[171 项测试与双租户 HTTP/模型验收](../reviews/2026-09-29-tenant-auth.md) |
 | 7.4 Workspace 与执行隔离 | 7.3 | sandbox isolation lab | 允许目录与禁止目录的真实工具探针；网络、进程、清理边界；平台差异单列 | 待做 |
 | 7.5 可观测性与成本 | V4 事件迁移、7.1 | Run timeline/usage/audit | 区分业务 run、session/turn、provider attempt；重放不重复计费；敏感内容脱敏 | 待做 |
 | 7.6 Eval 与可重放回归 | 事件投影、7.5 | 固定输入/预期的 keyless fixture 集 | 成功、工具错误、取消、断线、resume 均有验收；真实 provider 结果独立 | 待做 |
