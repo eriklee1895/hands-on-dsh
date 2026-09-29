@@ -111,4 +111,4 @@ SDK wire 没有 per-prompt cancel。这里的主动 close 会结束整个 runtim
 
 **未确认：** 真实模型超时中断、真实 close 失败、任意工具后代逃逸、Windows/Linux、进程池公平性、跨租户隔离、持久 session resume。本课的故障顺序只在 keyless tests 中注入，不扩大为这些生产保证。
 
-清理：两个示例只在 SDK close 成功后删除自己创建的临时目录；回收失败时保留目录供排查。keyless tests 不创建 runtime 目录。下一课是[7.2 进程池与容量控制](../../docs/learning-paths/engineering.md)，在独占 lease 与业务 Run 对齐后再增加排队和 worker 数量。
+清理：两个示例只在 SDK close 成功后删除自己创建的临时目录；回收失败时保留目录供排查。keyless tests 不创建 runtime 目录。下一课是[7.2 进程池与容量控制](POOL.md)，提供有界 FIFO、排队取消、故障注入和真实双 runtime 验证。

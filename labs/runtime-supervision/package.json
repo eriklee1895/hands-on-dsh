@@ -9,7 +9,9 @@
     "lint": "oxlint --deny-warnings .",
     "format:check": "oxfmt --check .",
     "smoke": "node --import tsx examples/handshake.ts",
-    "demo": "node --import tsx examples/run.ts"
+    "demo": "node --import tsx examples/run.ts",
+    "pool:faults": "node --import tsx examples/pool-faults.ts",
+    "pool:demo": "node --import tsx examples/pool.ts"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",

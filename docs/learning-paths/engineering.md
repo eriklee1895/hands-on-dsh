@@ -7,7 +7,7 @@
 | 单元 | 前置 | 作品 | 必须观察到的结果 | 状态 |
 | --- | --- | --- | --- | --- |
 | 7.1 单 runtime 的所有权与超时 | 新版 profile/home、receipt-to-idle | [runtime-supervision lab](../../labs/runtime-supervision/README.md) | 只接纳一个调用；失败不重放；close 成功才重建；close 失败隔离 | 已完成，证据见执行记录 |
-| 7.2 进程池与容量控制 | 7.1、业务 Run | 扩展 supervisor lab | 队列上限、拒绝/等待策略、独占 lease、崩溃后释放；不自动重跑不确定任务 | 待做 |
+| 7.2 进程池与容量控制 | 7.1、业务 Run | [有界 runtime 池](../../labs/runtime-supervision/POOL.md) | 有界 FIFO、独占 lease、排队取消、故障回收与隔离；不自动重跑不确定任务 | 已完成，[32 项测试与真实双进程验收](../reviews/2026-09-29-runtime-pool.md) |
 | 7.3 身份认证与租户 | 业务状态、7.2 | 扩展 recoverable service | 伪造 tenant/session ID 被拒绝；跨租户 artifact/event 不可读；凭据不进入日志 | 待做 |
 | 7.4 Workspace 与执行隔离 | 7.3 | sandbox isolation lab | 允许目录与禁止目录的真实工具探针；网络、进程、清理边界；平台差异单列 | 待做 |
 | 7.5 可观测性与成本 | V4 事件迁移、7.1 | Run timeline/usage/audit | 区分业务 run、session/turn、provider attempt；重放不重复计费；敏感内容脱敏 | 待做 |
@@ -16,7 +16,7 @@
 
 ## 与旧课程升级的关系
 
-7.1 只依赖公开的 run/close，先独立完成。旧 Python/TS 入门随后迁移，事件与持久化升级排在 AG-UI 前；7.2 复用已有业务状态模型，7.3–7.7 再依次扩展。每课包含：问题、固定版本、可执行示例、故障实验、观察记录、边界与下一步。
+7.1 只依赖公开的 run/close，先独立完成。旧 Python/TS 入门随后迁移，事件与持久化升级排在 AG-UI 前；7.2 组合 supervisor 并把业务幂等留给调用方，7.3–7.7 再依次扩展。每课包含：问题、固定版本、可执行示例、故障实验、观察记录、边界与下一步。
 
 新版迁移清单：
 

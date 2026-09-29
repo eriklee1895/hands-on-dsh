@@ -145,7 +145,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 [详细顺序与验收条件](docs/learning-paths/engineering.md)；第一课见 [runtime-supervision](labs/runtime-supervision/README.md)。
 
 - [x] 单 runtime supervisor：新版 profile、超时回收、关闭失败隔离与显式重建
-- [ ] 进程池、容量控制与 worker 故障注入
+- [x] [有界进程池](labs/runtime-supervision/POOL.md)：FIFO、排队取消、故障注入与真实双 runtime 验证
 - [ ] 认证与多租户隔离
 - [ ] sandbox、容器化 workspace 与远程执行隔离
 - [ ] 可观测性、token 用量与审计
