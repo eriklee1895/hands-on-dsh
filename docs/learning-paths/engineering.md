@@ -30,7 +30,8 @@
 - [x] Cordis/preset：固定新版公开 profile patch、packed plugin、effect teardown 和 preset composition probe。
 - [x] AG-UI：重新审计 SDK deployment resume adapter、V4 committed projector、公开 package runtime、跨 generation 与浏览器 hydration。
 - [x] 核心机制正文：七篇按固定新版源码更新，3 个新公开库 probe 和相关 lab 证据，旧结果独立归档。
-- [ ] 核心机制剩余运行验证：完整 compaction、workflow-ptc、child cold resume、官方 Web Host 与复杂并行/retry；见逐篇证据表。
+- [x] Compaction基础运行验证：[确定性engine与真实pressure实验](../../labs/compaction-lifecycle/README.md)，包含后续产物和持久surface重放。
+- [ ] 核心机制剩余运行验证：compaction overflow/取消/prune/offload、workflow-ptc、child cold resume、官方 Web Host 与复杂并行/retry；见逐篇证据表。
 
 先读[业务恢复、会话恢复与格式迁移](../comparisons/recovery-and-session-migration.md)，避免把底层可读或 resume 成功当成业务执行成功。
 

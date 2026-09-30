@@ -4,6 +4,8 @@
 
 已完成：
 
+- [compaction-lifecycle](compaction-lifecycle/README.md)：真实发布engine的manual/auto/failure测试，真实pressure摘要、后续产物和持久surface重放。
+
 - [run-observability](run-observability/README.md)：Run/session/attempt 时间线、用量去重、缺失项与费用估算；仅导出白名单元数据。
 
 - [sandbox-isolation](sandbox-isolation/README.md)：macOS 三模式真实 provider 矩阵、两种受限模式的模型 Bash 调用，以及读取/网络/进程能力的实测限制。

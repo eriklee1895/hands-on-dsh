@@ -64,7 +64,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 
 ### ✅ How DSH Works：固定 revision 的核心机制追踪
 
-[`how-dsh-works/`](how-dsh-works/README.md) 的七篇中文机制笔记已按 `0.1.7-rc.2` 完整 SHA 逐条审查，覆盖 profile/preset、Agent/loop、V4 tool/session、context/compaction、subagent/workflow-ptc 和 SDK/ACP/Web Host。新增 3 个发布包 keyless probes，并引用直接相关的新版 lab 证据；完整 compaction/workflow-ptc/官方 Web Host 等执行链未重跑。旧版 603 tests 保存在独立历史页，不归入新版结果。
+[`how-dsh-works/`](how-dsh-works/README.md) 的七篇中文机制笔记已按 `0.1.7-rc.2` 完整 SHA 逐条审查，覆盖 profile/preset、Agent/loop、V4 tool/session、context/compaction、subagent/workflow-ptc 和 SDK/ACP/Web Host。新增 3 个发布包 keyless probes，并引用直接相关的新版 lab 证据；[Compaction 实验](labs/compaction-lifecycle/README.md)已补上真实 pressure、产物与持久重读；overflow recovery、workflow-ptc/官方 Web Host 等执行链仍未重跑。旧版 603 tests 保存在独立历史页，不归入新版结果。
 
 ### ✅ Session V1 / V3 → V4：存储迁移实验
 

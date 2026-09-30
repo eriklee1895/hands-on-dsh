@@ -50,15 +50,14 @@ summarizer 直接调用 LLM service，purpose 为 compaction；输入以派生 s
 node --test --test-name-pattern='runtime context|inbox waits' how-dsh-works/probes/published-core.test.mjs
 ```
 
-本次完整 3/3 passed，覆盖相同 context 在连续两轮只记一次、变化后新增 runtime-context 快照、system prompt 出现在已记录 history。**没有调用 compaction engine 或 summarizer**，不能借这两个 case 声称新版压缩已经验收。
+上述 probe 完整 3/3 passed，覆盖相同 context 在连续两轮只记一次、变化后新增 runtime-context 快照、system prompt 出现在已记录 history。该 probe 本身不调用 compaction engine 或 summarizer。
 
-未运行的压缩实现可从固定源码继续核对：
+2026-09-30 新增 [compaction-lifecycle lab](../labs/compaction-lifecycle/README.md)：7 个 keyless tests 执行发布的 compaction engine，覆盖 manual no-op、成功 bracket/replacement、失败不提交、后续请求和 automatic pressure，以及验收器的反例。
 
-```sh
-git show dsh-v0.1.7-rc.2:packages/compaction/compaction-basic/src/region.ts
-git show dsh-v0.1.7-rc.2:packages/compaction/compaction-basic/src/summarizer.ts
-```
+真实 sdk-minimal 显式挂 meter/compaction 插件，将触发比率调低后完成一次成功的 pressure compaction。旧 seed seq 5 进入 shadowedSeqs，checkpoint seq 19 仍含随机 code，end seq 20 早于产物 step/start seq 21；当时其余保留消息不含 code。模型随后一次 Bash 写出精确 40 字节产物。关闭后通过新 public persistence backend 读回 34 个事件，原始前缀和 surface 重放验证通过。
+
+首次实跑的 1024-token 摘要预算出现截断，未提交 checkpoint，原始上下文仍可继续任务；提高预算至 4096 后使用全新 fixture 获得以上成功结果。命令、hash、usage、失败与成功分开的证据见[执行记录](../docs/reviews/2026-09-30-compaction.md)。这不是 `/compact` 的 SDK RPC，也不是 SDK 冷恢复：manual 由库级测试验证，live 通过 pre-step pressure 触发。
 
 ## Inference、Proposal 与未确认
 
-Inference：Request Inspector 应并排显示 header、system/developer messages、surface 顺序和 compaction bracket；仅打印全 log 会把 shadowed 内容误作当前请求。Proposal：增加确定性 summary adapter 的 checkpoint/replay 和 overflow retry 实验。本次未重跑压缩事务、provider cache、真实摘要质量或成本；[旧 45 项测试](historical-2026-08-31.md)保留为 2026-08-31 历史结果。
+Inference：Request Inspector 应并排显示 header、system/developer messages、surface 顺序和 compaction bracket；仅打印全 log 会把 shadowed 内容误作当前请求。Proposal：后续补真实 overflow recovery、取消中途提交、prune/offload 与更广摘要质量实验。本次已验证基本压缩事务和一个随机 code 的真实保留，尚未证明一般摘要质量、provider cache 性能或完整成本；[旧 45 项测试](historical-2026-08-31.md)保留为 2026-08-31 历史结果。
