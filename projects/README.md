@@ -4,7 +4,7 @@
 
 已实现项目：
 
-- [`recoverable-agent-service/`](recoverable-agent-service/README.md)：固定 Python SDK/runtime `0.1.5rc1`，以 SQLite 为业务状态真源，提供 durable Run worker、FastAPI、SSE 断线重放、执行不确定性确认和不可变产物下载；[7.3 认证入口](recoverable-agent-service/TENANCY.md)提供按租户分开的 API 数据访问。
+- [`recoverable-agent-service/`](recoverable-agent-service/README.md)：固定 Python SDK/runtime `0.1.5rc1`，以 SQLite 为业务状态真源，提供 durable Run worker、FastAPI、SSE 断线重放、执行不确定性确认和不可变产物下载；[7.3 认证入口](recoverable-agent-service/TENANCY.md)提供按租户分开的 API 数据访问；[7.6 评测](recoverable-agent-service/EVAL.md)验证固定场景与离线重评。
 - [`ag-ui-dsh-runtime/`](ag-ui-dsh-runtime/README.md)：TypeScript/Fastify 持有 DSH runtime 与 SQLite 业务状态，React/CopilotKit 投影 AG-UI；固定 npm `0.1.7-rc.2`、公开 profile 与项目恢复适配器；当前 tool/model、跨 generation session、断线游标与浏览器验收见项目记录。
 
 可复用适配器先留在第一个真实项目中；只有出现第二个消费者时再提取，避免为了目录整洁过早抽象。

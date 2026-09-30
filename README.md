@@ -150,7 +150,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] [本机 sandbox 探针](labs/sandbox-isolation/README.md)：真实文件写入、网络/进程观察与平台差异
 - [ ] 容器化 workspace 与远程执行环境集成
 - [x] [Run 观测与用量估算](labs/run-observability/README.md)：白名单元数据、重放去重与显式教学费率
-- [ ] eval、回放与 keyless 测试
+- [x] [Eval 与可重放回归](projects/recoverable-agent-service/EVAL.md)：五类业务场景、负对照、独立真实成功路径
 - [ ] 协议适配层：DSH / ACP / Codex / Hermes
 
 ## 仓库结构

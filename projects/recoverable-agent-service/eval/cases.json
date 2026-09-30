@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "dataset_id": "recoverable-service-regression",
+  "dataset_version": 1,
+  "sdk_version": "0.1.5rc1",
+  "cases": [
+    {
+      "id": "success",
+      "scenario": "success",
+      "input": {
+        "prompt": "Write exactly these ASCII bytes without a trailing newline to the required proof.txt artifact: EVAL_SUCCESS_PROOF_V1",
+        "artifact_name": "proof.txt",
+        "artifact_content": "EVAL_SUCCESS_PROOF_V1"
+      },
+      "expected": {
+        "state": "succeeded",
+        "error_code": null,
+        "conversation_state": "active",
+        "artifact_state": "available",
+        "artifact_sha256": "f85063b8ebbe7bb5ff2d7f3ceb6ddaaf8006a3217a9d156c67856540dd7a86ed",
+        "artifact_bytes": 21,
+        "artifact_download_status": 200,
+        "artifact_metadata_matches": true,
+        "tool_errors": 0,
+        "runtime_calls": 1,
+        "terminal_event": "run.succeeded",
+        "replay_exact": true,
+        "idempotent_replay": true,
+        "recovery_rotated": null,
+        "prior_run_preserved": null,
+        "cleanup_confirmed": true,
+        "runtime_finish": "completed"
+      },
+      "metadata": {
+        "description": "精确产物与幂等",
+        "evidence": "controlled-service-contract"
+      }
+    },
+    {
+      "id": "tool-error",
+      "scenario": "tool-error",
+      "input": {
+        "prompt": "Write exactly these ASCII bytes without a trailing newline to the required proof.txt artifact: EVAL_TOOL_ERROR_PROOF_V1",
+        "artifact_name": "proof.txt",
+        "artifact_content": "EVAL_TOOL_ERROR_PROOF_V1"
+      },
+      "expected": {
+        "state": "succeeded",
+        "error_code": null,
+        "conversation_state": "active",
+        "artifact_state": "missing",
+        "artifact_sha256": null,
+        "artifact_bytes": null,
+        "artifact_download_status": 404,
+        "artifact_metadata_matches": true,
+        "tool_errors": 1,
+        "runtime_calls": 1,
+        "terminal_event": "run.succeeded",
+        "replay_exact": true,
+        "idempotent_replay": true,
+        "recovery_rotated": null,
+        "prior_run_preserved": null,
+        "cleanup_confirmed": true,
+        "runtime_finish": "completed"
+      },
+      "metadata": {
+        "description": "工具错误不等于turn失败",
+        "evidence": "controlled-service-contract"
+      }
+    },
+    {
+      "id": "aborted-turn",
+      "scenario": "aborted-turn",
+      "input": {
+        "prompt": "Write exactly these ASCII bytes without a trailing newline to the required proof.txt artifact: EVAL_ABORTED_TURN_PROOF_V1",
+        "artifact_name": "proof.txt",
+        "artifact_content": "EVAL_ABORTED_TURN_PROOF_V1"
+      },
+      "expected": {
+        "state": "failed",
+        "error_code": "agent_outcome",
+        "conversation_state": "active",
+        "artifact_state": "invalid",
+        "artifact_sha256": null,
+        "artifact_bytes": null,
+        "artifact_download_status": 404,
+        "artifact_metadata_matches": true,
+        "tool_errors": 0,
+        "runtime_calls": 1,
+        "terminal_event": "run.failed",
+        "replay_exact": true,
+        "idempotent_replay": true,
+        "recovery_rotated": null,
+        "prior_run_preserved": null,
+        "cleanup_confirmed": true,
+        "runtime_finish": "aborted"
+      },
+      "metadata": {
+        "description": "已结算aborted终态",
+        "evidence": "controlled-service-contract"
+      }
+    },
+    {
+      "id": "transport-disconnect",
+      "scenario": "transport-disconnect",
+      "input": {
+        "prompt": "Write exactly these ASCII bytes without a trailing newline to the required proof.txt artifact: EVAL_TRANSPORT_DISCONNECT_PROOF_V1",
+        "artifact_name": "proof.txt",
+        "artifact_content": "EVAL_TRANSPORT_DISCONNECT_PROOF_V1"
+      },
+      "expected": {
+        "state": "failed",
+        "error_code": "execution_uncertain",
+        "conversation_state": "attention_required",
+        "artifact_state": "invalid",
+        "artifact_sha256": null,
+        "artifact_bytes": null,
+        "artifact_download_status": 404,
+        "artifact_metadata_matches": true,
+        "tool_errors": 0,
+        "runtime_calls": 1,
+        "terminal_event": "run.failed",
+        "replay_exact": true,
+        "idempotent_replay": true,
+        "recovery_rotated": null,
+        "prior_run_preserved": null,
+        "cleanup_confirmed": true,
+        "runtime_finish": null
+      },
+      "metadata": {
+        "description": "断线后执行不确定",
+        "evidence": "controlled-service-contract"
+      }
+    },
+    {
+      "id": "recovery",
+      "scenario": "recovery",
+      "input": {
+        "prompt": "Write exactly these ASCII bytes without a trailing newline to the required proof.txt artifact: EVAL_RECOVERY_PROOF_V1",
+        "artifact_name": "proof.txt",
+        "artifact_content": "EVAL_RECOVERY_PROOF_V1"
+      },
+      "expected": {
+        "state": "succeeded",
+        "error_code": null,
+        "conversation_state": "active",
+        "artifact_state": "available",
+        "artifact_sha256": "c204b8acef4e48dfcff2da5650ae7390ca757a9555a96598c419ddb35c913053",
+        "artifact_bytes": 22,
+        "artifact_download_status": 200,
+        "artifact_metadata_matches": true,
+        "tool_errors": 0,
+        "runtime_calls": 1,
+        "terminal_event": "run.succeeded",
+        "replay_exact": true,
+        "idempotent_replay": true,
+        "recovery_rotated": true,
+        "prior_run_preserved": true,
+        "cleanup_confirmed": true,
+        "runtime_finish": "completed"
+      },
+      "metadata": {
+        "description": "startup恢复与显式新session",
+        "evidence": "controlled-service-contract"
+      }
+    }
+  ]
+}

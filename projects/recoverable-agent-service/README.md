@@ -127,6 +127,8 @@ uv run --env-file ../../.env pytest -m e2e
 
 第 7.3 课新增认证入口后的完整 keyless 回归为 171 项；双租户 HTTP 与模型验证见[独立验收记录](../../docs/reviews/2026-09-29-tenant-auth.md)。原始入口与认证入口都拒绝 Conversation/Run 请求中未知的字段，返回 422。
 
+[第 7.6 课](EVAL.md)进一步提供五场景回归评测、负对照和可重评记录；当前项目 keyless 回归为 251 项，真实成功场景单独验收，见[评测执行记录](../../docs/reviews/2026-09-30-eval-regression.md)。
+
 ## 生产限制
 
 - V1 只有一个应用进程和一个 worker，没有多进程 lease 或分布式 claim。
