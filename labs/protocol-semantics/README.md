@@ -56,7 +56,7 @@ sequenceDiagram
 
 SDK `messageId` 是 inbox receipt identity，非最终答案。probe 忽略 matching receipt 前的 root status/event 和 child/foreign 活动；receipt 后才收集 root 已提交消息，以最后一条为答案。这个版本的 SDK server 转发 `session.event`、`session.status`、`subagent.started`、`subagent.finished`；它不会把实时 `agent/assistant-stream` 转发为逐 token 通知。fake fixture 不再制造旧的 `assistant/chunk`。SDK wire 没有 resume、cancel 或 session close RPC。
 
-ACP `session/prompt` 在完成后返回 `stopReason`，已提交文本经 `session/update` 的 `agent_message_chunk` 到达，当前发行版的 update 含 `messageId`。ACP 还提供 `session/cancel` 通知与 `session/request_permission` 双向 request；两个方向均可独立使用 ID `0`。fake 测试覆盖 literal allow/reject/cancel、未知 option fail closed、超时、异常 EOF、畸形帧和 bounded close。
+ACP `session/prompt` 在结算后返回 `stopReason`，已提交文本经 `session/update` 的 `agent_message_chunk` 到达，当前发行版的 update 含 `messageId`。`end_turn` 不等于根 turn completed：固定版本也会用它表示 aborted/blocked；`max_tokens` 保留输出截断。ACP transcript 因此使用 `protocol_end` 标记，只有 SDK 的明确根 completed 才生成该 `turn_end` 标记。ACP 还提供 `session/cancel` 通知与 `session/request_permission` 双向 request；两个方向均可独立使用 ID `0`。fake 测试覆盖 literal allow/reject/cancel、未知 option fail closed、超时、异常 EOF、畸形帧和 bounded close。
 
 ACP protocol v1 的 `session/list` 只列出 inactive、已持久化、可恢复的 root session；`session/resume` 拒绝 active session 和 cwd 不匹配，不回放历史消息或工具 update；`session/close` 保存可恢复状态。`session/set_config_option` 接受服务端 `configOptions` 已公布的 ID 和 opaque value，不需要调用方拼接 provider/model ID。`session/load`、delete、fork 和 transcript replay 未在当前 DSH ACP bridge 实现。fake 只验证同进程确定性生命周期；跨进程恢复由上述 published package 运行单独观察。
 
@@ -98,3 +98,5 @@ uv run --python 3.10 ruff format --check .
 ```
 
 测试覆盖 package metadata 与 profile argv、Python 3.10、JSONL 分帧与双向 ID、SDK receipt-to-idle/EOF、ACP list/resume/cwd/config、cancel/permission。fake 和 published run 是不同证据。一次成功的模型回复不证明错误恢复、跨平台行为、多租户安全或业务任务状态；业务 Run/Task 仍应有自己的权威状态。协议选择参见[SDK JSON-RPC 与 ACP 对比](../../docs/comparisons/sdk-jsonrpc-vs-acp.md)，进程管理实验参见[Runtime Supervision](../runtime-supervision/README.md)。固定源码依据：[公开 CLI](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/apps/cli/src/bin.ts)、[SDK server](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/server/src/server.ts)、[ACP bridge](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/acp/acp/src/index.ts)。
+
+[第 7.7 课适配层](ADAPTERS.md)用共享场景比较两个入口，保留能力与终态差异；Codex/Hermes仍未接入。

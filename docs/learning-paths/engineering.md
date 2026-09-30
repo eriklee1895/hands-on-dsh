@@ -12,7 +12,7 @@
 | 7.4 Workspace 与执行隔离 | 7.3 | [sandbox isolation lab](../../labs/sandbox-isolation/README.md) | 真实 provider/模型工具验证写入限制；读取、网络、进程与清理逐项观察 | 本机课程已完成，[验收记录](../reviews/2026-09-29-sandbox-isolation.md)；容器/远程执行待扩展 |
 | 7.5 可观测性与成本 | V4 事件迁移、7.1 | [Run 观测 lab](../../labs/run-observability/README.md) | 区分 Run/turn/attempt；重放不重复计数；白名单元数据与明确缺失项 | 已完成，[16 项测试与双 Run 验收](../reviews/2026-09-29-run-observability.md)；非供应商账单 |
 | 7.6 Eval 与可重放回归 | 事件投影、7.5 | [可恢复服务 Eval](../../projects/recoverable-agent-service/EVAL.md) | 成功、工具错误、已结算 aborted、执行不确定和业务恢复；游标重放及负对照 | 已完成，[五受控案例/251 项测试与独立真实成功验证](../reviews/2026-09-30-eval-regression.md)；不提供 cancel/SDK 冷恢复 |
-| 7.7 跨 runtime 适配 | 协议课、7.6 | DSH/ACP 共同场景，随后接入其他 runtime | 逐项标记支持/不支持；不能用统一接口伪造 cancel/approval/resume | 待做 |
+| 7.7 跨 runtime 适配 | 协议课、7.6 | [DSH 双协议适配基础](../../labs/protocol-semantics/ADAPTERS.md) | 保留原生终态、显式能力、共享关闭与共同场景 | 基础已完成，[109 项测试与双 profile 验收](../reviews/2026-09-30-runtime-adapters.md)；其他引擎未接入 |
 
 ## 与旧课程升级的关系
 

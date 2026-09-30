@@ -32,3 +32,11 @@ def test_normalization_preserves_ordered_text_blocks() -> None:
         {"type": "text", "text": "first"},
         {"type": "text", "text": "second"},
     ]
+
+
+def test_acp_transcript_preserves_protocol_end_without_claiming_root_completion() -> None:
+    from protocol_labs.normalize import normalize_acp_transcript
+
+    rows = normalize_acp_transcript("fixture prompt", "fixture answer")
+    assert rows[-1] == {"kind": "protocol_end", "protocol": "acp", "stop_reason": "end_turn"}
+    assert not any(row.get("kind") == "turn_end" for row in rows)

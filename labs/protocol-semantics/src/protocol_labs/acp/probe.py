@@ -7,7 +7,7 @@ from pathlib import Path
 
 from protocol_labs.jsonl_peer import CloseOutcome, JsonlPeer, JsonRpcError
 from protocol_labs.launch import LaunchSpec
-from protocol_labs.normalize import TextBlock, normalize_committed_transcript
+from protocol_labs.normalize import TextBlock, normalize_acp_transcript
 
 
 class AcpProbe:
@@ -288,7 +288,7 @@ class AcpProbe:
         if (
             not isinstance(result, dict)
             or set(result) != {"stopReason"}
-            or result["stopReason"] not in {"end_turn", "cancelled"}
+            or result["stopReason"] not in {"end_turn", "cancelled", "max_tokens"}
         ):
             raise RuntimeError("session/prompt returned an invalid stopReason")
         chunks: list[str] = []
@@ -358,10 +358,12 @@ class AcpProbe:
             "committedAnswer": answer,
             "toolUpdates": tool_updates,
             "stopReason": stop_reason,
-            "settlement": "committed-to-end-turn"
-            if stop_reason == "end_turn"
-            else "committed-to-cancelled",
-            "transcript": normalize_committed_transcript(prompt, answer)
+            "settlement": {
+                "end_turn": "committed-to-end-turn",
+                "cancelled": "committed-to-cancelled",
+                "max_tokens": "committed-to-max-tokens",
+            }[stop_reason],
+            "transcript": normalize_acp_transcript(prompt, answer)
             if stop_reason == "end_turn"
             else None,
             "permissionRequests": [dict(item) for item in self._permission_requests],

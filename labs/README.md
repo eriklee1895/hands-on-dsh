@@ -11,12 +11,12 @@
 - [session-format-migration](session-format-migration/README.md)：发布版 backend 的 synthetic V1/V3 → V4、只读/写入区别与不可变 generation。
 
 - [runtime-supervision](runtime-supervision/README.md)：基于新版公开 SDK 的单 runtime 所有权、超时、隔离与显式重建；[第二课](runtime-supervision/POOL.md)扩展有界 FIFO 池与容量控制。
-- [protocol-semantics](protocol-semantics/README.md)：固定 npm `0.1.7-rc.2` 的 SDK/ACP profiles、JSONL、committed output、cancel/permission、持久 session list/resume/close 与进程生命周期
+- [protocol-semantics](protocol-semantics/README.md)：固定 npm `0.1.7-rc.2` 的 SDK/ACP profiles、JSONL、committed output、cancel/permission、持久 session list/resume/close 与进程生命周期；[适配层](protocol-semantics/ADAPTERS.md)提供显式能力与共同场景
 - [cordis-plugin-lifecycle](cordis-plugin-lifecycle/README.md)：固定 DSH `0.1.7-rc.2` 的原创 proof journal、Cordis lifecycle/HMR/PENDING、preset scope、可复用 tool/listener 与真实模型调用
 
 计划中的实验：
 
 - 容器/远程 executor 与多租户执行环境验证
-- DSH / ACP / Codex / Hermes adapter 的共同 transcript fixture
+- Codex / Hermes 等其他引擎的 adapter 接入与共同场景实测
 
 教程可以引用 lab，但不复制其实现。完整应用则放在 `projects/`。

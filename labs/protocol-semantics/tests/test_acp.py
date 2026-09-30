@@ -136,8 +136,34 @@ def test_resume_replay_gate_counts_root_user_text_but_not_config_or_foreign_upda
 def _fixture_transcript() -> list[dict[str, object]]:
     return [
         json.loads(line)
-        for line in (PROJECT_ROOT / "fixtures" / "committed-answer.jsonl").read_text().splitlines()
+        for line in (PROJECT_ROOT / "fixtures" / "acp-committed-answer.jsonl")
+        .read_text()
+        .splitlines()
     ]
+
+
+def test_acp_probe_preserves_max_tokens_as_incomplete_native_settlement(tmp_path: Path) -> None:
+    from protocol_labs.acp.probe import AcpProbe
+
+    async def scenario() -> None:
+        probe = await AcpProbe.start(resolve_launch("fake", protocol="acp", env={}), cwd=tmp_path)
+        original_request = probe._peer.request
+
+        async def shortened_request(method: str, *args: object, **kwargs: object) -> object:
+            if method == "session/prompt":
+                return {"stopReason": "max_tokens"}
+            return await original_request(method, *args, **kwargs)
+
+        probe._peer.request = shortened_request
+        try:
+            evidence = await probe.prompt([{"type": "text", "text": "fixture prompt"}])
+        finally:
+            await probe.close()
+        assert evidence["stopReason"] == "max_tokens"
+        assert evidence["settlement"] == "committed-to-max-tokens"
+        assert evidence["transcript"] is None
+
+    asyncio.run(scenario())
 
 
 def test_acp_probe_performs_exact_handshake_and_normalizes_committed_chunks(
@@ -406,7 +432,7 @@ def test_acp_permission_maps_literal_outcomes_and_fail_closed(
                     "kind": "assistant_message",
                     "content": [{"type": "text", "text": "fixture answer"}],
                 },
-                {"kind": "turn_end", "reason": {"kind": "completed"}},
+                {"kind": "protocol_end", "protocol": "acp", "stop_reason": "end_turn"},
             ]
 
     asyncio.run(scenario())

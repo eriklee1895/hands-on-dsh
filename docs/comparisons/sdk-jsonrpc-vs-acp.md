@@ -72,3 +72,5 @@ SDK 的部分 handler 参数直接 cast，同时对 route、token、图像 admis
 - [ACP Session](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/acp/acp/src/session.ts)：prompt、取消、持久恢复和关闭。
 - [ACP 使用说明](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/acp/acp/README.md)：标准自动化表面和未实现能力。
 - [Profile 启动规则](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/docs/architecture.md#application-launch)。
+
+ACP 的 `end_turn` 在固定 DSH 版本中也可能来自 aborted/blocked，不能直接归一化为根 turn completed；`max_tokens` 是另一个有效终态。新的[适配层实验](../../labs/protocol-semantics/ADAPTERS.md)分别保留 SDK completed 与 ACP settled，并用精确任务输出独立验收。
