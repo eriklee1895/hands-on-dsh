@@ -58,10 +58,14 @@ node --test --test-name-pattern='runtime context|inbox waits' how-dsh-works/prob
 
 首次实跑的 1024-token 摘要预算出现截断，未提交 checkpoint，原始上下文仍可继续任务；提高预算至 4096 后使用全新 fixture 获得以上成功结果。命令、hash、usage、失败与成功分开的证据见[执行记录](../docs/reviews/2026-09-30-compaction.md)。这不是 `/compact` 的 SDK RPC，也不是 SDK 冷恢复：manual 由库级测试验证，live 通过 pre-step pressure 触发。
 
-[溢出与取消实验](../labs/compaction-lifecycle/RECOVERY.md)另增10种 controlled adapter 场景，Lab 总计17项测试；每个场景还经独立 sdk-minimal profile 执行并重开 V4，完整事件指纹和 surface 一致。覆盖 thrown/in-band 标准溢出、零重试/预算耗尽、无进展/摘要失败、非标准错误与取消。故障输入来自 fixture，不是真实供应商 overflow。
+[溢出与取消实验](../labs/compaction-lifecycle/RECOVERY.md)另增10种 controlled adapter 场景，该批次 Lab 合计17项测试；每个场景还经独立 sdk-minimal profile 执行并重开 V4，完整事件指纹和 surface 一致。覆盖 thrown/in-band 标准溢出、零重试/预算耗尽、无进展/摘要失败、非标准错误与取消。故障输入来自 fixture，不是真实供应商 overflow。
 
 该固定版的重要观察：手动取消会拒绝迟到摘要，正常响应取消的自动摘要也不提交；但自动摘要若忽略 signal 并迟到返回有效结果，可以先提交 checkpoint，随后 listener 仍因取消拒绝 retry，turn 以 aborted/user 结束。不能由 turn 取消推断 surface 未变化。详见[验收](../docs/reviews/2026-09-30-compaction-recovery.md)。
 
+[裁剪与图片 offload](../labs/compaction-lifecycle/REDUCTION.md)将 Lab 扩展到29项测试，并完成旧10个和新10个独立 profile 验证。裁剪追加 replacement；offload 只记录 occurrence 选择，节点编号可保持不变。大 route 不会自动撤销旧选择，同附件的新 occurrence 可以仍是图片。已提交的 prune/offload 在后续摘要失败或取消后保留。
+
+这一批同时比较原始事件、模型适配器的占位符视图、显式 image projection 的重放与真实70字节 PNG 文件；没有调用外部视觉模型或生产附件 store。缺失 projection、重复图片索引、交换合法索引，以及 live pruner 改动图片字段/位置的负对照均可拒绝，详见[验收](../docs/reviews/2026-09-30-compaction-reduction.md)。
+
 ## Inference、Proposal 与未确认
 
-Inference：Request Inspector 应并排显示 header、system/developer messages、surface 顺序和 compaction bracket；仅打印全 log 会把 shadowed 内容误作当前请求。Proposal：后续补真实供应商 overflow、prune/offload、持久化/并发失败与更广摘要质量实验。本次已验证基本压缩事务和一个随机 code 的真实保留，尚未证明一般摘要质量、provider cache 性能或完整成本；[旧 45 项测试](historical-2026-08-31.md)保留为 2026-08-31 历史结果。
+Inference：Request Inspector 应并排显示 header、system/developer messages、surface 顺序和 compaction bracket；仅打印全 log 会把 shadowed 内容误作当前请求。Proposal：后续补真实供应商 overflow/图片预算、生产附件存储、持久化/并发失败与更广摘要质量实验。本次已验证基本压缩事务和一个随机 code 的真实保留，尚未证明一般摘要质量、provider cache 性能或完整成本；[旧 45 项测试](historical-2026-08-31.md)保留为 2026-08-31 历史结果。

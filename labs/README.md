@@ -7,7 +7,7 @@
 - [官方 Web Host](web-host-lifecycle/README.md)：浏览器认证、实时帧、工具产物、页面刷新及正常重启后的同会话续写；[控制案例](web-host-lifecycle/CONTROLS.md)验证审批、取消和离线行为。
 
 - [Workflow PTC 与 child 冷恢复](workflow-child-lifecycle/README.md)：发布包 PTC、取消后的迟到 child 清理，以及两次独立 runtime 的持久 child 恢复和文件验证。
-- [compaction-lifecycle](compaction-lifecycle/README.md)：真实发布engine的manual/auto/failure测试，真实pressure摘要、后续产物和持久surface重放；[溢出与取消](compaction-lifecycle/RECOVERY.md)验证受控故障、重试上限及迟到摘要。
+- [compaction-lifecycle](compaction-lifecycle/README.md)：真实发布engine的manual/auto/failure测试，真实pressure摘要、后续产物和持久surface重放；[溢出与取消](compaction-lifecycle/RECOVERY.md)验证受控故障、重试上限及迟到摘要；[裁剪/offload](compaction-lifecycle/REDUCTION.md)核对原始日志、模型输入、图片文件与重放。
 
 - [run-observability](run-observability/README.md)：Run/session/attempt 时间线、用量去重、缺失项与费用估算；仅导出白名单元数据。
 

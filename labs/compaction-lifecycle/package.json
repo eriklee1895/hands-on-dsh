@@ -10,14 +10,18 @@
     "format:check": "oxfmt --check .",
     "live": "node --import tsx examples/live.ts",
     "build": "tsc -p tsconfig.build.json",
-    "faults": "pnpm build && node --import tsx examples/faults.ts"
+    "faults": "pnpm build && node --import tsx examples/faults.ts",
+    "reductions": "pnpm build && node --import tsx examples/faults.ts reductions"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
     "@deepseek-ai/dsh-agent": "0.1.7-rc.2",
     "@deepseek-ai/dsh-agent-loop": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-attachment": "0.1.7-rc.2",
     "@deepseek-ai/dsh-compaction": "0.1.7-rc.2",
     "@deepseek-ai/dsh-compaction-basic": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-compaction-image-offload": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-compaction-tool-result-pruner": "0.1.7-rc.2",
     "@deepseek-ai/dsh-llm": "0.1.7-rc.2",
     "@deepseek-ai/dsh-sdk-client": "0.1.7-rc.2",
     "@deepseek-ai/dsh-sdk-protocol": "0.1.7-rc.2",

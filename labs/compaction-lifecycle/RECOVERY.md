@@ -18,7 +18,7 @@ pnpm format:check
 pnpm faults
 ```
 
-`pnpm test` 共17项：原有7项与新增10种故障场景。`pnpm faults` 先编译课程 plugin，再依次启动10个独立 `sdk-minimal` profile；每个使用自己的 home/workspace/Session，通过公开入口加载 meter、compaction 和 fixture plugin。子进程环境不传入 API Key，每个场景关闭后通过新的公开 JSONL backend 重读 V4。
+本课新增10种故障场景；`pnpm test` 当前共29项，包含基础课与后续[裁剪/offload课](REDUCTION.md)。`pnpm faults` 先编译课程 plugin，再依次启动10个独立 `sdk-minimal` profile；每个使用自己的 home/workspace/Session，通过公开入口加载 meter、compaction 和 fixture plugin。子进程环境不传入 API Key，每个场景关闭后通过新的公开 JSONL backend 重读 V4。
 
 本次环境：macOS arm64、Node `26.7.0`、pnpm `12.3.4`。主进程只打印验证元数据，不输出完整 Session 历史。成功且所有 SDK owner 已关闭才删除实验目录；失败保留目录并打印位置，不自动重跑。
 
@@ -97,6 +97,6 @@ sequenceDiagram
 
 ## 未确认
 
-没有请求真实供应商产生溢出，也未验证真实 provider 在所有取消时序下是否及时停止。没有挂载 tool-result pruner 或 image offload，因此不能把本课的“无 replacement”推断到已提交 prune/offload 的组合。未覆盖繁忙 surface 竞争、持久化失败、进程强杀、transient retry 混合、重试预算跨成功请求的重置、摘要质量或缓存/费用性能。
+没有请求真实供应商产生溢出，也未验证真实 provider 在所有取消时序下是否及时停止。本课这10个 overflow/cancel 场景没有挂载 tool-result pruner 或 image offload，因此不能把“无 replacement”推断到已提交 prune/offload 的组合；[下一课](REDUCTION.md)已单独验证这类已提交缩减在摘要失败/取消后保留。未覆盖繁忙 surface 竞争、持久化失败、进程强杀、transient retry 混合、重试预算跨成功请求的重置、摘要质量或缓存/费用性能。
 
 fixture 的等待点最多等待5秒，profile 初始化与报告各限60秒，关闭仍等待 SDK owner；这不是端到端硬性 deadline。未来迁移版本时，应重新运行这些案例，尤其核对自动迟到摘要的行为，不将此版观察写成永久保证。
