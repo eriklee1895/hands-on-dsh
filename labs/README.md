@@ -4,6 +4,7 @@
 
 已完成：
 
+- [Workflow PTC 与 child 冷恢复](workflow-child-lifecycle/README.md)：发布包 PTC、取消后的迟到 child 清理，以及两次独立 runtime 的持久 child 恢复和文件验证。
 - [compaction-lifecycle](compaction-lifecycle/README.md)：真实发布engine的manual/auto/failure测试，真实pressure摘要、后续产物和持久surface重放。
 
 - [run-observability](run-observability/README.md)：Run/session/attempt 时间线、用量去重、缺失项与费用估算；仅导出白名单元数据。

@@ -31,7 +31,8 @@
 - [x] AG-UI：重新审计 SDK deployment resume adapter、V4 committed projector、公开 package runtime、跨 generation 与浏览器 hydration。
 - [x] 核心机制正文：七篇按固定新版源码更新，3 个新公开库 probe 和相关 lab 证据，旧结果独立归档。
 - [x] Compaction基础运行验证：[确定性engine与真实pressure实验](../../labs/compaction-lifecycle/README.md)，包含后续产物和持久surface重放。
-- [ ] 核心机制剩余运行验证：compaction overflow/取消/prune/offload、workflow-ptc、child cold resume、官方 Web Host 与复杂并行/retry；见逐篇证据表。
+- [x] Workflow/PTC 与 child 冷恢复基础：[运行 Lab](../../labs/workflow-child-lifecycle/README.md)，包含受控取消清理、真实文件和正常关闭后的双进程恢复。
+- [ ] 核心机制剩余运行验证：compaction overflow/取消/prune/offload、PTC crash/复杂并行/retry、child 冷恢复森林、官方 Web Host；见逐篇证据表。
 
 先读[业务恢复、会话恢复与格式迁移](../comparisons/recovery-and-session-migration.md)，避免把底层可读或 resume 成功当成业务执行成功。
 

@@ -1,6 +1,6 @@
 # Subagent、父会话 catalog 与 PTC Workflow
 
-> 固定版本：`dsh-v0.1.7-rc.2`；revision：`477b4f420553e8a52c2fbccc464d7561b239c443`；源码审查：2026-09-29。
+> 固定版本：`dsh-v0.1.7-rc.2`；revision：`477b4f420553e8a52c2fbccc464d7561b239c443`；源码审查：2026-09-29；运行补证：2026-09-30。
 
 Subagent 管理 child delegation；workflow 执行编排脚本并调用同一个 subagent service。新版 workflow 使用 Node PTC 进程，不再是旧 worker-thread provider。
 
@@ -53,7 +53,11 @@ top-level workflow tool 将 run-start、member start/end 和 run-end 写入 pare
 
 ## 证据与最小核对
 
-本篇新版结论全部是 **Verified from source，执行链未重跑**。以下命令在带该 tag 的 upstream checkout 只读执行：
+[Workflow/child lifecycle Lab](../labs/workflow-child-lifecycle/README.md)已补上当前发行包的执行证据：无 Key 案例运行真实 Node PTC、AgentLoop、JSONL，并验证脚本失败、非父拒绝和取消后的 late-start disposal；真实模型案例通过两个顺序启动的 `sdk-minimal` runtime，完成两个一次性 child 的文件任务及一个 continuable child 的冷恢复。第二次输入不带随机口令，恢复后文件字节准确，child 持久历史 `14 → 31` 且原前缀不变。详见[执行记录](../docs/reviews/2026-09-30-workflow-child.md)。
+
+实验由 profile 中的课程 plugin 调用公开 service，父 pre-step 被拒绝以抑制 settlement 通知触发额外模型调用。它验证正常关闭后的同一 child 恢复，不是原生 SDK resume 或崩溃恢复。冷恢复需要 Session Query；continuable descriptor 不保存 `maxTokens`，恢复时使用模型路由默认预算。
+
+以下命令在带该 tag 的 upstream checkout 只读执行：
 
 ```sh
 git show dsh-v0.1.7-rc.2:packages/subagent/subagent/src/list-children.ts
@@ -61,8 +65,8 @@ git show dsh-v0.1.7-rc.2:packages/workflow/workflow-ptc/src/host.ts
 git show dsh-v0.1.7-rc.2:packages/workflow/workflow-ptc/README.md
 ```
 
-它们可以核对目录和具体实现，但不是 runtime probes。[2026-08-31 的 46 项测试](historical-2026-08-31.md)含旧 worker-thread engine，不构成 PTC 的当前证据；其他 lab 的 SDK 或存储成功也不补足这项缺口。
+这些源码命令用于核对具体实现；上述 Lab 才提供 runtime probes。[2026-08-31 的 46 项测试](historical-2026-08-31.md)含旧 worker-thread engine，不构成 PTC 的当前证据；其他 lab 的 SDK 或存储成功也不补足这项缺口。
 
 ## Inference、Proposal 与未确认
 
-Inference：workflow run、child Session、业务 Run 应有显式映射；catalog/投影不是业务任务状态。Proposal：下一步先做无模型 PTC 两 child 的取消与 late-start disposal，再验证真实产物。本次未验证 PTC process failure、continuable capacity、catalog migration、冷恢复森林或外部 provider teardown，也没有完成恶意脚本隔离审计。
+Inference：workflow run、child Session、业务 Run 应有显式映射；catalog/投影不是业务任务状态。Proposal：后续分别补 PTC process failure、continuable capacity、catalog migration、复杂并行/retry、冷恢复森林和外部 provider teardown。本次没有完成恶意脚本隔离审计，也没有覆盖 tool-workflow 的 durable UI 记录。

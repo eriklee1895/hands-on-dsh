@@ -13,7 +13,7 @@
 | [03 Turn、Step 与工具](03-turn-step-tool-pipeline.md) | prepared admission、embedded stream、V4 tool message | 新 probe：未知工具 error → 下一 step；live/committed 输出 | parallel 顺序、retry、工具副作用与 repair |
 | [04 Session 与 projection](04-session-event-log-and-projection.md) | V4 surface；read/write 迁移；不可变 generation；required projections | 已有 V1/V3 synthetic migration lab 7 项；新 probe 的内存日志 | 复杂真实历史、附件/catalog、压缩历史迁移 |
 | [05 Context 与 compaction](05-compaction-and-context-assembly.md) | system 在 surface；request series；压缩 bracket | context snapshot probe；[compaction lab](../labs/compaction-lifecycle/README.md) 7项测试、真实pressure与持久重读 | overflow retry、取消中途提交、广泛摘要质量 |
-| [06 Subagent 与 workflow](06-subagent-and-workflow.md) | parent catalog、continuable capacity、PTC 进程执行 | 本篇没有当前执行链的 runtime probe | child cold resume、PTC 与 cleanup、外部 provider |
+| [06 Subagent 与 workflow](06-subagent-and-workflow.md) | parent catalog、continuable capacity、PTC 进程执行 | [PTC 与 child 冷恢复 Lab](../labs/workflow-child-lifecycle/README.md)：受控取消清理、真实产物及双进程恢复 | crash/森林恢复、复杂并行、外部 provider |
 | [07 SDK、ACP 与 Web Host](07-sdk-jsonrpc-acp-and-web-host.md) | ACP control 与 generic tools；Remote mux；SDK 缺少 resume/cancel | 已有同版本 SDK/ACP 跨进程实跑；fake/keyless 协议测试 | 官方 Web Host、真实 cancel/permission |
 
 这些限定直接对应每篇的 Verified from source、Observed at runtime、Inference/Proposal 和未确认部分；不以一条成功命令推断其他能力可用。
