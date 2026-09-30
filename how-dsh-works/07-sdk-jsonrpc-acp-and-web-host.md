@@ -61,7 +61,7 @@ flowchart LR
 
 ## Observed at runtime
 
-[2026-09-29 protocol 执行记录](../docs/reviews/2026-09-29-web-protocol-migration.md)记录发布 npm `0.1.7-rc.2`：SDK matching receipt、非空 committed text、completed/idle；ACP close/list、第二个 CLI 进程 resume 同 ID、无旧 transcript update 回放、无工具 nonce 回忆。真实 cancel/permission 未测试，其精确选择与双向 ID 相关性属于 fake/keyless tests。
+[2026-09-29 protocol 执行记录](../docs/reviews/2026-09-29-web-protocol-migration.md)记录发布 npm `0.1.7-rc.2`：SDK matching receipt、非空 committed text、completed/idle；ACP close/list、第二个 CLI 进程 resume 同 ID、无旧 transcript update 回放、无工具 nonce 回忆。该 SDK/ACP 记录没有真实 cancel/permission 验证，其精确选择与双向 ID 相关性属于 fake/keyless tests。
 
 从 protocol lab 重跑 keyless 测试：
 
@@ -73,7 +73,9 @@ uv run --python 3.10 pytest tests
 
 [官方 Web Host Lab](../labs/web-host-lifecycle/README.md)新增独立浏览器证据：匿名首页 401、token 登录后干净 URL、页面 reload 保留历史，以及两个顺序启动的 Host 使用同一个 Session 完成两轮文件任务。持久记录 `26 → 43`、原前缀不变，两个产物均为相同的 36 字节口令；第二轮输入不带口令。两个最终回复各有 4 个独立 `assistant-stream / text-delta` 帧先于对应持久 `assistant/message` 到达浏览器，未将历史内嵌 chunk 算成实时输出。详见[验收记录](../docs/reviews/2026-09-30-web-host.md)。
 
-这些 Web 观察使用公开 `web` profile，正常 SIGINT 后重启；不是强杀恢复或完整 cancel/permission 验收。无模型源码核对命令：
+[Web 控制案例](../labs/web-host-lifecycle/CONTROLS.md)另补了真实审批、foreground 取消和离线：拒绝没有目标写入且根 turn completed；单次允许后持续策略仍 read-only；取消为 user-caused aborted、保留已发生的开始标记；浏览器离线时 Host 继续完成一次 append，重连补齐同会话历史。参见[控制验收](../docs/reviews/2026-09-30-web-controls.md)。
+
+这些 Web 观察使用公开 `web` profile；基础恢复为 SIGINT 后重启，控制案例也不覆盖强杀恢复或完整交互矩阵。无模型源码核对命令：
 
 ```sh
 git show dsh-v0.1.7-rc.2:packages/acp/acp/src/index.ts
@@ -82,4 +84,4 @@ git show dsh-v0.1.7-rc.2:packages/client/connection/README.md
 
 ## Inference、Proposal 与未确认
 
-Inference：适配器应逐项声明 fullSessionEvents、liveTokens、wireCancel、permission、persistedResume，不能用统一接口假装对等。Proposal：在已完成的 Web 基础验收上，继续扩展中途断网、cancel/approval、重复投递和崩溃恢复。现有 Web Lab 只覆盖正常重启和有限认证观察；自有 FastAPI/AG-UI 的成功仍不能替代其他官方 Web 功能的证据。[旧 170 项测试](historical-2026-08-31.md)也不能验证新版 Remote carrier。
+Inference：适配器应逐项声明 fullSessionEvents、liveTokens、wireCancel、permission、persistedResume，不能用统一接口假装对等。Proposal：在已完成的 Web 基础验收上，继续扩展审批等待时取消/迟到回答、重复投递、prompt admission 期间断线和崩溃恢复。现有 Web Lab 覆盖基础重启、有限认证及上述受控操作；自有 FastAPI/AG-UI 的成功仍不能替代其他官方 Web 功能的证据。[旧 170 项测试](historical-2026-08-31.md)也不能验证新版 Remote carrier。
