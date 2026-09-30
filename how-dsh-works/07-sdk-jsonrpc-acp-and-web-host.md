@@ -1,6 +1,6 @@
 # SDK JSON-RPC、ACP 与 Web Host：分别核对能力
 
-> 固定版本：`dsh-v0.1.7-rc.2`；revision：`477b4f420553e8a52c2fbccc464d7561b239c443`；源码审查：2026-09-29。
+> 固定版本：`dsh-v0.1.7-rc.2`；revision：`477b4f420553e8a52c2fbccc464d7561b239c443`；源码审查：2026-09-29；Web 运行补证：2026-09-30。
 
 三者拥有不同的 session/control/output 语义。北向 AG-UI 可以投影已有能力，不能让 SDK 获得它没有的 cancel/resume，也不能把自有应用的验收当成官方 Web Host 的证据。
 
@@ -71,7 +71,9 @@ uv sync --group dev
 uv run --python 3.10 pytest tests
 ```
 
-本篇编辑没有重复模型调用；上述真实观察为同固定版已有证据。无模型源码核对命令：
+[官方 Web Host Lab](../labs/web-host-lifecycle/README.md)新增独立浏览器证据：匿名首页 401、token 登录后干净 URL、页面 reload 保留历史，以及两个顺序启动的 Host 使用同一个 Session 完成两轮文件任务。持久记录 `26 → 43`、原前缀不变，两个产物均为相同的 36 字节口令；第二轮输入不带口令。两个最终回复各有 4 个独立 `assistant-stream / text-delta` 帧先于对应持久 `assistant/message` 到达浏览器，未将历史内嵌 chunk 算成实时输出。详见[验收记录](../docs/reviews/2026-09-30-web-host.md)。
+
+这些 Web 观察使用公开 `web` profile，正常 SIGINT 后重启；不是强杀恢复或完整 cancel/permission 验收。无模型源码核对命令：
 
 ```sh
 git show dsh-v0.1.7-rc.2:packages/acp/acp/src/index.ts
@@ -80,4 +82,4 @@ git show dsh-v0.1.7-rc.2:packages/client/connection/README.md
 
 ## Inference、Proposal 与未确认
 
-Inference：适配器应逐项声明 fullSessionEvents、liveTokens、wireCancel、permission、persistedResume，不能用统一接口假装对等。Proposal：官方 Web Host 另建认证、重连和 live/durable 汇合的浏览器验收。本次没启动官方 Web Host；自有 FastAPI/AG-UI 的成功不能补足这一点。[旧 170 项测试](historical-2026-08-31.md)也不能验证新版 Remote carrier。
+Inference：适配器应逐项声明 fullSessionEvents、liveTokens、wireCancel、permission、persistedResume，不能用统一接口假装对等。Proposal：在已完成的 Web 基础验收上，继续扩展中途断网、cancel/approval、重复投递和崩溃恢复。现有 Web Lab 只覆盖正常重启和有限认证观察；自有 FastAPI/AG-UI 的成功仍不能替代其他官方 Web 功能的证据。[旧 170 项测试](historical-2026-08-31.md)也不能验证新版 Remote carrier。
