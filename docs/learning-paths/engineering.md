@@ -30,10 +30,10 @@
 - [x] Cordis/preset：固定新版公开 profile patch、packed plugin、effect teardown 和 preset composition probe。
 - [x] AG-UI：重新审计 SDK deployment resume adapter、V4 committed projector、公开 package runtime、跨 generation 与浏览器 hydration。
 - [x] 核心机制正文：七篇按固定新版源码更新，3 个新公开库 probe 和相关 lab 证据，旧结果独立归档。
-- [x] Compaction基础运行验证：[确定性engine与真实pressure实验](../../labs/compaction-lifecycle/README.md)，包含后续产物和持久surface重放。
+- [x] Compaction基础运行验证：[确定性engine与真实pressure实验](../../labs/compaction-lifecycle/README.md)，包含后续产物和持久surface重放；[溢出/取消课](../../labs/compaction-lifecycle/RECOVERY.md)补受控错误、重试预算与迟到摘要的独立进程证据。
 - [x] Workflow/PTC 与 child 冷恢复基础：[运行 Lab](../../labs/workflow-child-lifecycle/README.md)，包含受控取消清理、真实文件和正常关闭后的双进程恢复。
 - [x] 官方 Web Host 基础：[浏览器 Lab](../../labs/web-host-lifecycle/README.md)，包含认证、实时帧、历史加载、正常重启后同会话续写与文件验证；[控制案例](../../labs/web-host-lifecycle/CONTROLS.md)补上拒绝/单次允许、foreground 取消、浏览器离线后历史恢复。
-- [ ] 核心机制剩余运行验证：compaction overflow/取消/prune/offload、PTC crash/复杂并行/retry、child 冷恢复森林、Web admission 断线、审批等待中取消/迟到回答、重复投递/crash；见逐篇证据表。
+- [ ] 核心机制剩余运行验证：真实 provider overflow、compaction prune/offload/持久化并发失败、PTC crash/复杂并行/retry、child 冷恢复森林、Web admission 断线、审批等待中取消/迟到回答、重复投递/crash；见逐篇证据表。
 
 先读[业务恢复、会话恢复与格式迁移](../comparisons/recovery-and-session-migration.md)，避免把底层可读或 resume 成功当成业务执行成功。
 

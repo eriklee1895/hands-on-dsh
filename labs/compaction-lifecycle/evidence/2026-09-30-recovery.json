@@ -1,0 +1,294 @@
+{
+  "date": "2026-09-30",
+  "dshVersion": "0.1.7-rc.2",
+  "sourceRevision": "477b4f420553e8a52c2fbccc464d7561b239c443",
+  "evidenceKind": "controlled-adapter-in-public-profile",
+  "externalModelRequests": 0,
+  "scenarios": [
+    {
+      "ok": true,
+      "runtimePid": 19626,
+      "scenario": "recover-thrown",
+      "verified": true,
+      "sessionId": "fault-recover-thrown",
+      "terminal": {
+        "kind": "completed"
+      },
+      "conversationCalls": 2,
+      "summaryCalls": 1,
+      "replacementDelta": 1,
+      "originalPrefixUnchanged": true,
+      "oldHistoryRetained": false,
+      "maintenanceReleased": false,
+      "cancellationForwarded": false,
+      "markerTypes": ["compaction/start", "compaction/summary", "compaction/end"],
+      "eventCount": 26,
+      "eventFingerprint": "781e91aa83ff975181affa1b237145fd4ca851278599e4438a5efdab61fb23ea",
+      "surfaceNodes": [4, 20, 16, 23],
+      "persistedV4": true,
+      "fullEventFingerprintEqual": true,
+      "replaySurfaceEqual": true,
+      "apiKeyPassed": false
+    },
+    {
+      "ok": true,
+      "runtimePid": 19629,
+      "scenario": "recover-in-band",
+      "verified": true,
+      "sessionId": "fault-recover-in-band",
+      "terminal": {
+        "kind": "completed"
+      },
+      "conversationCalls": 2,
+      "summaryCalls": 1,
+      "replacementDelta": 1,
+      "originalPrefixUnchanged": true,
+      "oldHistoryRetained": false,
+      "maintenanceReleased": false,
+      "cancellationForwarded": false,
+      "markerTypes": ["compaction/start", "compaction/summary", "compaction/end"],
+      "eventCount": 26,
+      "eventFingerprint": "f9989819db4ddcf9584b944e6cdab3b026949b09641468e35b6add12f2e9edf7",
+      "surfaceNodes": [4, 20, 16, 23],
+      "persistedV4": true,
+      "fullEventFingerprintEqual": true,
+      "replaySurfaceEqual": true,
+      "apiKeyPassed": false
+    },
+    {
+      "ok": true,
+      "runtimePid": 19637,
+      "scenario": "budget-exhausted",
+      "verified": true,
+      "sessionId": "fault-budget-exhausted",
+      "terminal": {
+        "kind": "error",
+        "error": {
+          "message": "controlled overflow",
+          "code": "CONTEXT_WINDOW_EXCEEDED"
+        }
+      },
+      "conversationCalls": 2,
+      "summaryCalls": 1,
+      "replacementDelta": 1,
+      "originalPrefixUnchanged": true,
+      "oldHistoryRetained": false,
+      "maintenanceReleased": false,
+      "cancellationForwarded": false,
+      "markerTypes": ["compaction/start", "compaction/summary", "compaction/end"],
+      "eventCount": 26,
+      "eventFingerprint": "92efc157614dc079a2db26a0713affd302a4bc772e2d4e0f93ec00b0456d32fd",
+      "surfaceNodes": [4, 20, 16],
+      "persistedV4": true,
+      "fullEventFingerprintEqual": true,
+      "replaySurfaceEqual": true,
+      "apiKeyPassed": false
+    },
+    {
+      "ok": true,
+      "runtimePid": 19639,
+      "scenario": "disabled",
+      "verified": true,
+      "sessionId": "fault-disabled",
+      "terminal": {
+        "kind": "error",
+        "error": {
+          "message": "controlled overflow",
+          "code": "CONTEXT_WINDOW_EXCEEDED"
+        }
+      },
+      "conversationCalls": 1,
+      "summaryCalls": 0,
+      "replacementDelta": 0,
+      "originalPrefixUnchanged": true,
+      "oldHistoryRetained": true,
+      "maintenanceReleased": false,
+      "cancellationForwarded": false,
+      "markerTypes": [],
+      "eventCount": 20,
+      "eventFingerprint": "50109afa200c95aa5200bd8b70f4141a292dc42e9c7193335555c3ba89af1b81",
+      "surfaceNodes": [4, 5, 9, 16],
+      "persistedV4": true,
+      "fullEventFingerprintEqual": true,
+      "replaySurfaceEqual": true,
+      "apiKeyPassed": false
+    },
+    {
+      "ok": true,
+      "runtimePid": 19642,
+      "scenario": "no-progress",
+      "verified": true,
+      "sessionId": "fault-no-progress",
+      "terminal": {
+        "kind": "error",
+        "error": {
+          "message": "controlled overflow",
+          "code": "CONTEXT_WINDOW_EXCEEDED"
+        }
+      },
+      "conversationCalls": 1,
+      "summaryCalls": 1,
+      "replacementDelta": 0,
+      "originalPrefixUnchanged": true,
+      "oldHistoryRetained": true,
+      "maintenanceReleased": false,
+      "cancellationForwarded": false,
+      "markerTypes": ["compaction/start", "compaction/end"],
+      "eventCount": 22,
+      "eventFingerprint": "cea3b3251aff401619a21547055673f95f4208abf2cb5509487b4578c5d16eef",
+      "surfaceNodes": [4, 5, 9, 16],
+      "persistedV4": true,
+      "fullEventFingerprintEqual": true,
+      "replaySurfaceEqual": true,
+      "apiKeyPassed": false
+    },
+    {
+      "ok": true,
+      "runtimePid": 19657,
+      "scenario": "summary-error",
+      "verified": true,
+      "sessionId": "fault-summary-error",
+      "terminal": {
+        "kind": "error",
+        "error": {
+          "message": "controlled overflow",
+          "code": "CONTEXT_WINDOW_EXCEEDED"
+        }
+      },
+      "conversationCalls": 1,
+      "summaryCalls": 1,
+      "replacementDelta": 0,
+      "originalPrefixUnchanged": true,
+      "oldHistoryRetained": true,
+      "maintenanceReleased": false,
+      "cancellationForwarded": false,
+      "markerTypes": ["compaction/start", "compaction/end"],
+      "eventCount": 22,
+      "eventFingerprint": "018729b966374303a7c482005fd46ba1fcc2740b2cd91d45ba783d9acf5f1e85",
+      "surfaceNodes": [4, 5, 9, 16],
+      "persistedV4": true,
+      "fullEventFingerprintEqual": true,
+      "replaySurfaceEqual": true,
+      "apiKeyPassed": false
+    },
+    {
+      "ok": true,
+      "runtimePid": 19693,
+      "scenario": "non-overflow",
+      "verified": true,
+      "sessionId": "fault-non-overflow",
+      "terminal": {
+        "kind": "error",
+        "error": {
+          "message": "context window exceeded text without the canonical code",
+          "code": "LESSON_OTHER"
+        }
+      },
+      "conversationCalls": 1,
+      "summaryCalls": 0,
+      "replacementDelta": 0,
+      "originalPrefixUnchanged": true,
+      "oldHistoryRetained": true,
+      "maintenanceReleased": false,
+      "cancellationForwarded": false,
+      "markerTypes": [],
+      "eventCount": 20,
+      "eventFingerprint": "6eb4b305ae74753a459fabf4d039d73a2c8ab8786f511916ad40f8c8c5d691bb",
+      "surfaceNodes": [4, 5, 9, 16],
+      "persistedV4": true,
+      "fullEventFingerprintEqual": true,
+      "replaySurfaceEqual": true,
+      "apiKeyPassed": false
+    },
+    {
+      "ok": true,
+      "runtimePid": 19696,
+      "scenario": "manual-cancel",
+      "verified": true,
+      "sessionId": "fault-manual-cancel",
+      "terminal": {
+        "kind": "completed"
+      },
+      "conversationCalls": 0,
+      "summaryCalls": 1,
+      "replacementDelta": 0,
+      "originalPrefixUnchanged": true,
+      "oldHistoryRetained": true,
+      "maintenanceReleased": true,
+      "cancellationForwarded": true,
+      "markerTypes": ["compaction/start", "compaction/end"],
+      "eventCount": 22,
+      "eventFingerprint": "c727103968cfe5a1ec957e1a47a57bc0cb502af5fbd7a0b9ebaa9ef63ecf773e",
+      "surfaceNodes": [4, 5, 9, 18, 19],
+      "persistedV4": true,
+      "fullEventFingerprintEqual": true,
+      "replaySurfaceEqual": true,
+      "apiKeyPassed": false
+    },
+    {
+      "ok": true,
+      "runtimePid": 19699,
+      "scenario": "overflow-cancel",
+      "verified": true,
+      "sessionId": "fault-overflow-cancel",
+      "terminal": {
+        "kind": "aborted",
+        "reason": {
+          "kind": "user"
+        }
+      },
+      "conversationCalls": 1,
+      "summaryCalls": 1,
+      "replacementDelta": 0,
+      "originalPrefixUnchanged": true,
+      "oldHistoryRetained": true,
+      "maintenanceReleased": false,
+      "cancellationForwarded": true,
+      "markerTypes": ["compaction/start", "compaction/end"],
+      "eventCount": 22,
+      "eventFingerprint": "7a7a2b618f0a77c8d35fa3cfd5ed909674b02287aa6e40c2e566a6b2865d967d",
+      "surfaceNodes": [4, 5, 9, 16],
+      "persistedV4": true,
+      "fullEventFingerprintEqual": true,
+      "replaySurfaceEqual": true,
+      "apiKeyPassed": false
+    },
+    {
+      "ok": true,
+      "runtimePid": 19701,
+      "scenario": "overflow-late-summary",
+      "verified": true,
+      "sessionId": "fault-overflow-late-summary",
+      "terminal": {
+        "kind": "aborted",
+        "reason": {
+          "kind": "user"
+        }
+      },
+      "conversationCalls": 1,
+      "summaryCalls": 1,
+      "replacementDelta": 1,
+      "originalPrefixUnchanged": true,
+      "oldHistoryRetained": false,
+      "maintenanceReleased": false,
+      "cancellationForwarded": true,
+      "markerTypes": ["compaction/start", "compaction/summary", "compaction/end"],
+      "eventCount": 24,
+      "eventFingerprint": "7eca0af8bc65d36c4f278cd00dd1d7a2a2d8e3ba1f4c683d505d39402cf49c5e",
+      "surfaceNodes": [4, 20, 16],
+      "persistedV4": true,
+      "fullEventFingerprintEqual": true,
+      "replaySurfaceEqual": true,
+      "apiKeyPassed": false
+    }
+  ],
+  "processObservation": {
+    "exitCode": 0,
+    "samplingIntervalMs": 200,
+    "peakDescendants": 3,
+    "observedPids": [
+      19569, 19617, 19626, 19629, 19637, 19639, 19642, 19657, 19693, 19696, 19699, 19701
+    ],
+    "remainingPids": []
+  }
+}

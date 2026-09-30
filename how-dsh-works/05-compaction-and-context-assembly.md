@@ -52,12 +52,16 @@ node --test --test-name-pattern='runtime context|inbox waits' how-dsh-works/prob
 
 上述 probe 完整 3/3 passed，覆盖相同 context 在连续两轮只记一次、变化后新增 runtime-context 快照、system prompt 出现在已记录 history。该 probe 本身不调用 compaction engine 或 summarizer。
 
-2026-09-30 新增 [compaction-lifecycle lab](../labs/compaction-lifecycle/README.md)：7 个 keyless tests 执行发布的 compaction engine，覆盖 manual no-op、成功 bracket/replacement、失败不提交、后续请求和 automatic pressure，以及验收器的反例。
+2026-09-30 新增 [compaction-lifecycle lab](../labs/compaction-lifecycle/README.md)：基础批次的7个 keyless tests 执行发布的 compaction engine，覆盖 manual no-op、成功 bracket/replacement、失败不提交、后续请求和 automatic pressure，以及验收器的反例。
 
 真实 sdk-minimal 显式挂 meter/compaction 插件，将触发比率调低后完成一次成功的 pressure compaction。旧 seed seq 5 进入 shadowedSeqs，checkpoint seq 19 仍含随机 code，end seq 20 早于产物 step/start seq 21；当时其余保留消息不含 code。模型随后一次 Bash 写出精确 40 字节产物。关闭后通过新 public persistence backend 读回 34 个事件，原始前缀和 surface 重放验证通过。
 
 首次实跑的 1024-token 摘要预算出现截断，未提交 checkpoint，原始上下文仍可继续任务；提高预算至 4096 后使用全新 fixture 获得以上成功结果。命令、hash、usage、失败与成功分开的证据见[执行记录](../docs/reviews/2026-09-30-compaction.md)。这不是 `/compact` 的 SDK RPC，也不是 SDK 冷恢复：manual 由库级测试验证，live 通过 pre-step pressure 触发。
 
+[溢出与取消实验](../labs/compaction-lifecycle/RECOVERY.md)另增10种 controlled adapter 场景，Lab 总计17项测试；每个场景还经独立 sdk-minimal profile 执行并重开 V4，完整事件指纹和 surface 一致。覆盖 thrown/in-band 标准溢出、零重试/预算耗尽、无进展/摘要失败、非标准错误与取消。故障输入来自 fixture，不是真实供应商 overflow。
+
+该固定版的重要观察：手动取消会拒绝迟到摘要，正常响应取消的自动摘要也不提交；但自动摘要若忽略 signal 并迟到返回有效结果，可以先提交 checkpoint，随后 listener 仍因取消拒绝 retry，turn 以 aborted/user 结束。不能由 turn 取消推断 surface 未变化。详见[验收](../docs/reviews/2026-09-30-compaction-recovery.md)。
+
 ## Inference、Proposal 与未确认
 
-Inference：Request Inspector 应并排显示 header、system/developer messages、surface 顺序和 compaction bracket；仅打印全 log 会把 shadowed 内容误作当前请求。Proposal：后续补真实 overflow recovery、取消中途提交、prune/offload 与更广摘要质量实验。本次已验证基本压缩事务和一个随机 code 的真实保留，尚未证明一般摘要质量、provider cache 性能或完整成本；[旧 45 项测试](historical-2026-08-31.md)保留为 2026-08-31 历史结果。
+Inference：Request Inspector 应并排显示 header、system/developer messages、surface 顺序和 compaction bracket；仅打印全 log 会把 shadowed 内容误作当前请求。Proposal：后续补真实供应商 overflow、prune/offload、持久化/并发失败与更广摘要质量实验。本次已验证基本压缩事务和一个随机 code 的真实保留，尚未证明一般摘要质量、provider cache 性能或完整成本；[旧 45 项测试](historical-2026-08-31.md)保留为 2026-08-31 历史结果。
