@@ -11,7 +11,8 @@
     "live": "node --import tsx examples/live.ts",
     "build": "tsc -p tsconfig.build.json",
     "faults": "pnpm build && node --import tsx examples/faults.ts",
-    "reductions": "pnpm build && node --import tsx examples/faults.ts reductions"
+    "reductions": "pnpm build && node --import tsx examples/faults.ts reductions",
+    "overflow:provider": "node --import tsx examples/provider-overflow.ts"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",

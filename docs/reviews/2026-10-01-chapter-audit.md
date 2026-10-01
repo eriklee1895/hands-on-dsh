@@ -18,3 +18,5 @@
 复杂历史子集完成：[压缩迁移/发布版存储样本](2026-10-01-rich-history.md)，16项测试；独立review的完整内容断言及真实V5头两处P2已修正。Task3仍等待child catalog/forest，不按子集宣布全项完成。
 
 容器/远程执行基础完成：[7.4补充验收](2026-10-01-container-executor.md)，3项真实Docker/SSH/provider测试，另有11项本地测试（默认跳过Docker）。两处review P2已修正并复核；不扩大为网络隔离、bwrap验证或完整多租户安全。
+
+图片/服务端错误链路完成：预算2672c91、已删除Files恢复e2523d9，以及[实际服务端overflow](2026-10-02-provider-overflow.md)。前两者与服务端错误分别记账，未把本地预算改名为服务端quota。

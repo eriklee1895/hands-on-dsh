@@ -26,7 +26,7 @@
 - [ ] 核对全部目录与逐章证据，修正陈旧导航；建立最终验收索引。文件：README、docs/learning-paths、docs/reviews/2026-10-01-chapter-audit.md。验收：所有现有章节可定位、既有未完成项有owner与后续证据。
 ### Task 2: 完成图片预算/offload与stale Files ID恢复章节
 
-- [ ] 完成图片预算/offload与stale Files ID恢复章节。文件：labs/attachment-input。验收：真实发布provider的小预算拒绝、持久选择/重放、已选图片与文件字节、明确限定的stale-ID恢复；不制造账户超限。
+- [x] 完成图片预算/offload与stale Files ID恢复章节。文件：labs/attachment-input。验收：真实发布provider的小预算拒绝、持久选择/重放、已选图片与文件字节、明确限定的stale-ID恢复；不制造账户超限。
 ### Task 3: 完成复杂历史存储章节
 
 - [ ] 完成复杂历史存储章节。文件：labs/session-format-migration、workflow-child-lifecycle。验收：压缩非空历史、附件与child catalog样本、固定版本采集、不可变predecessor、fresh backend重读；不用个人历史。

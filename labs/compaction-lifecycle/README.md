@@ -107,6 +107,6 @@ SDK 返回时订阅到的完整根事件前缀会被保存于本进程内，并�
 
 首次真实实验将摘要 maxTokens 设为 1024，发生了摘要截断，没有提交 checkpoint；自动 hook 保留原上下文并继续任务，所以“文件正确”未通过压缩验收。提高预算至 4096 后，在新的独立实验中完成成功压缩。这个数值不是模型摘要的一般最小预算；模型输出长度会变化。compactionRetries=0 不表示整个 Run 最多一次摘要尝试：压力仍在时，后续 step 可以再次触发。
 
-失败摘要没有成功的 compaction/summary usage 记录，不能只加成功摘要的计数就宣称得到本批总费用。单个 nonce 的保留也不代表通用摘要质量。[溢出与取消课](RECOVERY.md)新增10种受控 adapter 场景和独立 profile 重放，包含迟到摘要在取消后的版本差异；[裁剪与图片 offload](REDUCTION.md)又补10个场景及2个内容变异负对照，Lab 总计29项测试；真实供应商 overflow、生产附件存储、大规模历史样例和缓存性能仍未验证。
+失败摘要没有成功的 compaction/summary usage 记录，不能只加成功摘要的计数就宣称得到本批总费用。单个 nonce 的保留也不代表通用摘要质量。[溢出与取消课](RECOVERY.md)新增10种受控 adapter 场景和独立 profile 重放，包含迟到摘要在取消后的版本差异；[裁剪与图片 offload](REDUCTION.md)又补10个场景及2个内容变异负对照，这组验收为29项测试；[服务端overflow课](PROVIDER-OVERFLOW.md)补实际HTTP400与持久错误终态，使Lab达到32项测试。大规模历史与缓存性能仍有各自范围限制；生产附件存储另见[附件Lab](../attachment-input/README.md)。
 
 成功验证且 SDK 关闭确认后才删除自有临时目录；失败保留目录并输出位置，不自动重放任务。活动 deadline 是 180 秒，触发后仍等待 SDK close；没有宣称业务副作用已撤销。

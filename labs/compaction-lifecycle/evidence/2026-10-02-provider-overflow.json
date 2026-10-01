@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-02",
+  "upstreamRevision": "477b4f420553e8a52c2fbccc464d7561b239c443",
+  "exitCode": 0,
+  "localTemporaryDirectoryRemoved": true,
+  "externalRequests": 1,
+  "successfulModelResponses": 0,
+  "result": {
+    "dshVersion": "0.1.7-rc.2",
+    "sessionId": "overflow-5688bbab-9dd1-470a-ab49-cfc5274896fb",
+    "repeatedFragments": 1100000,
+    "promptBytes": 2200104,
+    "promptSha256": "83a2f6f3db1e8581634a42cd20ff8997e123dc4ea67eb6da5c554fa48f4335d7",
+    "advertisedContextWindow": 4000000,
+    "maxTokens": 16,
+    "statuses": [400],
+    "terminalKind": "error",
+    "errorCode": "CONTEXT_WINDOW_EXCEEDED",
+    "toolCalls": 0,
+    "responseText": "",
+    "eventCount": 12,
+    "fullEventsEqual": true,
+    "transport": {
+      "staleInvalidations": 0,
+      "injectedRejections": [],
+      "uploads": [],
+      "messages": [
+        {
+          "status": 400,
+          "fileImages": 0,
+          "inlineImages": 0,
+          "inlineHashes": [],
+          "fileHashes": []
+        }
+      ],
+      "blockedRequests": 0,
+      "deletedUploads": 0
+    }
+  }
+}
