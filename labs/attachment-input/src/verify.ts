@@ -57,3 +57,26 @@ export function verifyTransport(
     "fixture refusal is separate from an unauthorized route",
   );
 }
+
+export function verifyBudgetTransport(
+  evidence: import("./transport.ts").TransportEvidence,
+  hashes: readonly string[],
+  mode: "reject" | "offload",
+): void {
+  assert.equal(hashes.length, 2);
+  assert.deepEqual(evidence.uploads, []);
+  assert.equal(evidence.blockedRequests, 0);
+  assert.equal(evidence.messages.length, mode === "reject" ? 0 : 2);
+  for (const request of evidence.messages) {
+    assert.equal(request.status, 200);
+    assert.equal(request.fileImages, 0);
+    assert.equal(request.inlineImages, 1);
+    assert.deepEqual(request.fileHashes, []);
+    assert.deepEqual(request.inlineHashes, [hashes[1]]);
+  }
+  const rejected = mode === "reject" ? [hashes[0]] : [hashes[0], hashes[1], hashes[1]];
+  assert.deepEqual(
+    evidence.injectedRejections.map((item) => ({ status: item.status, sha256: item.sha256 })),
+    rejected.map((sha256) => ({ status: 501, sha256 })),
+  );
+}

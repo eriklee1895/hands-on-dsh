@@ -55,4 +55,4 @@ keyless 测试先观察到缺失行为，再实现：代理注入测试最初得
 
 provider 的 fallback 不保证回收已经上传的对象。本课代理继续记录本次所有权，部分上传场景的文件由脚本在验证后显式删除。不得将“请求最终改用 inline”解释成“从未上传”或“远端文件已自动删除”。失败保留0600的私有清理清单和脱敏传输证据，处理方式见[主教程](README.md#清理与失败处理)。
 
-真实结果与计数见[验收记录](../../docs/reviews/2026-10-01-attachment-fallback.md)。这些是“本地受控 Files 失败 + 真实 inline Messages”的证据，没有制造或验证供应商真实宕机、账户超限、上传响应丢失、stale ID、真实预算错误或强杀恢复。下一步可使用固定版 provider 的小预算配置测试 inline 预算拒绝与持久 offload，继续与真实供应商超限区分。
+真实结果与计数见[验收记录](../../docs/reviews/2026-10-01-attachment-fallback.md)。这些是“本地受控 Files 失败 + 真实 inline Messages”的证据，没有制造或验证供应商真实宕机、账户超限、上传响应丢失、stale ID、真实预算错误或强杀恢复。下一课[图片预算与持久offload](BUDGET.md)使用固定版provider的小预算配置验证拒绝和恢复，继续与真实供应商超限区分。

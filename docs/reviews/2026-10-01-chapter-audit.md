@@ -1,0 +1,16 @@
+# 全章节验收索引（进行中）
+
+本次目标为完成既有Phase 1–7全部chapter。基线77f3fdd，当前各章固定版本保持不变；执行计划见[全章节计划](../superpowers/plans/2026-10-01-complete-chapters.md)。此页进行中，不替代已有逐批验收，也不把“未验证”改写为成功。
+
+| 课程组 | 现有入口 | 已有证据 | 本批动作 |
+| --- | --- | --- | --- |
+| Python SDK 6章 | [中文课程](../../tutorials/python-sdk/README.zh.md) | [SDK迁移](2026-09-28-sdk-migration.md) | 完成目录/命令审计 |
+| FastAPI 5章 | [课程](../../tutorials/fastapi-101/README.md) | [协议/Web迁移](2026-09-29-web-protocol-migration.md) | 完成目录/命令审计 |
+| TypeScript SDK 4例 | [课程](../../tutorials/typescript-sdk/README.md) | [SDK迁移](2026-09-28-sdk-migration.md) | 完成目录/命令审计 |
+| 协议与7.7 | [协议](../../labs/protocol-semantics/README.md) | [DSH双协议基础](2026-09-30-runtime-adapters.md) | 补跨引擎 |
+| Cordis/plugin | [生命周期](../../labs/cordis-plugin-lifecycle/README.md) | [plugin/AG-UI](2026-09-29-plugin-agui-internals.md) | 完成章节覆盖审计 |
+| 可恢复服务与AG-UI | [业务服务](../../projects/recoverable-agent-service/README.md)、[AG-UI](../../projects/ag-ui-dsh-runtime/README.md) | 迁移、租户、eval、跨generation记录 | 保留证据、修正导航 |
+| 机制7章 | [索引](../../how-dsh-works/README.md) | 固定源码、compaction/workflow/Web/附件各Lab | 补剩余恢复/存储/控制案例 |
+| 7.1–7.6 | [工程化](../learning-paths/engineering.md) | supervisor/pool/tenant/sandbox/observability/eval | 补容器与远程执行 |
+
+初步发现：主README“最新第五批”、Phase7“从第一课开始”和TypeScript路线“compaction/workflow/Web未重跑”已落后于已提交结果，将随最终目录核对一起修正。Docker daemon为本机OrbStack Linux arm64，可进行自有容器实验；Codex/Hermes入口已安装，尚未把可执行文件存在当成真实模型验收。

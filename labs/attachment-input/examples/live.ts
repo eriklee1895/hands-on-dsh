@@ -12,10 +12,11 @@ import Persistence from "@deepseek-ai/dsh-session-persistence-jsonl";
 import { DeepSeekHarness, type RunResult } from "@deepseek-ai/dsh-sdk-client";
 import { resolveAdapterOptions, resolveRequestImageTarget } from "@deepseek-ai/dsh-llm-deepseek";
 import { ReasoningEffortId } from "@deepseek-ai/dsh-llm";
-import { SessionId, type SessionEvent } from "@deepseek-ai/dsh-session";
+import { imageOffloadProjection } from "@deepseek-ai/dsh-compaction-image-offload/projection";
+import { SessionId, foldSurface, type SessionEvent } from "@deepseek-ai/dsh-session";
 import sharp from "sharp";
 import { grid, shuffledColors } from "../src/fixture.ts";
-import { verifyAnswer, verifyTransport } from "../src/verify.ts";
+import { verifyAnswer, verifyTransport, verifyBudgetTransport } from "../src/verify.ts";
 import { startTransport } from "../src/transport.ts";
 const sha = (value: Uint8Array) => createHash("sha256").update(value).digest("hex");
 async function bounded(owner: DeepSeekHarness, work: () => Promise<RunResult>) {
@@ -35,12 +36,20 @@ async function bounded(owner: DeepSeekHarness, work: () => Promise<RunResult>) {
   }
 }
 async function main() {
-  const { values } = parseArgs({ options: { files: { type: "string", default: "forward" } } });
+  const { values } = parseArgs({
+    options: {
+      files: { type: "string", default: "forward" },
+      budget: { type: "string", default: "none" },
+    },
+  });
   const policy = values.files;
   assert.ok(
     policy === "forward" || policy === "reject-all" || policy === "reject-after-first",
     "files policy must be forward, reject-all or reject-after-first",
   );
+  const budget = values.budget;
+  assert.ok(budget === "none" || budget === "reject" || budget === "offload");
+  assert.ok(budget === "none" || policy === "reject-all", "budget cases require reject-all Files");
   const key = process.env.DEEPSEEK_API_KEY;
   assert.ok(key, "Set DEEPSEEK_API_KEY");
   const root = await mkdtemp(join(tmpdir(), "dsh-attachment-input-"));
@@ -84,6 +93,9 @@ async function main() {
             apiKeyEnv: "DEEPSEEK_API_KEY",
             reasoningEffort: "off",
             maxTokens: 512,
+            ...(budget === "none"
+              ? {}
+              : { maxInlineRequestImageBytes: 2000, inlineImageOffloadByteQuantum: 1 }),
             streamIdleTimeoutMs: 30000,
             filesApiTimeoutMs: 30000,
             fileExpiresAfterSeconds: 3600,
@@ -93,6 +105,16 @@ async function main() {
         },
         {
           insert: [
+            ...(budget === "offload"
+              ? [
+                  {
+                    id: "lesson-image-offload",
+                    name: fileURLToPath(
+                      import.meta.resolve("@deepseek-ai/dsh-compaction-image-offload"),
+                    ),
+                  },
+                ]
+              : []),
             {
               id: "lesson-attachments",
               name: fileURLToPath(import.meta.resolve("@deepseek-ai/dsh-attachment-local")),
@@ -141,7 +163,9 @@ async function main() {
     try {
       const session = owner.session(sessionId);
       const prompt =
-        "Inspect the two attached images. Each is a 2 by 2 grid with four solid colours. For each image list the colours in this order: top-left, top-right, bottom-left, bottom-right. Use only red, green, blue, yellow. Return ONLY a JSON array containing two arrays of four colour names, in image order. Do not call tools, read files, or infer colours from filenames.";
+        budget === "none"
+          ? "Inspect the two attached images. Each is a 2 by 2 grid with four solid colours. For each image list the colours in this order: top-left, top-right, bottom-left, bottom-right. Use only red, green, blue, yellow. Return ONLY a JSON array containing two arrays of four colour names, in image order. Do not call tools, read files, or infer colours from filenames."
+          : "Describe only image blocks actually visible in this message; omit every offloaded image or text placeholder without guessing. For each visible image return colours in order top-left, top-right, bottom-left, bottom-right, choosing red, green, blue, yellow. Return ONLY a JSON array of arrays, one per visible image. Do not call tools or read files.";
       const first = await bounded(owner, () =>
         session.run([
           { type: "text", text: prompt },
@@ -152,19 +176,30 @@ async function main() {
           })),
         ]),
       );
-      verifyAnswer(first.finalResponse, expected);
+      if (budget === "reject") {
+        assert.equal(first.finalResponse, "");
+        const end = first.events.filter((event) => event.type === "turn/end").at(-1);
+        assert.equal(end?.data.reason.kind, "error");
+        assert.ok(end?.data.reason.kind === "error");
+        assert.equal(end.data.reason.error.code, "IMAGE_OFFLOAD_REQUIRED");
+      } else verifyAnswer(first.finalResponse, budget === "offload" ? [secondOrder] : expected);
       drain();
       const prefix = structuredClone(events);
-      console.log(JSON.stringify({ firstVisionMatched: true, sourceImages: 2 }));
-      const second = await bounded(owner, () =>
-        session.run(
-          "Inspect the same two images from the previous message again. Return ONLY the same format: two arrays of four colours ordered top-left, top-right, bottom-left, bottom-right. Use only red, green, blue, yellow. Do not call tools or read files.",
-        ),
-      );
-      verifyAnswer(second.finalResponse, expected);
-      drain();
-      assert.deepEqual(events.slice(0, prefix.length), prefix);
-      responses = [first, second];
+      if (budget === "reject") responses = [first];
+      else {
+        console.log(JSON.stringify({ firstVisionMatched: true, sourceImages: 2 }));
+        const second = await bounded(owner, () =>
+          session.run(
+            budget === "offload"
+              ? "Describe only the image still visible in history, omitting offloaded placeholders. Return ONLY one array of four colours inside an outer JSON array, top-left, top-right, bottom-left, bottom-right. Do not call tools or read files."
+              : "Inspect the same two images from the previous message again. Return ONLY the same format: two arrays of four colours ordered top-left, top-right, bottom-left, bottom-right. Use only red, green, blue, yellow. Do not call tools or read files.",
+          ),
+        );
+        verifyAnswer(second.finalResponse, budget === "offload" ? [secondOrder] : expected);
+        drain();
+        assert.deepEqual(events.slice(0, prefix.length), prefix);
+        responses = [first, second];
+      }
       await owner.close();
       closed = true;
       drain();
@@ -174,9 +209,37 @@ async function main() {
     for (const response of responses) {
       assert.equal(
         response.events.filter((e) => e.type === "turn/end").at(-1)?.data.reason.kind,
-        "completed",
+        budget === "reject" ? "error" : "completed",
       );
       assert.equal(response.events.filter((e) => e.type === "tool/call").length, 0);
+    }
+    const seed = events.find(
+      (event) =>
+        event.type === "user/message" && event.data.content.some((block) => block.type === "image"),
+    );
+    assert.ok(seed?.type === "user/message");
+    const offloads = events.filter((event) => event.type === "image/offload");
+    assert.equal(offloads.length, budget === "offload" ? 1 : 0);
+    if (budget === "offload") {
+      assert.deepEqual(offloads[0]!.data.targets, [{ seq: seed.seq, imageIndexes: [0] }]);
+      const surface = foldSurface(events, [imageOffloadProjection]);
+      const projected = surface.projectedMessages.get(seed.seq);
+      assert.ok(projected);
+      const images = projected.content.filter((block) => block.type === "image");
+      assert.equal(images.length, 2);
+      assert.equal(images[0]!.offloaded, true);
+      assert.notEqual(images[1]!.offloaded, true);
+      assert.deepEqual(
+        images.map((image) => image.attachment),
+        seed.data.content
+          .filter((block) => block.type === "image")
+          .map((image) => image.attachment),
+      );
+      assert.ok(
+        seed.data.content
+          .filter((block) => block.type === "image")
+          .every((image) => image.offloaded !== true),
+      );
     }
     const context = new Context();
     const model = resolveAdapterOptions({}).models.find((model) => model.id === "deepseek-flash");
@@ -204,6 +267,11 @@ async function main() {
         await reader.close();
       }
       assert.deepEqual(persisted, events);
+      if (budget === "offload")
+        assert.deepEqual(
+          foldSurface(persisted, [imageOffloadProjection]),
+          foldSurface(events, [imageOffloadProjection]),
+        );
       const refs = persisted.flatMap((e) =>
         e.type === "user/message"
           ? e.data.content.filter((b) => b.type === "image").map((b) => b.attachment)
@@ -245,11 +313,24 @@ async function main() {
     } finally {
       await context.fiber.dispose();
     }
-    verifyTransport(
-      proxy.evidence,
-      storedEvidence.map((image) => image.requestSha256),
-      policy,
-    );
+    if (budget === "none")
+      verifyTransport(
+        proxy.evidence,
+        storedEvidence.map((image) => image.requestSha256),
+        policy,
+      );
+    else {
+      const lengths = storedEvidence.map((image) => 4 * Math.ceil(image.requestVariantBytes / 3));
+      assert.ok(
+        lengths.every((bytes) => bytes <= 2000) &&
+          lengths.reduce((sum, bytes) => sum + bytes, 0) > 2000,
+      );
+      verifyBudgetTransport(
+        proxy.evidence,
+        storedEvidence.map((image) => image.requestSha256),
+        budget,
+      );
+    }
     cleanupAttempted = true;
     await proxy.cleanup();
     cleaned = true;
@@ -257,11 +338,14 @@ async function main() {
     const result = {
       dshVersion: "0.1.7-rc.2",
       filesPolicy: policy,
+      budgetMode: budget,
+      imageOffloadDecisions: offloads.length,
       sessionId,
-      firstVisionAnswerMatched: true,
-      historyAnswerMatched: true,
-      wireImagesMatch: true,
-      completedTurns: 2,
+      firstVisionAnswerMatched: budget === "reject" ? null : true,
+      historyAnswerMatched: budget === "reject" ? null : true,
+      wireImagesMatch: budget === "reject" ? null : true,
+      completedTurns: budget === "reject" ? 0 : 2,
+      errorTurns: budget === "reject" ? 1 : 0,
       toolCalls: 0,
       eventCount: events.length,
       persistedV4: true,
