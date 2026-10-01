@@ -248,3 +248,85 @@ it.each([
     }
   },
 );
+
+it("deletes only its first owned ID before the first Messages request, then permits recovery", async () => {
+  const active = new Set<string>();
+  const paths: string[] = [];
+  let sequence = 0;
+  const server = createServer(async (req, res) => {
+    paths.push(req.method + " " + req.url);
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    res.setHeader("content-type", "application/json");
+    if (req.method === "POST" && req.url === "/v1/files") {
+      const id = "file-" + ++sequence;
+      active.add(id);
+      res.end(JSON.stringify({ id }));
+    } else if (req.method === "DELETE") {
+      const id = req.url!.split("/").at(-1)!;
+      active.delete(id);
+      res.end(JSON.stringify({ id, type: "file_deleted" }));
+    } else {
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const missing = body.messages[0].content.some(
+        (block: { source: { file_id: string } }) => !active.has(block.source.file_id),
+      );
+      res.writeHead(missing ? 400 : 200).end("{}");
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const addr = server.address();
+  if (!addr || typeof addr === "string") throw new Error("port");
+  const proxy = await startTransport(
+    `http://127.0.0.1:${addr.port}`,
+    "test-key",
+    undefined,
+    "stale-once",
+  );
+  async function upload(data: string) {
+    const form = new FormData();
+    form.set("file", new Blob([data]), "dsh.png");
+    return fetch(proxy.url + "/v1/files", {
+      method: "POST",
+      headers: { "x-api-key": "test-key" },
+      body: form,
+    });
+  }
+  async function message(ids: string[]) {
+    return fetch(proxy.url + "/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": "test-key", "content-type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content: ids.map((file_id) => ({ type: "image", source: { type: "file", file_id } })),
+          },
+        ],
+      }),
+    });
+  }
+  try {
+    await upload("first");
+    await upload("second");
+    expect((await message(["file-1", "file-2"])).status).toBe(400);
+    expect(proxy.evidence.staleInvalidations).toBe(1);
+    expect(proxy.evidence.deletedUploads).toBe(1);
+    await upload("first");
+    expect((await message(["file-3", "file-2"])).status).toBe(200);
+    expect((await message(["file-3", "file-2"])).status).toBe(200);
+    await proxy.cleanup();
+    expect(active.size).toBe(0);
+    expect(proxy.evidence.deletedUploads).toBe(3);
+    expect(paths.slice(0, 4)).toEqual([
+      "POST /v1/files",
+      "POST /v1/files",
+      "DELETE /v1/files/file-1",
+      "POST /v1/messages",
+    ]);
+  } finally {
+    await proxy.close();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});

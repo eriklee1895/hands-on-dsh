@@ -4,6 +4,7 @@ import type { TransportEvidence } from "../src/transport.ts";
 const hashes = ["oldest", "retained"];
 function report(mode: "reject" | "offload"): TransportEvidence {
   return {
+    staleInvalidations: 0,
     uploads: [],
     deletedUploads: 0,
     blockedRequests: 0,

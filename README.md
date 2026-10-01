@@ -71,7 +71,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [Workflow/child](labs/workflow-child-lifecycle/README.md)：PTC 产物与正常关闭后的 child 冷恢复。
 - 官方 Web：[实时帧、历史和重启续写](labs/web-host-lifecycle/README.md)、[审批、取消与离线控制](labs/web-host-lifecycle/CONTROLS.md)。
 
-真实 provider 预算、stale Files ID恢复、复杂并行/retry 和崩溃恢复仍待补证。旧版603 tests 保存在独立历史页，不归入新版结果。
+真实服务端 context overflow、复杂并行/retry 和崩溃恢复仍待补证。旧版603 tests 保存在独立历史页，不归入新版结果。
 
 ### ✅ Session V1 / V3 → V4：存储迁移实验
 

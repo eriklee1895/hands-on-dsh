@@ -44,8 +44,11 @@ async function main() {
   });
   const policy = values.files;
   assert.ok(
-    policy === "forward" || policy === "reject-all" || policy === "reject-after-first",
-    "files policy must be forward, reject-all or reject-after-first",
+    policy === "forward" ||
+      policy === "reject-all" ||
+      policy === "reject-after-first" ||
+      policy === "stale-once",
+    "files policy must be forward, reject-all, reject-after-first or stale-once",
   );
   const budget = values.budget;
   assert.ok(budget === "none" || budget === "reject" || budget === "offload");

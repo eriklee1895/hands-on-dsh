@@ -12,7 +12,8 @@
     "live:inline": "node --import tsx examples/live.ts --files=reject-all",
     "live:partial": "node --import tsx examples/live.ts --files=reject-after-first",
     "budget:reject": "node --import tsx examples/live.ts --files=reject-all --budget=reject",
-    "budget:offload": "node --import tsx examples/live.ts --files=reject-all --budget=offload"
+    "budget:offload": "node --import tsx examples/live.ts --files=reject-all --budget=offload",
+    "live:stale": "node --import tsx examples/live.ts --files=stale-once"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",

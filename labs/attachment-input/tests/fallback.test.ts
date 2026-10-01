@@ -10,6 +10,7 @@ function evidence(policy: FilesPolicy): TransportEvidence {
       ? []
       : Array.from({ length: 2 }, () => hashes[policy === "reject-all" ? 0 : 1]!);
   return {
+    staleInvalidations: 0,
     uploads: uploaded.map((sha256) => ({ status: 200, bytes: 10, sha256, acknowledged: true })),
     injectedRejections: rejected.map((sha256) => ({ status: 501, bytes: 10, sha256 })),
     messages: Array.from({ length: 2 }, () => ({
@@ -62,4 +63,29 @@ it("rejects unresolved remote uploads and unsuccessful model responses", () => {
   const failed = evidence("reject-all");
   failed.messages[1]!.status = 502;
   expect(() => verifyTransport(failed, hashes, "reject-all")).toThrow();
+});
+
+it.each([false, true])("accepts stale-ID recovery with reupload-all=%s", (all) => {
+  const value = evidence("forward");
+  value.staleInvalidations = 1;
+  value.uploads.push(...value.uploads.slice(0, all ? 2 : 1).map((upload) => ({ ...upload })));
+  value.messages.unshift({ ...value.messages[0]!, status: 400 });
+  expect(() => verifyTransport(value, hashes, "stale-once")).not.toThrow();
+});
+
+it("rejects a stale-recovery claim without failed dispatch, owned deletion, or matching repair bytes", () => {
+  const base = evidence("forward");
+  base.staleInvalidations = 1;
+  base.messages.unshift({ ...base.messages[0]!, status: 400 });
+  base.uploads.push({ ...base.uploads[0]! });
+  const noFailure = structuredClone(base);
+  noFailure.messages[0]!.status = 200;
+  const noDeletion = structuredClone(base);
+  noDeletion.staleInvalidations = 0;
+  const wrongRepair = structuredClone(base);
+  wrongRepair.uploads[2]!.sha256 = "different";
+  const extraRetry = structuredClone(base);
+  extraRetry.messages.unshift({ ...extraRetry.messages[0]! });
+  for (const value of [noFailure, noDeletion, wrongRepair, extraRetry])
+    expect(() => verifyTransport(value, hashes, "stale-once")).toThrow();
 });

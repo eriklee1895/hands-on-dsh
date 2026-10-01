@@ -15,10 +15,13 @@ export function verifyTransport(
   policy: import("./transport.ts").FilesPolicy,
 ): void {
   assert.equal(hashes.length, 2);
-  assert.equal(evidence.messages.length, 2);
-  const inline = policy !== "forward";
-  for (const request of evidence.messages) {
-    assert.equal(request.status, 200);
+  const stale = policy === "stale-once";
+  assert.equal(evidence.messages.length, stale ? 3 : 2);
+  assert.equal(evidence.staleInvalidations, stale ? 1 : 0);
+  const inline = policy === "reject-all" || policy === "reject-after-first";
+  for (const [index, request] of evidence.messages.entries()) {
+    if (stale && index === 0) assert.ok(request.status === 400 || request.status === 404);
+    else assert.equal(request.status, 200);
     assert.equal(
       request.fileImages,
       inline ? 0 : 2,
@@ -30,10 +33,17 @@ export function verifyTransport(
   }
   const uploadHashes =
     policy === "forward" ? hashes : policy === "reject-after-first" ? hashes.slice(0, 1) : [];
-  assert.deepEqual(
-    evidence.uploads.map((upload) => upload.sha256),
-    uploadHashes,
-  );
+  if (stale) {
+    assert.ok(evidence.uploads.length === 3 || evidence.uploads.length === 4);
+    assert.deepEqual(
+      evidence.uploads.map((upload) => upload.sha256),
+      [...hashes, ...hashes.slice(0, evidence.uploads.length - 2)],
+    );
+  } else
+    assert.deepEqual(
+      evidence.uploads.map((upload) => upload.sha256),
+      uploadHashes,
+    );
   for (const upload of evidence.uploads) {
     assert.ok(upload.status >= 200 && upload.status < 300);
     assert.equal(upload.acknowledged, true);
@@ -64,6 +74,7 @@ export function verifyBudgetTransport(
   mode: "reject" | "offload",
 ): void {
   assert.equal(hashes.length, 2);
+  assert.equal(evidence.staleInvalidations, 0);
   assert.deepEqual(evidence.uploads, []);
   assert.equal(evidence.blockedRequests, 0);
   assert.equal(evidence.messages.length, mode === "reject" ? 0 : 2);

@@ -80,7 +80,7 @@ provider 的 `prepareImages()` 根据模型 route 获取请求版本。实验关
 | 持久日志   | V4、22个完整事件与现场记录一致                    |
 | 清理       | 本次2个已确认上传被删除；临时目录删除；脚本退出0  |
 
-当前31项 keyless tests 覆盖真实 store 的去重/归一化/cache重建/旧对象重读/损坏拒绝，以及严格答案校验、代理路由、上传不确定性、失败后的清理清单和[整请求fallback验收](FALLBACK.md)。模型结果只是一份小型色块样本，不是视觉能力评测。
+当前35项 keyless tests 覆盖真实 store 的去重/归一化/cache重建/旧对象重读/损坏拒绝，以及严格答案校验、代理路由、上传不确定性、失败后的清理清单和[整请求fallback验收](FALLBACK.md)。模型结果只是一份小型色块样本，不是视觉能力评测。
 
 ## 清理与失败处理
 
@@ -100,4 +100,4 @@ provider 的 `prepareImages()` 根据模型 route 获取请求版本。实验关
 - [provider image preparation](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/images.ts)
 - [request target resolver](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/request-pricing.ts)
 
-[整请求 fallback](FALLBACK.md)已补充“本地禁用全部/部分 Files + 真实 inline Messages”的两个实跑场景。供应商图片预算/超限恢复、透明或EXIF输入、账户配额错误、跨机器/租户路径权限、强杀恢复和其他平台仍未验证。[图片预算与持久offload](BUDGET.md)已验证真实provider本地预算拒绝和恢复；服务端超限与stale Files ID仍单独验收。
+[整请求 fallback](FALLBACK.md)已补充“本地禁用全部/部分 Files + 真实 inline Messages”的两个实跑场景。供应商图片预算/超限恢复、透明或EXIF输入、账户配额错误、跨机器/租户路径权限、强杀恢复和其他平台仍未验证。[图片预算与持久offload](BUDGET.md)已验证真实provider本地预算拒绝和恢复；[已删除Files ID恢复](STALE.md)也已实跑；服务端context overflow仍单独验收。

@@ -16,8 +16,9 @@ async function* chunksOf(body: ReadableStream<Uint8Array>) {
     reader.releaseLock();
   }
 }
-export type FilesPolicy = "forward" | "reject-all" | "reject-after-first";
+export type FilesPolicy = "forward" | "reject-all" | "reject-after-first" | "stale-once";
 export interface TransportEvidence {
+  staleInvalidations: number;
   injectedRejections: { status: 501; bytes: number; sha256: string }[];
   uploads: { status: number; bytes: number; sha256: string; acknowledged: boolean }[];
   messages: {
@@ -43,6 +44,7 @@ export async function startTransport(
   const root = base.href.replace(/\/+$/, "").replace(/\/v1$/, "") + "/v1";
   const owned = new Map<string, string>();
   const evidence: TransportEvidence = {
+    staleInvalidations: 0,
     injectedRejections: [],
     uploads: [],
     messages: [],
@@ -211,6 +213,13 @@ export async function startTransport(
           for (const item of Object.values(value)) if (typeof item === "object") inspect(item);
         };
         inspect(body.messages);
+      }
+      if (isMessage && filesPolicy === "stale-once" && evidence.staleInvalidations === 0) {
+        assert.ok(message && message.fileImages === 2 && message.inlineImages === 0);
+        const first = owned.keys().next().value;
+        assert.ok(first);
+        await remove(first);
+        evidence.staleInvalidations++;
       }
       const controller = new AbortController();
       const abort = () => {
