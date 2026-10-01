@@ -64,7 +64,7 @@ provider 的 `prepareImages()` 根据模型 route 获取请求版本。实验关
 
 关闭 runtime 后独立打开 JSONL V4，要求完整事件与现场订阅记录一致，读取两个 `user/message` 图片引用，验证尺寸、类型、originalDimensions、content address 和 host 文件字节。原始512×512 PNG与归一化JPEG的 hash 必须不同。只有模型说“看见了图片”，不足以通过这些断言。
 
-[`src/transport.ts`](src/transport.ts) 是本课 loopback 测试代理。它把现有 Key 转发给配置的 endpoint，记录上传字节数/hash与 Messages 图片表示；不输出 Key、原始请求体或远端 ID。Files 引用必须能对应到本次已确认上传的 hash；inline 则直接计算解码后的 hash。每条成功请求必须恰有两张图，并全部使用 Files 或全部 inline，不能混合。代理没有改变图片字节。
+[`src/transport.ts`](src/transport.ts) 是本课 loopback 测试代理。它把现有 Key 转发给配置的 endpoint，记录上传字节数/hash与 Messages 图片表示；不输出 Key、原始请求体或远端 ID。Files 引用必须能对应到本次已确认上传的 hash；inline 则直接计算解码后的 hash。每条成功请求必须恰有两张图，并符合所选模式：默认全部 Files，两个 fallback 模式全部 inline，不能混合。代理没有改变图片字节。
 
 ## 本次观察
 
@@ -80,7 +80,7 @@ provider 的 `prepareImages()` 根据模型 route 获取请求版本。实验关
 | 持久日志   | V4、22个完整事件与现场记录一致                    |
 | 清理       | 本次2个已确认上传被删除；临时目录删除；脚本退出0  |
 
-15项 keyless tests 覆盖真实 store 的去重/归一化/cache重建/旧对象重读/损坏拒绝，以及严格答案校验、代理路由、上传不确定性和失败后的清理清单。模型结果只是一份小型色块样本，不是视觉能力评测。
+当前26项 keyless tests 覆盖真实 store 的去重/归一化/cache重建/旧对象重读/损坏拒绝，以及严格答案校验、代理路由、上传不确定性、失败后的清理清单和[整请求fallback验收](FALLBACK.md)。模型结果只是一份小型色块样本，不是视觉能力评测。
 
 ## 清理与失败处理
 
@@ -100,4 +100,4 @@ provider 的 `prepareImages()` 根据模型 route 获取请求版本。实验关
 - [provider image preparation](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/images.ts)
 - [request target resolver](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/request-pricing.ts)
 
-本次没有验证真实 inline fallback、供应商图片预算/超限恢复、透明或EXIF输入、账户配额错误、跨机器/租户路径权限、强杀恢复或其他平台。代理的 inline hash 单测不等于真实 provider fallback。后续优先补“受控禁用 Files 时的整请求 inline fallback”，再用明确预算的独立实验研究 offload 与真实 provider 行为。
+[整请求 fallback](FALLBACK.md)已补充“本地禁用全部/部分 Files + 真实 inline Messages”的两个实跑场景。供应商图片预算/超限恢复、透明或EXIF输入、账户配额错误、跨机器/租户路径权限、强杀恢复和其他平台仍未验证。下一步用明确预算的独立实验研究 offload 与 provider 行为。

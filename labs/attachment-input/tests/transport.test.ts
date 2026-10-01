@@ -112,7 +112,7 @@ it("does not report cleanup confirmed after an upload succeeds without a usable 
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
-it.each([302, 408, 500, 502, 504])(
+it.each([302, 404, 408, 500, 501, 502, 504])(
   "keeps a forwarded upload with HTTP %i and no ID unresolved",
   async (status) => {
     const server = createServer(async (req, res) => {
@@ -183,3 +183,68 @@ it("retains private ownership when deletion fails and removes IDs after confirme
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+it.each([
+  ["reject-all", 0],
+  ["reject-after-first", 1],
+] as const)(
+  "injects %s before forwarding and cleans only the permitted uploads",
+  async (policy, forwarded) => {
+    const requests: string[] = [];
+    const server = createServer(async (req, res) => {
+      requests.push(req.method + " " + req.url);
+      for await (const _chunk of req) {
+      }
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({
+          id: "file-owned",
+          type: req.method === "DELETE" ? "file_deleted" : "file",
+        }),
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const addr = server.address();
+    if (!addr || typeof addr === "string") throw new Error("port");
+    const proxy = await startTransport(
+      `http://127.0.0.1:${addr.port}`,
+      "test-key",
+      undefined,
+      policy,
+    );
+    try {
+      expect(
+        (await fetch(proxy.url + "/v1/files", { method: "POST", body: "unauthenticated" })).status,
+      ).toBe(403);
+      for (let i = 0; i < 3; i++) {
+        const form = new FormData();
+        form.set("file", new Blob(["image-" + i]), "dsh.png");
+        const response = await fetch(proxy.url + "/v1/files", {
+          method: "POST",
+          headers: { "x-api-key": "test-key" },
+          body: form,
+        });
+        expect(response.status).toBe(i < forwarded ? 200 : 501);
+      }
+      await proxy.cleanup();
+      expect(proxy.evidence.uploads).toHaveLength(forwarded);
+      expect(proxy.evidence.injectedRejections).toEqual(
+        Array.from({ length: 3 - forwarded }, (_, index) => ({
+          status: 501,
+          bytes: 7,
+          sha256: createHash("sha256")
+            .update("image-" + (index + forwarded))
+            .digest("hex"),
+        })),
+      );
+      expect(proxy.evidence.deletedUploads).toBe(forwarded);
+      expect(requests).toEqual(
+        forwarded === 0 ? [] : ["POST /v1/files", "DELETE /v1/files/file-owned"],
+      );
+    } finally {
+      await proxy.close();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  },
+);

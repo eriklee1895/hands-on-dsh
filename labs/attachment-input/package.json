@@ -8,7 +8,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --deny-warnings .",
     "format:check": "oxfmt --check .",
-    "live": "node --import tsx examples/live.ts"
+    "live": "node --import tsx examples/live.ts",
+    "live:inline": "node --import tsx examples/live.ts --files=reject-all",
+    "live:partial": "node --import tsx examples/live.ts --files=reject-after-first"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",

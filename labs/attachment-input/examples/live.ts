@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { Context } from "@deepseek-ai/cordis";
 import Store from "@deepseek-ai/dsh-attachment-local";
@@ -14,7 +15,7 @@ import { ReasoningEffortId } from "@deepseek-ai/dsh-llm";
 import { SessionId, type SessionEvent } from "@deepseek-ai/dsh-session";
 import sharp from "sharp";
 import { grid, shuffledColors } from "../src/fixture.ts";
-import { verifyAnswer } from "../src/verify.ts";
+import { verifyAnswer, verifyTransport } from "../src/verify.ts";
 import { startTransport } from "../src/transport.ts";
 const sha = (value: Uint8Array) => createHash("sha256").update(value).digest("hex");
 async function bounded(owner: DeepSeekHarness, work: () => Promise<RunResult>) {
@@ -34,6 +35,12 @@ async function bounded(owner: DeepSeekHarness, work: () => Promise<RunResult>) {
   }
 }
 async function main() {
+  const { values } = parseArgs({ options: { files: { type: "string", default: "forward" } } });
+  const policy = values.files;
+  assert.ok(
+    policy === "forward" || policy === "reject-all" || policy === "reject-after-first",
+    "files policy must be forward, reject-all or reject-after-first",
+  );
   const key = process.env.DEEPSEEK_API_KEY;
   assert.ok(key, "Set DEEPSEEK_API_KEY");
   const root = await mkdtemp(join(tmpdir(), "dsh-attachment-input-"));
@@ -65,6 +72,7 @@ async function main() {
       process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com/anthropic",
       key,
       join(root, "cleanup.json"),
+      policy,
     );
     const patch = join(root, "attachment.json");
     await writeFile(
@@ -203,7 +211,8 @@ async function main() {
       );
       assert.equal(refs.length, 2);
       assert.ok(!JSON.stringify(refs).includes("base64"));
-      assert.ok(!JSON.stringify(persisted).includes(sources[0]!.toString("base64")));
+      for (const source of sources)
+        assert.ok(!JSON.stringify(persisted).includes(source.toString("base64")));
       storedEvidence = await Promise.all(
         refs.map(async (ref, index) => {
           const stored = await context.attachments.readImage(ref);
@@ -236,25 +245,18 @@ async function main() {
     } finally {
       await context.fiber.dispose();
     }
-    assert.equal(proxy.evidence.messages.length, 2, "exactly two successful model requests");
-    for (const request of proxy.evidence.messages) {
-      assert.equal(request.status, 200);
-      assert.ok(
-        (request.fileImages === 2 && request.inlineImages === 0) ||
-          (request.fileImages === 0 && request.inlineImages === 2),
-        "two images in one coherent transport mode",
-      );
-      assert.deepEqual(
-        request.fileImages ? request.fileHashes : request.inlineHashes,
-        storedEvidence.map((image) => image.requestSha256),
-        "wire images match request variants in order",
-      );
-    }
+    verifyTransport(
+      proxy.evidence,
+      storedEvidence.map((image) => image.requestSha256),
+      policy,
+    );
     cleanupAttempted = true;
     await proxy.cleanup();
     cleaned = true;
+    assert.equal(proxy.evidence.deletedUploads, proxy.evidence.uploads.length);
     const result = {
       dshVersion: "0.1.7-rc.2",
+      filesPolicy: policy,
       sessionId,
       firstVisionAnswerMatched: true,
       historyAnswerMatched: true,
@@ -305,6 +307,7 @@ async function main() {
             if (verified && closed && cleaned && proxyClosed) {
               await rm(root, { recursive: true, force: true });
               removed = true;
+              console.log(JSON.stringify({ localTemporaryDirectoryRemoved: true }));
             }
           } finally {
             if (!removed)

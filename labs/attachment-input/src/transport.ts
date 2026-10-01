@@ -16,7 +16,9 @@ async function* chunksOf(body: ReadableStream<Uint8Array>) {
     reader.releaseLock();
   }
 }
+export type FilesPolicy = "forward" | "reject-all" | "reject-after-first";
 export interface TransportEvidence {
+  injectedRejections: { status: 501; bytes: number; sha256: string }[];
   uploads: { status: number; bytes: number; sha256: string; acknowledged: boolean }[];
   messages: {
     status: number;
@@ -29,13 +31,19 @@ export interface TransportEvidence {
   deletedUploads: number;
 }
 /** Forward to one configured endpoint; never list files or delete uploads from another run. */
-export async function startTransport(baseURL: string, key: string, recoveryPath?: string) {
+export async function startTransport(
+  baseURL: string,
+  key: string,
+  recoveryPath?: string,
+  filesPolicy: FilesPolicy = "forward",
+) {
   const base = new URL(baseURL);
   assert.ok(["http:", "https:"].includes(base.protocol));
   assert.ok(!base.username && !base.password && !base.search && !base.hash);
   const root = base.href.replace(/\/+$/, "").replace(/\/v1$/, "") + "/v1";
   const owned = new Map<string, string>();
   const evidence: TransportEvidence = {
+    injectedRejections: [],
     uploads: [],
     messages: [],
     blockedRequests: 0,
@@ -149,10 +157,26 @@ export async function startTransport(baseURL: string, key: string, recoveryPath?
         const file = form.get("file");
         assert.ok(file instanceof Blob);
         const bytes = Buffer.from(await file.arrayBuffer());
-        upload = {
-          status: 0,
+        const image = {
           bytes: bytes.length,
           sha256: createHash("sha256").update(bytes).digest("hex"),
+        };
+        if (
+          filesPolicy === "reject-all" ||
+          (filesPolicy === "reject-after-first" && evidence.uploads.length >= 1)
+        ) {
+          evidence.injectedRejections.push({ status: 501, ...image });
+          res.writeHead(501, { "content-type": "application/json" }).end(
+            JSON.stringify({
+              type: "error",
+              error: { type: "api_error", message: "Files disabled by local experiment" },
+            }),
+          );
+          return;
+        }
+        upload = {
+          status: 0,
+          ...image,
           acknowledged: false,
         };
         evidence.uploads.push(upload);
