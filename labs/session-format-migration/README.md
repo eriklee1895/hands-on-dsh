@@ -19,6 +19,8 @@ pnpm test
 pnpm typecheck
 pnpm lint
 pnpm format:check
+node --import tsx scripts/generate-compressed.ts
+node --import tsx scripts/capture-release.ts
 ```
 
 CLI 只接受 `v1` 或 `v3` 两个项目内 fixture 名称，不接受外部日志路径或用户 Session root。每次运行把 fixture 复制到一个新临时 root，完成 backend close 后删除它，不会修改原始 fixture。输出只报告版本、事件类型、文本、SHA-256 和 generation 文件名，不打印临时绝对路径。
@@ -37,7 +39,7 @@ CLI 只接受 `v1` 或 `v3` 两个项目内 fixture 名称，不接受外部日�
       session.v4.jsonl  # 仅 write open 后出现
 ```
 
-这个 helper 不处理任意 Session ID 的转义规则；该规则由真实 backend 持有。物理输入选择 `compression: "none"`，因此可逐行检查并计算源文件 SHA-256。另一个测试通过公开 `create/flush/open` API 验证默认 Zstd 能产生并读取一个**新建 V4 header**；本 lab 没有压缩的历史 V1/V3 fixture，也没有覆盖混合编码或编码转换。
+这个 helper 不处理任意 Session ID 的转义规则；该规则由真实 backend 持有。基础演示的物理输入选择 `compression: "none"`，因此可逐行检查并计算源文件 SHA-256。压缩的非空 V1/V3、发布版写出的非空 V4 和附件对象见[复杂历史章节](RICH-HISTORY.md)；两种编码各自使用独立 root，不测试混合编码或编码转换。
 
 ## 观察什么
 
@@ -58,7 +60,7 @@ flowchart LR
 
 ## 验证边界
 
-2026-09-29 的 keyless 测试使用真实发布包、worker 和临时文件系统，覆盖两份非空 fixture 的 read/write/reopen、源 SHA-256、已有 V1+V3 generation 不变、future/corrupt/unsupported body 拒绝，以及新建 V4 的默认 Zstd header。两次 demo 都观察到逻辑版本 4、源 SHA-256 前后一致、read 阶段无 successor、write 后新增 V4、重新打开稳定。它证明的是这两份合成文件和这台机器上的发布包行为，不代表任意历史用户日志均可无损升级。
+2026-09-29 的基础 keyless 测试使用真实发布包、worker 和临时文件系统，覆盖两份非空 plaintext fixture 的 read/write/reopen、源 SHA-256、已有 V1+V3 generation 不变、future/corrupt/unsupported body 拒绝，以及新建 V4 的默认 Zstd header。两次 demo 都观察到逻辑版本 4、源 SHA-256 前后一致、read 阶段无 successor、write 后新增 V4、重新打开稳定。2026-10-01 的压缩历史和附件增量结果另见[复杂历史章节](RICH-HISTORY.md)。这些样本不能代表任意历史用户日志均可无损升级。
 
 Session 格式版本属于 DSH 的持久日志。它与应用数据库 schema、业务 Run/Task 状态、模型会话恢复是不同问题：可读取历史 Session 不等于一次不确定的工具副作用可以安全重试，也不等于旧客户端可读取 V4。保留 predecessor 是审计与升级策略，不提供自动 fallback 或 downgrade。相关业务恢复实验见[可恢复 Agent 服务](../../projects/recoverable-agent-service/README.md)。
 

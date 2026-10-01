@@ -1,0 +1,15 @@
+{
+  "origin": "recorded-by-release",
+  "packages": {
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-attachment-local": "0.1.7-rc.2"
+  },
+  "formatVersion": 4,
+  "compression": "zstd",
+  "eventCount": 6,
+  "log": "sessions/_no-cwd/recorded-v4-image/session.v4.jsonl.zstd",
+  "logSha256": "c74df16205faa900da9f27283d0b0aff569c2e5022840cdc9f650b1b74541577",
+  "imageObject": "attachments/v1/objects/4c/4c575390f1efae0aa410209324bc60f3383b47c2672b8dd712aeeffe92248c6e",
+  "imageSha256": "4c575390f1efae0aa410209324bc60f3383b47c2672b8dd712aeeffe92248c6e",
+  "attachmentId": "sha256:4c575390f1efae0aa410209324bc60f3383b47c2672b8dd712aeeffe92248c6e"
+}

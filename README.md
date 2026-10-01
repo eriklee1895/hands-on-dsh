@@ -8,7 +8,7 @@
 
 ## 当前进度
 
-当前已升级的 Python SDK、FastAPI 与可恢复服务固定 `0.1.5rc1`；TypeScript SDK、协议和存储实验固定 npm `0.1.7-rc.2`。Cordis 与 AG-UI 已迁移到同一 npm 版本，七篇机制笔记也按该 tag 审查；文章中没有重跑的执行链单独标明。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；最新结果见[第五批验收](docs/reviews/2026-09-29-plugin-agui-internals.md)，先前结果保留在各批记录中。
+当前已升级的 Python SDK、FastAPI 与可恢复服务固定 `0.1.5rc1`；TypeScript SDK、协议和存储实验固定 npm `0.1.7-rc.2`。Cordis 与 AG-UI 已迁移到同一 npm 版本，七篇机制笔记也按该 tag 审查；文章中没有重跑的执行链单独标明。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；各章状态见[全章节验收索引](docs/reviews/2026-10-01-chapter-audit.md)，逐批记录保留各自日期与证据范围。
 
 ### ✅ Python SDK：由浅入深
 
@@ -75,11 +75,11 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 
 ### ✅ Session V1 / V3 → V4：存储迁移实验
 
-[`labs/session-format-migration/`](labs/session-format-migration/README.md) 通过真实发布版 persistence backend 与 worker，在 synthetic fixture 副本上验证只读逻辑迁移、写入 V4 successor、旧 generation 字节/hash 不变、重新打开稳定及 future/corrupt 拒绝。历史迁移覆盖 plaintext；默认 Zstd 只验证新建 V4 header。它不读取个人会话，也不等同于业务 Run 恢复。
+[`labs/session-format-migration/`](labs/session-format-migration/README.md) 通过真实发布版 persistence backend 与 worker，在 synthetic fixture 副本上验证只读逻辑迁移、写入 V4 successor、旧 generation 字节/hash 不变、重新打开稳定及 future/corrupt 拒绝。[复杂历史课](labs/session-format-migration/RICH-HISTORY.md)补充非空压缩V1/V3迁移和发布版写出的V4附件样本；child catalog仍待单独集成。它不读取个人会话，也不等同于业务 Run 恢复。
 
 ## 学习路线图
 
-路线按“先调用 runtime，再拥有业务恢复语义，随后理解协议、plugin、full-stack 与内部机制”的顺序推进：Python 集成 → recoverable service → SDK JSON-RPC / ACP → TypeScript SDK → Cordis/DSH plugin → AG-UI full-stack → fixed-revision internals。Phase 1–6 已有可运行产物和验收记录；Phase 7 已从单 runtime 生命周期实验开始，其余单元与旧课程迁移状态见工程化路线。
+路线按“先调用 runtime，再拥有业务恢复语义，随后理解协议、plugin、full-stack 与内部机制”的顺序推进：Python 集成 → recoverable service → SDK JSON-RPC / ACP → TypeScript SDK → Cordis/DSH plugin → AG-UI full-stack → fixed-revision internals。Phase 1–6 与 Phase 7 主体均有可运行产物和验收记录；容器/跨引擎扩展及剩余恢复案例继续按工程化路线验收。
 
 ### Phase 1 — Python 集成基础
 

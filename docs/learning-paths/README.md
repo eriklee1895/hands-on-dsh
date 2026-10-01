@@ -8,6 +8,6 @@
 - [TypeScript Runtime Builder](typescript-runtime-builder.md)：协议语义 → TypeScript SDK → Cordis/plugin → full-stack。
 - [DSH Internals Reader](../../how-dsh-works/README.md)：固定 rc.2 revision，从 plugin tree → AgentLoop → Session/compaction → subagent/workflow → 外部协议。
 
-三条路径都已经有可运行产物和验证记录。下一阶段进入 runtime supervisor、认证/多租户、sandbox、可观测性、eval/replay 与跨 runtime adapter 等工程专题。
+三条路径都已经有可运行产物和验证记录。工程化路线已覆盖runtime supervisor、认证/多租户、本机sandbox、可观测性、eval/replay与DSH双协议adapter；容器、跨引擎及恢复扩展继续逐项验收。
 
 - [工程化路线](engineering.md)：版本迁移与 Phase 7 的逐课产物、依赖和验收。

@@ -25,7 +25,7 @@
 - [x] 协议与 FastAPI：公开 profiles、SSE 已提交消息投影与 ACP 持久会话控制，见[第三批验收](../reviews/2026-09-29-web-protocol-migration.md)。
 - [ ] 真正的实时 token transport：另行选择并验证，当前 SDK/ACP 教程不提供。
 - [x] Session V4 基础实验：synthetic plaintext V1/V3 副本的只读迁移、写入 successor 与不可变 generation，见[第四批验收](../reviews/2026-09-29-recovery-storage.md)。
-- [ ] 更复杂历史数据：压缩历史日志、附件、子会话 catalog 和实际版本采集样例；当前最小 fixture 不代表这些已覆盖。
+- [ ] 更复杂历史数据：[压缩非空V1/V3、发布版写出的V4附件样本](../../labs/session-format-migration/RICH-HISTORY.md)已验证，16项测试与负对照见[记录](../reviews/2026-10-01-rich-history.md)；子会话catalog/forest与跨generation关联仍待集成。
 - [x] 可恢复服务升级：Python `0.1.5rc1`、旧事件原样重放、reconciliation/恢复确认和产物/幂等兼容，与 Session 格式分开验收。
 - [x] Cordis/preset：固定新版公开 profile patch、packed plugin、effect teardown 和 preset composition probe。
 - [x] AG-UI：重新审计 SDK deployment resume adapter、V4 committed projector、公开 package runtime、跨 generation 与浏览器 hydration。

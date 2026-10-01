@@ -13,4 +13,6 @@
 | 机制7章 | [索引](../../how-dsh-works/README.md) | 固定源码、compaction/workflow/Web/附件各Lab | 补剩余恢复/存储/控制案例 |
 | 7.1–7.6 | [工程化](../learning-paths/engineering.md) | supervisor/pool/tenant/sandbox/observability/eval | 补容器与远程执行 |
 
-初步发现：主README“最新第五批”、Phase7“从第一课开始”和TypeScript路线“compaction/workflow/Web未重跑”已落后于已提交结果，将随最终目录核对一起修正。Docker daemon为本机OrbStack Linux arm64，可进行自有容器实验；Codex/Hermes入口已安装，尚未把可执行文件存在当成真实模型验收。
+审计发现并修正：主README“最新第五批”、Phase7“从第一课开始”和TypeScript路线“compaction/workflow/Web未重跑”已落后于已提交结果，将随最终目录核对一起修正。Docker daemon为本机OrbStack Linux arm64，可进行自有容器实验；Codex/Hermes入口已安装，尚未把可执行文件存在当成真实模型验收。
+
+复杂历史子集完成：[压缩迁移/发布版存储样本](2026-10-01-rich-history.md)，16项测试；独立review的完整内容断言及真实V5头两处P2已修正。Task3仍等待child catalog/forest，不按子集宣布全项完成。

@@ -32,6 +32,6 @@ Preset probe 验证声明的 proof-only 子插件 composition 可以解析且不
 
 ## 6. 核心机制与工程化
 
-进入 [how-dsh-works](../../how-dsh-works/README.md) 的七篇新版源码笔记。它们区分固定源码事实与已运行 probe：新库级 probes 覆盖 Inbox/live/embedded stream、V4 工具失败与 context snapshot；完整 compaction、workflow-ptc、官方 Web Host 等路径尚未重跑。
+进入 [how-dsh-works](../../how-dsh-works/README.md) 的七篇新版源码笔记。它们区分固定源码事实与已运行 probe：新库级 probes 覆盖 Inbox/live/embedded stream、V4 工具失败与 context snapshot；[compaction](../../labs/compaction-lifecycle/README.md)、[workflow/child](../../labs/workflow-child-lifecycle/README.md)、[官方Web Host](../../labs/web-host-lifecycle/README.md)与[附件](../../labs/attachment-input/README.md)已有独立新版运行证据，各章仍保留具体未覆盖范围。
 
 [Session 格式实验](../../labs/session-format-migration/README.md)解释逻辑 read 与磁盘 write 的差别；[恢复对照](../comparisons/recovery-and-session-migration.md)区分业务恢复、会话恢复和格式升级。后续工程化专题继续按[路线](engineering.md)推进。

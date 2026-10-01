@@ -17,17 +17,21 @@ export interface FixtureCopy {
   cleanup(): Promise<void>;
 }
 
-/** Copy one lab-owned synthetic plaintext fixture into this release's simple no-cwd layout. */
-export async function copySyntheticFixture(name: FixtureName): Promise<FixtureCopy> {
+/** Copy one lab-owned synthetic fixture into this release's simple no-cwd layout. */
+export async function copySyntheticFixture(
+  name: FixtureName,
+  compression: "none" | "zstd" = "none",
+): Promise<FixtureCopy> {
   const version = name === "v1" ? 1 : 3;
   const id = SessionId(`synthetic-${name}`);
   const root = await mkdtemp(join(tmpdir(), "hands-on-dsh-session-format-"));
   const directory = join(root, "_no-cwd", id);
-  const sourcePath = join(directory, `session.v${version}.jsonl`);
+  const suffix = compression === "zstd" ? ".zstd" : "";
+  const sourcePath = join(directory, `session.v${version}.jsonl${suffix}`);
   try {
     await mkdir(directory, { recursive: true });
     await copyFile(
-      join(import.meta.dirname, "..", "fixtures", `synthetic-${name}.jsonl`),
+      join(import.meta.dirname, "..", "fixtures", `synthetic-${name}.jsonl${suffix}`),
       sourcePath,
     );
   } catch (error) {
@@ -40,7 +44,7 @@ export async function copySyntheticFixture(name: FixtureName): Promise<FixtureCo
     directory,
     sourcePath,
     version,
-    generationPath: (generation) => join(directory, `session.v${generation}.jsonl`),
+    generationPath: (generation) => join(directory, `session.v${generation}.jsonl${suffix}`),
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 }
