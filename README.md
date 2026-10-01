@@ -6,6 +6,8 @@
 
 > Learn DSH by building agent applications, exploring protocols, and understanding its internals.
 
+从[全章导航](docs/learning-paths/chapters.md)开始按顺序学习；验收状态见[全章节索引](docs/reviews/2026-10-01-chapter-audit.md)。
+
 ## 当前进度
 
 当前已升级的 Python SDK、FastAPI 与可恢复服务固定 `0.1.5rc1`；TypeScript SDK、协议和存储实验固定 npm `0.1.7-rc.2`。Cordis 与 AG-UI 已迁移到同一 npm 版本，七篇机制笔记也按该 tag 审查；文章中没有重跑的执行链单独标明。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；各章状态见[全章节验收索引](docs/reviews/2026-10-01-chapter-audit.md)，逐批记录保留各自日期与证据范围。
@@ -69,9 +71,9 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - Compaction：[真实 pressure、产物与持久重读](labs/compaction-lifecycle/README.md)、[受控溢出/取消](labs/compaction-lifecycle/RECOVERY.md)、[真实服务端overflow](labs/compaction-lifecycle/PROVIDER-OVERFLOW.md)、[事务/并发失败](labs/compaction-lifecycle/TRANSACTIONS.md)、[裁剪/offload 及图片 projection](labs/compaction-lifecycle/REDUCTION.md)。
 - [附件输入](labs/attachment-input/README.md)：生产附件接纳/归一化、真实 Files 图片请求、历史复用与关闭后独立重读；[整请求fallback](labs/attachment-input/FALLBACK.md)验证受控Files失败后的真实inline传输。
 - [Workflow/child](labs/workflow-child-lifecycle/README.md)：PTC 产物与正常关闭后的 child 冷恢复。
-- 官方 Web：[实时帧、历史和重启续写](labs/web-host-lifecycle/README.md)、[审批、取消与离线控制](labs/web-host-lifecycle/CONTROLS.md)。
+- 官方 Web：[实时帧、历史和重启续写](labs/web-host-lifecycle/README.md)、[审批、取消与离线控制](labs/web-host-lifecycle/CONTROLS.md)、[断线/重复投递/迟到回答/崩溃](labs/web-host-lifecycle/RECOVERY.md)。
 
-复杂并行/retry 和崩溃恢复仍待补证。旧版603 tests 保存在独立历史页，不归入新版结果。
+并行/retry、存储与崩溃恢复已有各自范围的[进阶验收](docs/reviews/2026-10-01-chapter-audit.md)；真实负面结果与生产限制保留在各章。旧版603 tests 保存在独立历史页，不归入新版结果。
 
 ### ✅ Session V1 / V3 → V4：存储迁移实验
 

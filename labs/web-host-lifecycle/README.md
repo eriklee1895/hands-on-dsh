@@ -1,6 +1,6 @@
 # 官方 Web Host：实时输出与重启后的会话恢复
 
-本实验使用官方 `dsh web` 页面完成任务，分别核对浏览器、文件和持久日志。[控制案例](CONTROLS.md)进一步验证拒绝、单次允许、执行中取消和浏览器离线。它补充[协议与 Web Host 机制章](../../how-dsh-works/07-sdk-jsonrpc-acp-and-web-host.md)，不复用自有 AG-UI 应用作为官方 Web 的验收证据。
+本实验使用官方 `dsh web` 页面完成任务，分别核对浏览器、文件和持久日志。[控制案例](CONTROLS.md)验证拒绝、单次允许、执行中取消和浏览器离线；[恢复案例](RECOVERY.md)继续验证 admission 断线、重复投递、审批等待时取消和 Host 强杀。它补充[协议与 Web Host 机制章](../../how-dsh-works/07-sdk-jsonrpc-acp-and-web-host.md)，不复用自有 AG-UI 应用作为官方 Web 的验收证据。
 
 ## 版本与前置
 
@@ -121,4 +121,4 @@ node examples/browser-metadata.mjs "$CDP_URL" "$WEB_ORIGIN" "$LAB_ROOT/browser-m
 
 启动器不会删除实验目录，失败时也保留它。完成验收后先停止两个终端和专属浏览器，确认相关 PID 已退出，再删除输出的 `labRoot`。不要删除实际项目目录。预期退出为正常 code 0，或主动 Ctrl-C 后的 code 130；其他 code、signal 或启动未就绪都报失败。启动等待最多 180 秒，但停止仍等待 CLI，不承诺启动器的硬性总时限。上游 CLI 给 disposal 5 秒，超时或 disposal 失败也可用同一个 130 退出；因此 code 130 只识别所请求的退出路径，不能单独证明 flush 或全部清理成功，本实验还独立重读日志并检查已记录 PID。
 
-基础实验没有覆盖全部故障路径；[控制案例](CONTROLS.md)已补一次 foreground 取消、拒绝/单次允许及浏览器离线中的写入观察。仍未覆盖 SIGKILL/crash recovery、重复投递、审批等待时取消/迟到回答、完整 Host/Origin 攻击矩阵、多租户 ACL、所有浏览器平台或完整 Web 产品功能。标题生成、用量和缓存展示不构成供应商账单验证。源码和运行观察只适用于本 Lab 固定版本及记录的模型路由。
+基础实验没有覆盖全部故障路径；[控制案例](CONTROLS.md)补充 foreground 取消、拒绝/单次允许及浏览器离线中的写入观察，[恢复案例](RECOVERY.md)记录迟到 Web 结果、强杀后的未知工具结果、请求接纳竞争和串行/并发重复投递。面板消失后的人手点击、完整 Host/Origin 攻击矩阵、多租户 ACL、所有浏览器平台和完整 Web 产品功能仍未实测。标题生成、用量和缓存展示不构成供应商账单验证。源码和运行观察只适用于本 Lab 固定版本及记录的模型路由。

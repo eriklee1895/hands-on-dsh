@@ -84,4 +84,4 @@ git show dsh-v0.1.7-rc.2:packages/client/connection/README.md
 
 ## Inference、Proposal 与未确认
 
-Inference：适配器应逐项声明 fullSessionEvents、liveTokens、wireCancel、permission、persistedResume，不能用统一接口假装对等。Proposal：在已完成的 Web 基础验收上，继续扩展审批等待时取消/迟到回答、重复投递、prompt admission 期间断线和崩溃恢复。现有 Web Lab 覆盖基础重启、有限认证及上述受控操作；自有 FastAPI/AG-UI 的成功仍不能替代其他官方 Web 功能的证据。[旧 170 项测试](historical-2026-08-31.md)也不能验证新版 Remote carrier。
+Inference：适配器应逐项声明 fullSessionEvents、liveTokens、wireCancel、permission、persistedResume，不能用统一接口假装对等。[Web恢复课](../labs/web-host-lifecycle/RECOVERY.md)已补实际admission断线、取消后的同事件迟到回答、串行/并发重复与Host SIGKILL修复。并发同requestId实测接纳两次；迟到结果的200/OK可能只是no-op，必须关联原请求与持久决策。现有Web Lab覆盖这些明确场景；自有 FastAPI/AG-UI 的成功仍不能替代其他官方 Web 功能的证据。[旧 170 项测试](historical-2026-08-31.md)也不能验证新版 Remote carrier。

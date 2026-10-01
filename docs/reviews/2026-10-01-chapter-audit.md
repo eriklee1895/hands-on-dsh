@@ -28,3 +28,5 @@
 复杂历史与workflow恢复集成完成：[PTC/forest/catalog验收](2026-10-02-workflow-recovery.md)，18项测试含真实PTC kill与第二进程正常/flush后SIGKILL恢复。它与存储16项合起来关闭Task3；半写入frame和任意执行中断仍是明确限制。两处review P2已修正并复核。
 
 Compaction事务/并发完成：[四场景验收](2026-10-02-compaction-transactions.md)，36项Lab测试、4个独立profile、全部事件重读；flush-after还在抛错前读回checkpoint。与workflow恢复一起关闭Task4，保留真实物理I/O与任意并发篡改限制。
+
+Web进阶完成：[admission/重复/审批/崩溃验收](2026-10-02-web-recovery.md)，11项本地测试与真实Host证据；迟到回答关联P2通过捕获frame、实际POST、回执与持久call的哈希链修正，随机ID负对照也实际返回200但被关联检查拒绝。Task5完成，等待全章最终综合审查。

@@ -1,0 +1,70 @@
+{
+  "dshVersion": "0.1.7-rc.2",
+  "upstream": "477b4f420553e8a52c2fbccc464d7561b239c443",
+  "environment": "macOS arm64, Node 26.7.0, pnpm 12.3.4, isolated official Web profile",
+  "persistedEventCounts": {
+    "approval": 34,
+    "serialDuplicate": 26,
+    "admission": 38,
+    "crash": 23
+  },
+  "pendingApproval": {
+    "decision": "cancelled",
+    "turn": "aborted",
+    "lateGrantRecorded": false,
+    "externalAppendAbsent": true,
+    "uiControl": "stop action while approval panel was pending; panel withdrew",
+    "lateAnswerAttemptedInBrowser": false
+  },
+  "lateApproval": {
+    "separateDisposableHost": true,
+    "eventCount": 34,
+    "correlationCapturedFromLiveWaterfall": true,
+    "capturedAgentMatchesSessionBySha256": true,
+    "capturedCallMatchesDurableAskedBySha256": true,
+    "outgoingPostMatchesCapturedClientAndEventBySha256": true,
+    "browserReceiptMatchesObservedPostBySha256": true,
+    "delivery": "authenticated POST /api/$events/result after UI stop",
+    "submittedOutcome": "allowed-once",
+    "http": 200,
+    "rpcAccepted": true,
+    "randomEventNegativeControl": {
+      "http": 200,
+      "rpcAccepted": true,
+      "eventHashMatchesCapturedApproval": false
+    },
+    "hostApplied": false,
+    "recordedDecision": "cancelled",
+    "recordedTurn": "aborted",
+    "laterTurnCount": 0,
+    "externalAppendAbsent": true
+  },
+  "serialDuplicate": {
+    "httpAcceptedResponses": 2,
+    "admittedPrompts": 1,
+    "calls": 1,
+    "completedTurns": 1,
+    "externalBytes": 3
+  },
+  "admission": {
+    "abortTransportResults": ["AbortError", "AbortError"],
+    "beforeAbortAdmitted": 0,
+    "afterAbortAdmitted": 1,
+    "concurrentHttpAcceptedResponses": 2,
+    "concurrentAdmitted": 2
+  },
+  "crash": {
+    "preRestartEvents": 19,
+    "preRestartToolResultCount": 0,
+    "preRestartTurnEndCount": 0,
+    "recoveryCode": "TOOL_OUTCOME_UNKNOWN",
+    "turn": "interrupted",
+    "externalBytesObserved": 5,
+    "delayedEffectAfterStart": true,
+    "externalEffectStartGapSeconds": 20,
+    "firstHostExit": "SIGKILL",
+    "secondHostExit": "requested SIGINT / code 130",
+    "recordedOwnerPidsGone": true
+  },
+  "publicBackendReopened": true
+}

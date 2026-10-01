@@ -34,8 +34,8 @@
 - [x] Workflow/PTC 与 child 冷恢复基础：[运行 Lab](../../labs/workflow-child-lifecycle/README.md)，包含受控取消清理、真实文件和正常关闭后的双进程恢复；[进阶课](../../labs/workflow-child-lifecycle/RECOVERY.md)补真实PTC进程崩溃、受控并行/重试、post-flush SIGKILL森林恢复与历史catalog。
 - [x] 官方 Web Host 基础：[浏览器 Lab](../../labs/web-host-lifecycle/README.md)，包含认证、实时帧、历史加载、正常重启后同会话续写与文件验证；[控制案例](../../labs/web-host-lifecycle/CONTROLS.md)补上拒绝/单次允许、foreground 取消、浏览器离线后历史恢复。
 - [x] 生产附件基础：[附件输入 Lab](../../labs/attachment-input/README.md)，35项本地测试、随机图真实 Files 传输与存储重读，以及[整请求inline fallback](../../labs/attachment-input/FALLBACK.md)，以及[真实provider本地预算/offload](../../labs/attachment-input/BUDGET.md)与[已删除Files引用恢复](../../labs/attachment-input/STALE.md)；[基础验收](../reviews/2026-10-01-attachment-input.md)、[fallback验收](../reviews/2026-10-01-attachment-fallback.md)。
-- [ ] 核心机制剩余运行验证：Web admission 断线、审批等待中取消/迟到回答、重复投递/crash；见逐篇证据表。
+- [x] Web恢复边界：[进阶课](../../labs/web-host-lifecycle/RECOVERY.md)与[验收](../reviews/2026-10-02-web-recovery.md)覆盖admission断线、审批取消/同事件迟到回答、串行/并发重复投递与Host crash；真实负面结果保留，不把HTTP成功当作用已生效。
 
 先读[业务恢复、会话恢复与格式迁移](../comparisons/recovery-and-session-migration.md)，避免把底层可读或 resume 成功当成业务执行成功。
 
-每次只把实际验收的单元标为完成。[执行记录](../reviews/2026-09-28-execution.md)保存本批结果与明确的后续起点。
+每次只把实际验收的单元标为完成。[全章验收索引](../reviews/2026-10-01-chapter-audit.md)汇总当前完成状态；旧执行记录保留其日期范围。

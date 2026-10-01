@@ -10,7 +10,9 @@
     "format:check": "oxfmt --check .",
     "start": "node --import tsx examples/start.ts",
     "verify": "node --import tsx examples/verify.ts",
-    "verify:controls": "node --import tsx examples/verify-controls.ts"
+    "verify:controls": "node --import tsx examples/verify-controls.ts",
+    "verify:recovery": "node --import tsx examples/verify-recovery.ts",
+    "verify:late-approval": "node --import tsx examples/verify-late-approval.ts"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",

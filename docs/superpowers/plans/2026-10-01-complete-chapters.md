@@ -23,7 +23,7 @@
 
 ### Task 1: 核对全部目录与逐章证据，修正陈旧导航；建立最终验收索引
 
-- [ ] 核对全部目录与逐章证据，修正陈旧导航；建立最终验收索引。文件：README、docs/learning-paths、docs/reviews/2026-10-01-chapter-audit.md。验收：所有现有章节可定位、既有未完成项有owner与后续证据。
+- [x] 核对全部目录与逐章证据，修正陈旧导航；建立最终验收索引。文件：README、docs/learning-paths、docs/reviews/2026-10-01-chapter-audit.md。验收：所有现有章节可定位、既有未完成项有owner与后续证据。
 ### Task 2: 完成图片预算/offload与stale Files ID恢复章节
 
 - [x] 完成图片预算/offload与stale Files ID恢复章节。文件：labs/attachment-input。验收：真实发布provider的小预算拒绝、持久选择/重放、已选图片与文件字节、明确限定的stale-ID恢复；不制造账户超限。
@@ -35,7 +35,7 @@
 - [x] 完成compaction持久化/并发失败与PTC/child恢复章节。文件：labs/compaction-lifecycle、workflow-child-lifecycle。验收：可复现的失败与无错误成功声明；可区分正常关闭恢复与crash/森林恢复；工具外部状态核对。
 ### Task 5: 完成实时transport与Web控制收尾
 
-- [ ] 完成实时transport与Web控制收尾。文件：labs/web-host-lifecycle、机制第07章。验收：将已验证的官方Web实时帧接入课程入口，补admission断线、等待中取消/迟到回答、重复投递与crash场景，不将SDK committed事件当token。
+- [x] 完成实时transport与Web控制收尾。文件：labs/web-host-lifecycle、机制第07章。验收：将已验证的官方Web实时帧接入课程入口，补admission断线、等待中取消/迟到回答、重复投递与crash场景，不将SDK committed事件当token。
 ### Task 6: 完成容器workspace与远程执行章节
 
 - [x] 完成容器workspace与远程执行章节。文件：labs/sandbox-isolation。验收：自有Linux容器/受限挂载与远程执行路径、跨workspace拒绝/外部产物/清理；当前docker可用。

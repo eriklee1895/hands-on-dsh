@@ -113,4 +113,4 @@ flowchart TD
 
 固定源码的 [Session cancel](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/api/session-controller/src/commands.ts) 调用 `agent.cancel({ kind: 'user' }, { keepInbox: true })`，只返回 accepted；本例没有排队消息，不能据此宣称队列已清空。[审批 service](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/interaction/user-approval/src/index.ts) 记录问答 ID；[Bash consumer](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/shell/tool-bash/src/index.ts) 在更宽策略执行之前等待批准。
 
-未覆盖：审批等待时取消及迟到答案、重复点击/重复 RPC、断线中的 prompt admission、正在执行时 Host 崩溃、任意任务树回收、真正后台 job、所有平台与网络故障。本次“一次追加”是受控观察，不是通用 exactly-once delivery 保证。
+[恢复案例](RECOVERY.md)继续检查审批等待时取消、同一事件的迟到 Web 结果、prompt admission 断线、重复 RPC 和执行中 Host 强杀。面板消失后的人手点击、任意任务树回收、真正后台 job、所有平台与网络故障仍未验证。本次“一次追加”是受控观察，不是通用 exactly-once delivery 保证。

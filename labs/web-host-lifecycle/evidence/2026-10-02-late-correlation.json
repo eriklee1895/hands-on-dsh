@@ -1,0 +1,53 @@
+{
+  "schema": "web-late-approval-correlation-v1",
+  "capture": {
+    "clientIdHash": "655ed6093ef80ef1933698f678689820859163a194c76b61d494e8ed3ad30d66",
+    "eventIdHash": "ba60ababc79572ce218b80462782dca754d65389c8f1663f6c706ff1021ff883",
+    "agentIdHash": "3a568971ca3b13cc23489dd5ad983463ed3d8d0196a2779a20a26e10e963e8ff",
+    "callIdHash": "4a8bf8972c3061689d83e34de77bfe33042b40dd5b27d0453e743163a81768fe",
+    "toolName": "bash"
+  },
+  "outgoingPosts": [
+    {
+      "clientIdHash": "655ed6093ef80ef1933698f678689820859163a194c76b61d494e8ed3ad30d66",
+      "eventIdHash": "ba60ababc79572ce218b80462782dca754d65389c8f1663f6c706ff1021ff883",
+      "rpcIdHash": "d08da2042f8bb3348b6d151c78de5a45112a107aeef8a8f7bf21ddb26591768c",
+      "outcome": "allowed-once",
+      "http": 200,
+      "rpcAccepted": true
+    },
+    {
+      "clientIdHash": "655ed6093ef80ef1933698f678689820859163a194c76b61d494e8ed3ad30d66",
+      "eventIdHash": "7984a2940c8d2bd6837d325bc19daf703cd58d75ed4d2af1c1879cd3ef3b1af9",
+      "rpcIdHash": "3fc870df966b7930dc18582a48dfafefa14d7bb177485ee57bd63c5d2d72bd9c",
+      "outcome": "allowed-once",
+      "http": 200,
+      "rpcAccepted": true
+    }
+  ],
+  "browserReceipt": {
+    "negative": {
+      "clientIdHash": "655ed6093ef80ef1933698f678689820859163a194c76b61d494e8ed3ad30d66",
+      "errorCode": null,
+      "eventIdHash": "7984a2940c8d2bd6837d325bc19daf703cd58d75ed4d2af1c1879cd3ef3b1af9",
+      "http": 200,
+      "rpcAccepted": true,
+      "rpcIdHash": "3fc870df966b7930dc18582a48dfafefa14d7bb177485ee57bd63c5d2d72bd9c"
+    },
+    "valid": {
+      "clientIdHash": "655ed6093ef80ef1933698f678689820859163a194c76b61d494e8ed3ad30d66",
+      "errorCode": null,
+      "eventIdHash": "ba60ababc79572ce218b80462782dca754d65389c8f1663f6c706ff1021ff883",
+      "http": 200,
+      "rpcAccepted": true,
+      "rpcIdHash": "d08da2042f8bb3348b6d151c78de5a45112a107aeef8a8f7bf21ddb26591768c"
+    }
+  },
+  "durable": {
+    "sessionIdHash": "3a568971ca3b13cc23489dd5ad983463ed3d8d0196a2779a20a26e10e963e8ff",
+    "askedCallIdHash": "4a8bf8972c3061689d83e34de77bfe33042b40dd5b27d0453e743163a81768fe",
+    "decision": "cancelled",
+    "turn": "aborted",
+    "targetFileAbsent": true
+  }
+}
