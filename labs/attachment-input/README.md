@@ -100,4 +100,4 @@ provider 的 `prepareImages()` 根据模型 route 获取请求版本。实验关
 - [provider image preparation](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/images.ts)
 - [request target resolver](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/request-pricing.ts)
 
-[整请求 fallback](FALLBACK.md)已补充“本地禁用全部/部分 Files + 真实 inline Messages”的两个实跑场景。供应商图片预算/超限恢复、透明或EXIF输入、账户配额错误、跨机器/租户路径权限、强杀恢复和其他平台仍未验证。[图片预算与持久offload](BUDGET.md)已验证真实provider本地预算拒绝和恢复；[已删除Files ID恢复](STALE.md)也已实跑；服务端context overflow仍单独验收。
+[整请求 fallback](FALLBACK.md)已补充“本地禁用全部/部分 Files + 真实 inline Messages”的两个实跑场景。供应商服务端图片配额/预算错误恢复、透明或EXIF输入、账户配额错误、跨机器/租户路径权限、强杀恢复和其他平台仍未验证。[图片预算与持久offload](BUDGET.md)已验证真实provider本地预算拒绝和恢复；[已删除Files ID恢复](STALE.md)也已实跑；[真实服务端context overflow](../compaction-lifecycle/PROVIDER-OVERFLOW.md)已单独验证，不能与本地图片预算错误混算。

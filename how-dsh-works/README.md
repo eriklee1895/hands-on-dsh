@@ -9,12 +9,12 @@
 | 篇目 | 当前主要事实 | 当前运行证据 | 尚未验证 |
 | --- | --- | --- | --- |
 | [01 Plugin tree 与组装](01-plugin-tree-and-runtime-assembly.md) | profile 有序 patch；sdk-minimal 独立树；preset 修订与 scope | 已有新版 SDK profile initialize/close | preset 热更新、完整 HMR、平台矩阵 |
-| [02 Agent Inbox 与 loop](02-agent-inbox-and-loop.md) | durable Inbox、Agent scope、initiator、write-handle resume | 新 probe：idle inject、followup 唤醒、whenIdle | maintenance/初始化/取消的全部竞争 |
+| [02 Agent Inbox 与 loop](02-agent-inbox-and-loop.md) | durable Inbox、Agent scope、initiator、write-handle resume | 新 probe：idle inject、followup 唤醒、whenIdle；[maintenance双gate](../labs/compaction-lifecycle/TRANSACTIONS.md) | 初始化/取消的全部交错 |
 | [03 Turn、Step 与工具](03-turn-step-tool-pipeline.md) | prepared admission、embedded stream、V4 tool message | 新 probe：未知工具 error → 下一 step；live/committed 输出 | parallel 顺序、retry、工具副作用与 repair |
-| [04 Session 与 projection](04-session-event-log-and-projection.md) | V4 surface；read/write 迁移；不可变 generation；required projections | 已有 V1/V3 synthetic migration lab 7 项；新 probe 的内存日志 | 复杂真实历史、附件/catalog、压缩历史迁移 |
+| [04 Session 与 projection](04-session-event-log-and-projection.md) | V4 surface；read/write 迁移；不可变 generation；required projections | [存储Lab16项](../labs/session-format-migration/RICH-HISTORY.md)：非空压缩历史、发布版V4附件样本；[历史catalog/forest](../labs/workflow-child-lifecycle/RECOVERY.md) | 任意用户真实历史、混合编码与更广迁移矩阵 |
 | [05 Context 与 compaction](05-compaction-and-context-assembly.md) | system 在 surface；request series；压缩 bracket | context snapshot probe；[compaction lab](../labs/compaction-lifecycle/README.md) 36项测试、真实pressure、[受控overflow/取消](../labs/compaction-lifecycle/RECOVERY.md)、[prune/offload](../labs/compaction-lifecycle/REDUCTION.md)及消息重放、[真实服务端overflow](../labs/compaction-lifecycle/PROVIDER-OVERFLOW.md)、[事务/并发](../labs/compaction-lifecycle/TRANSACTIONS.md)；[附件输入](../labs/attachment-input/README.md)另验生产store、真实Files及[inline fallback](../labs/attachment-input/FALLBACK.md) | 真实物理存储故障、广泛摘要质量 |
-| [06 Subagent 与 workflow](06-subagent-and-workflow.md) | parent catalog、continuable capacity、PTC 进程执行 | [PTC 与 child 冷恢复 Lab](../labs/workflow-child-lifecycle/README.md)：受控取消清理、真实产物及双进程恢复 | crash/森林恢复、复杂并行、外部 provider |
-| [07 SDK、ACP 与 Web Host](07-sdk-jsonrpc-acp-and-web-host.md) | ACP control 与 generic tools；Remote mux；SDK 缺少 resume/cancel | SDK/ACP 跨进程实跑；[Web 浏览器实跑](../labs/web-host-lifecycle/README.md)：实时帧、历史、重启及[取消/审批/离线](../labs/web-host-lifecycle/CONTROLS.md) | Web进阶见[恢复课](../labs/web-host-lifecycle/RECOVERY.md)；ACP通用cancel/permission与多平台扩展仍有各自限制 |
+| [06 Subagent 与 workflow](06-subagent-and-workflow.md) | parent catalog、continuable capacity、PTC 进程执行 | [PTC/child基础](../labs/workflow-child-lifecycle/README.md)与[18项进阶验证](../labs/workflow-child-lifecycle/RECOVERY.md)：真实PTC崩溃、受控并行/重试、正常及flush后SIGKILL森林恢复 | 任意执行中forest恢复、外部subagent provider与平台矩阵 |
+| [07 SDK、ACP 与 Web Host](07-sdk-jsonrpc-acp-and-web-host.md) | ACP control 与 generic tools；Remote mux；SDK 缺少 resume/cancel | SDK/ACP 跨进程实跑；[Web 浏览器实跑](../labs/web-host-lifecycle/README.md)：实时帧、历史、重启及[取消/审批/离线](../labs/web-host-lifecycle/CONTROLS.md)、[进阶恢复](../labs/web-host-lifecycle/RECOVERY.md) | 本仓库ACP通用控制适配与多平台验证 |
 
 这些限定直接对应每篇的 Verified from source、Observed at runtime、Inference/Proposal 和未确认部分；不以一条成功命令推断其他能力可用。
 

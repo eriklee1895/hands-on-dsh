@@ -77,11 +77,11 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 
 ### ✅ Session V1 / V3 → V4：存储迁移实验
 
-[`labs/session-format-migration/`](labs/session-format-migration/README.md) 通过真实发布版 persistence backend 与 worker，在 synthetic fixture 副本上验证只读逻辑迁移、写入 V4 successor、旧 generation 字节/hash 不变、重新打开稳定及 future/corrupt 拒绝。[复杂历史课](labs/session-format-migration/RICH-HISTORY.md)补充非空压缩V1/V3迁移和发布版写出的V4附件样本；child catalog仍待单独集成。它不读取个人会话，也不等同于业务 Run 恢复。
+[`labs/session-format-migration/`](labs/session-format-migration/README.md) 通过真实发布版 persistence backend 与 worker，在 synthetic fixture 副本上验证只读逻辑迁移、写入 V4 successor、旧 generation 字节/hash 不变、重新打开稳定及 future/corrupt 拒绝。[复杂历史课](labs/session-format-migration/RICH-HISTORY.md)补充非空压缩V1/V3迁移和发布版写出的V4附件样本；[catalog/forest课](labs/workflow-child-lifecycle/RECOVERY.md)补齐三节点目录、旧格式关联与第二进程恢复。它不读取个人会话，也不等同于业务 Run 恢复。
 
 ## 学习路线图
 
-路线按“先调用 runtime，再拥有业务恢复语义，随后理解协议、plugin、full-stack 与内部机制”的顺序推进：Python 集成 → recoverable service → SDK JSON-RPC / ACP → TypeScript SDK → Cordis/DSH plugin → AG-UI full-stack → fixed-revision internals。Phase 1–6 与 Phase 7 主体均有可运行产物和验收记录；容器/跨引擎扩展及剩余恢复案例继续按工程化路线验收。
+路线按“先调用 runtime，再拥有业务恢复语义，随后理解协议、plugin、full-stack 与内部机制”的顺序推进：Python 集成 → recoverable service → SDK JSON-RPC / ACP → TypeScript SDK → Cordis/DSH plugin → AG-UI full-stack → fixed-revision internals。Phase 1–7与列明的容器、跨引擎及恢复扩展均有可运行产物和验收记录；具体版本、证据与限制见工程化路线。
 
 ### Phase 1 — Python 集成基础
 

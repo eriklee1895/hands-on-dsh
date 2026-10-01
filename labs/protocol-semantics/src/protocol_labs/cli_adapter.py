@@ -371,27 +371,55 @@ class CliAdapter:
         if process is not None:
             discard = asyncio.create_task(self._discard_stdout()) if self.state != "busy" else None
             group = process.pid
+            signal_error: PermissionError | None = None
             if process_group_exists(group):
-                with suppress(ProcessLookupError):
+                try:
                     os.killpg(group, signal.SIGTERM)
-                escalation = "SIGTERM"
+                except ProcessLookupError:
+                    pass
+                except PermissionError as error:
+                    signal_error = error
+                else:
+                    escalation = "SIGTERM"
                 with suppress(asyncio.TimeoutError):
                     await asyncio.wait_for(process.wait(), timeout=0.5)
-            if process_group_exists(group):
-                with suppress(ProcessLookupError):
+            if signal_error is None and process_group_exists(group):
+                try:
                     os.killpg(group, signal.SIGKILL)
-                escalation = "SIGKILL"
-            await process.wait()
-            if self._stderr_task is not None:
-                await self._stderr_task
-            if discard is not None:
-                await discard
+                except ProcessLookupError:
+                    pass
+                except PermissionError as error:
+                    signal_error = error
+                else:
+                    escalation = "SIGKILL"
+            if process.returncode is None:
+                with suppress(asyncio.TimeoutError):
+                    await asyncio.wait_for(process.wait(), timeout=0.5)
+            readers = [task for task in (self._stderr_task, discard) if task is not None]
+            readers_settled = True
+            if readers:
+                done, pending = await asyncio.wait(readers, timeout=0.5)
+                if pending:
+                    readers_settled = False
+                    for task in pending:
+                        task.cancel()
+                    cancelled, pending = await asyncio.wait(pending, timeout=0.5)
+                    done.update(cancelled)
+                outcomes = await asyncio.gather(*done, return_exceptions=True)
+                if any(isinstance(outcome, BaseException) for outcome in outcomes):
+                    readers_settled = False
+                if pending:
+                    readers_settled = False
             group_gone = not process_group_exists(group)
             returncode = process.returncode
+            if signal_error is not None and (returncode is None or not group_gone):
+                self.state = "faulted"
+                raise signal_error
         else:
             group_gone = True
             returncode = None
-        if group_gone:
+            readers_settled = True
+        if group_gone and (process is None or returncode is not None) and readers_settled:
             shutil.rmtree(self._state.root)
             self.state = "closed"
         else:
