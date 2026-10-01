@@ -23,7 +23,7 @@
 
 计划中的实验：
 
-- 容器/远程 executor 与多租户执行环境验证
+容器/SSH基础现见[sandbox补充课](sandbox-isolation/CONTAINERS.md)；完整生产多租户调度仍不属于该实验保证。
 - Codex / Hermes 等其他引擎的 adapter 接入与共同场景实测
 
 教程可以引用 lab，但不复制其实现。完整应用则放在 `projects/`。

@@ -16,3 +16,5 @@
 审计发现并修正：主README“最新第五批”、Phase7“从第一课开始”和TypeScript路线“compaction/workflow/Web未重跑”已落后于已提交结果，将随最终目录核对一起修正。Docker daemon为本机OrbStack Linux arm64，可进行自有容器实验；Codex/Hermes入口已安装，尚未把可执行文件存在当成真实模型验收。
 
 复杂历史子集完成：[压缩迁移/发布版存储样本](2026-10-01-rich-history.md)，16项测试；独立review的完整内容断言及真实V5头两处P2已修正。Task3仍等待child catalog/forest，不按子集宣布全项完成。
+
+容器/远程执行基础完成：[7.4补充验收](2026-10-01-container-executor.md)，3项真实Docker/SSH/provider测试，另有11项本地测试（默认跳过Docker）。两处review P2已修正并复核；不扩大为网络隔离、bwrap验证或完整多租户安全。

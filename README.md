@@ -155,7 +155,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] [有界进程池](labs/runtime-supervision/POOL.md)：FIFO、排队取消、故障注入与真实双 runtime 验证
 - [x] [身份认证与租户 API 数据访问](projects/recoverable-agent-service/TENANCY.md)：Bearer 验证、独立业务存储与跨租户拒绝
 - [x] [本机 sandbox 探针](labs/sandbox-isolation/README.md)：真实文件写入、网络/进程观察与平台差异
-- [ ] 容器化 workspace 与远程执行环境集成
+- [x] [容器workspace与SSH执行](labs/sandbox-isolation/CONTAINERS.md)：真实Linux容器、固定版文件/子进程provider、外部字节与失败清理
 - [x] [Run 观测与用量估算](labs/run-observability/README.md)：白名单元数据、重放去重与显式教学费率
 - [x] [Eval 与可重放回归](projects/recoverable-agent-service/EVAL.md)：五类业务场景、负对照、独立真实成功路径
 - [x] [DSH 双协议适配基础](labs/protocol-semantics/ADAPTERS.md)：显式能力、原生终态与共同场景

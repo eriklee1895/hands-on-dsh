@@ -38,7 +38,7 @@
 - [ ] 完成实时transport与Web控制收尾。文件：labs/web-host-lifecycle、机制第07章。验收：将已验证的官方Web实时帧接入课程入口，补admission断线、等待中取消/迟到回答、重复投递与crash场景，不将SDK committed事件当token。
 ### Task 6: 完成容器workspace与远程执行章节
 
-- [ ] 完成容器workspace与远程执行章节。文件：labs/sandbox-isolation。验收：自有Linux容器/受限挂载与远程执行路径、跨workspace拒绝/外部产物/清理；当前docker可用。
+- [x] 完成容器workspace与远程执行章节。文件：labs/sandbox-isolation。验收：自有Linux容器/受限挂载与远程执行路径、跨workspace拒绝/外部产物/清理；当前docker可用。
 ### Task 7: 完成跨引擎适配章节
 
 - [ ] 完成跨引擎适配章节。文件：labs/protocol-semantics。验收：在既有显式能力接口上接入可用Codex/Hermes，真实binary与真实任务结果分开记录；失败/生命周期语义不伪装一致。
