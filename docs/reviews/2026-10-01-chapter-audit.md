@@ -20,3 +20,5 @@
 容器/远程执行基础完成：[7.4补充验收](2026-10-01-container-executor.md)，3项真实Docker/SSH/provider测试，另有11项本地测试（默认跳过Docker）。两处review P2已修正并复核；不扩大为网络隔离、bwrap验证或完整多租户安全。
 
 图片/服务端错误链路完成：预算2672c91、已删除Files恢复e2523d9，以及[实际服务端overflow](2026-10-02-provider-overflow.md)。前两者与服务端错误分别记账，未把本地预算改名为服务端quota。
+
+两篇比较章节完成：[Session events与AG-UI](../comparisons/session-events-vs-ag-ui.md)、[SSE与WebSocket](../comparisons/sse-vs-websocket.md)，复用明确日期的项目/Web运行证据并核对当前代码；独立review修正Host发送ready与Client发布connected的职责表述。实时transport清单以官方Web证据核销，不改变stock SDK/ACP能力。跨引擎比较仍等待Hermes实跑与整体复核。

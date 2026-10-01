@@ -9,8 +9,9 @@
 
 - [业务恢复、会话恢复与格式迁移](recovery-and-session-migration.md)：SQLite、ACP resume 与不可变 Session generation 各自保证什么
 
-计划中的主题：
+- [DSH Session events与AG-UI](session-events-vs-ag-ui.md)：执行事实、业务游标、UI投影与实时语义
+- [SSE与WebSocket](sse-vs-websocket.md)：本仓库两条实际链路、断线与恢复依据
 
-- DSH session events 与 AG-UI events
-- SSE 与 WebSocket
+进行中的主题：
+
 - DSH、Codex 和 Hermes runtime adapter
