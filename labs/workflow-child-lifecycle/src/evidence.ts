@@ -19,6 +19,55 @@ export async function readStored(root: string, id: string) {
   }
 }
 export type Stored = Awaited<ReturnType<typeof readStored>>;
+
+/** Check a cold-read forest against immutable stored history and direct-parent catalog facts. */
+export function verifyForest(
+  before: { root: Stored; child: Stored; grandchild: Stored },
+  after: { root: Stored; child: Stored; grandchild: Stored },
+  ids: { parentId: string; childId: string; grandchildId: string },
+) {
+  const expected = [
+    ["root", ids.parentId, undefined],
+    ["child", ids.childId, ids.parentId],
+    ["grandchild", ids.grandchildId, ids.childId],
+  ] as const;
+  for (const [name, id, parentId] of expected) {
+    const original = before[name];
+    const reopened = after[name];
+    assert.equal(original.header.version, 4);
+    assert.equal(original.header.id, id);
+    assert.equal(original.header.parentSession, parentId, `${name} direct parent`);
+    assert.deepEqual(reopened.header, original.header, `${name} header changed on cold read`);
+    assert.deepEqual(reopened.events, original.events, `${name} history changed on cold read`);
+  }
+  const parentCatalog = after.root.events.filter((event) => event.type === "subagent/catalog");
+  const childCatalog = after.child.events.filter((event) => event.type === "subagent/catalog");
+  const grandchildCatalog = after.grandchild.events.filter(
+    (event) => event.type === "subagent/catalog",
+  );
+  assert.equal(parentCatalog.length, 1, "parent has exactly one direct child");
+  assert.equal(childCatalog.length, 1, "child has exactly one direct child");
+  assert.equal(grandchildCatalog.length, 0, "grandchild has no direct children");
+  assert.equal(parentCatalog[0]!.data.childId, ids.childId);
+  assert.equal(parentCatalog[0]!.data.childCreatedAt, after.child.header.createdAt);
+  assert.equal(parentCatalog[0]!.data.mode, "continuable");
+  assert.equal(childCatalog[0]!.data.childId, ids.grandchildId);
+  assert.equal(childCatalog[0]!.data.childCreatedAt, after.grandchild.header.createdAt);
+  assert.equal(childCatalog[0]!.data.mode, "continuable");
+  for (const [name, catalog] of [
+    ["child", parentCatalog[0]],
+    ["grandchild", childCatalog[0]],
+  ] as const) {
+    const descriptors = after[name].events.filter((event) => event.type === "subagent/descriptor");
+    assert.equal(descriptors.length, 1, `${name} has one descriptor`);
+    assert.ok(descriptors[0]?.type === "subagent/descriptor");
+    assert.equal(descriptors[0].data.mode, "continuable");
+    assert.ok(catalog?.type === "subagent/catalog");
+    assert.equal(catalog.data.label, descriptors[0].data.label, `${name} catalog label`);
+  }
+  return { edges: 2, immutableHistory: true };
+}
+
 /** Require unchanged historical events, one durable identity, and a new completed child turn. */
 export function verifyCold(
   before: Stored,

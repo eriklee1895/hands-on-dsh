@@ -29,7 +29,7 @@
 - [x] 完成图片预算/offload与stale Files ID恢复章节。文件：labs/attachment-input。验收：真实发布provider的小预算拒绝、持久选择/重放、已选图片与文件字节、明确限定的stale-ID恢复；不制造账户超限。
 ### Task 3: 完成复杂历史存储章节
 
-- [ ] 完成复杂历史存储章节。文件：labs/session-format-migration、workflow-child-lifecycle。验收：压缩非空历史、附件与child catalog样本、固定版本采集、不可变predecessor、fresh backend重读；不用个人历史。
+- [x] 完成复杂历史存储章节。文件：labs/session-format-migration、workflow-child-lifecycle。验收：压缩非空历史、附件与child catalog样本、固定版本采集、不可变predecessor、fresh backend重读；不用个人历史。
 ### Task 4: 完成compaction持久化/并发失败与PTC/child恢复章节
 
 - [ ] 完成compaction持久化/并发失败与PTC/child恢复章节。文件：labs/compaction-lifecycle、workflow-child-lifecycle。验收：可复现的失败与无错误成功声明；可区分正常关闭恢复与crash/森林恢复；工具外部状态核对。

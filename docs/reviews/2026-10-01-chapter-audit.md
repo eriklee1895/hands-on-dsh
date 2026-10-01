@@ -24,3 +24,5 @@
 两篇比较章节完成：[Session events与AG-UI](../comparisons/session-events-vs-ag-ui.md)、[SSE与WebSocket](../comparisons/sse-vs-websocket.md)，复用明确日期的项目/Web运行证据并核对当前代码；独立review修正Host发送ready与Client发布connected的职责表述。实时transport清单以官方Web证据核销，不改变stock SDK/ACP能力。跨引擎比较仍等待Hermes实跑与整体复核。
 
 跨引擎与第三篇比较完成：[Codex/Hermes验收](2026-10-02-cross-engine.md)，133项本地测试，双方均有真实文件字节和新严格nonce通过。Hermes两次早期结果不明保留，未重放旧任务；三处review P2修复后再次独立复核通过。能力表继续区分not-integrated与产品能力。
+
+复杂历史与workflow恢复集成完成：[PTC/forest/catalog验收](2026-10-02-workflow-recovery.md)，18项测试含真实PTC kill与第二进程正常/flush后SIGKILL恢复。它与存储16项合起来关闭Task3；半写入frame和任意执行中断仍是明确限制。两处review P2已修正并复核。

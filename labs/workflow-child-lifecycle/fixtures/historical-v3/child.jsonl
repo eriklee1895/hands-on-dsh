@@ -1,0 +1,2 @@
+{"type":"session","version":3,"id":"historical-child","createdAt":2000,"isSeeded":false,"delegationDepth":1,"parentSession":"historical-parent","origin":"subagent"}
+{"type":"subagent/descriptor","seq":0,"time":2000,"data":{"version":3,"mode":"continuable","provider":"spawn","label":"historical-child task"}}

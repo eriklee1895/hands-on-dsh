@@ -1,6 +1,6 @@
 # Workflow PTC 与 child 冷恢复
 
-本实验回答两个问题：PTC 脚本能否调用两个 child 完成可检查的任务；整个 runtime 退出后，父 Agent 能否恢复同一个 continuable child 的历史。先运行，再对照[机制说明](../../how-dsh-works/06-subagent-and-workflow.md)。
+本实验回答两个问题：PTC 脚本能否调用两个 child 完成可检查的任务；整个 runtime 退出后，父 Agent 能否恢复同一个 continuable child 的历史。先运行，再对照[机制说明](../../how-dsh-works/06-subagent-and-workflow.md)。进阶的进程崩溃、并发上限和三节点森林见[恢复与失败章节](RECOVERY.md)。
 
 ## 版本与条件
 
@@ -95,4 +95,4 @@ plugin 的 240 秒信号用于取消 workflow 和停止等待；外部程序 270
 
 ## 未确认与下一步
 
-本次验证正常退出后的冷恢复，不是 SIGKILL、崩溃中途恢复或任意森林恢复。复杂并行、retry、capacity 满载、外部 provider、PTC 崩溃、恶意脚本隔离、网络策略和所有平台仍未覆盖。[官方Web Host](../web-host-lifecycle/README.md)已有独立浏览器运行证据；本节继续补上述恢复与失败案例。
+本页的真实模型流程验证正常退出后的冷恢复。[进阶章节](RECOVERY.md)另用受控模型响应和发布版 runtime 验证 PTC `SIGKILL`、两路并发及总量拒绝、脚本显式重试、flush 后的正常关闭/进程崩溃三节点森林冷恢复，以及合成 V3 parent/child catalog 迁移。中途未提交 turn、工具副作用后的自动重试、外部 provider、恶意脚本隔离、网络策略和所有平台仍未覆盖。[官方Web Host](../web-host-lifecycle/README.md)已有独立浏览器运行证据。
