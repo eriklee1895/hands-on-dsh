@@ -26,3 +26,5 @@
 跨引擎与第三篇比较完成：[Codex/Hermes验收](2026-10-02-cross-engine.md)，133项本地测试，双方均有真实文件字节和新严格nonce通过。Hermes两次早期结果不明保留，未重放旧任务；三处review P2修复后再次独立复核通过。能力表继续区分not-integrated与产品能力。
 
 复杂历史与workflow恢复集成完成：[PTC/forest/catalog验收](2026-10-02-workflow-recovery.md)，18项测试含真实PTC kill与第二进程正常/flush后SIGKILL恢复。它与存储16项合起来关闭Task3；半写入frame和任意执行中断仍是明确限制。两处review P2已修正并复核。
+
+Compaction事务/并发完成：[四场景验收](2026-10-02-compaction-transactions.md)，36项Lab测试、4个独立profile、全部事件重读；flush-after还在抛错前读回checkpoint。与workflow恢复一起关闭Task4，保留真实物理I/O与任意并发篡改限制。

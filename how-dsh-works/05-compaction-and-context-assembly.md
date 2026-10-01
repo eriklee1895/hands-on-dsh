@@ -68,6 +68,8 @@ node --test --test-name-pattern='runtime context|inbox waits' how-dsh-works/prob
 
 [附件输入 Lab](../labs/attachment-input/README.md)另行验证了生产 store 的接纳/归一化、两张随机图片的真实 Files 传输与关闭后独立重读；[fallback课](../labs/attachment-input/FALLBACK.md)补上受控Files失败后的整请求真实inline传输；这不扩大上述 offload fixture 的证据范围，其中[本地provider图片预算](../labs/attachment-input/BUDGET.md)与[已删除Files引用](../labs/attachment-input/STALE.md)分别有独立运行证据；[服务端overflow课](../labs/compaction-lifecycle/PROVIDER-OVERFLOW.md)另以单次长输入观察到真实400/CONTEXT_WINDOW_EXCEEDED、0工具和12个持久事件。
 
+[事务与并发维护课](../labs/compaction-lifecycle/TRANSACTIONS.md)补充4个独立profile：第二维护owner被拒绝、followup等待flush、flush前/后注入失败、end append失败。失败调用可能已有checkpoint；未闭合标记会阻止同owner再次压缩。36项测试与各自持久重读不能扩大为真实磁盘故障保证。
+
 ## Inference、Proposal 与未确认
 
-Inference：Request Inspector 应并排显示 header、system/developer messages、surface 顺序和 compaction bracket；仅打印全 log 会把 shadowed 内容误作当前请求。Proposal：后续补持久化/并发失败与更广摘要质量实验。本次已验证基本压缩事务和一个随机 code 的真实保留，尚未证明一般摘要质量、provider cache 性能或完整成本；[旧 45 项测试](historical-2026-08-31.md)保留为 2026-08-31 历史结果。
+Inference：Request Inspector 应并排显示 header、system/developer messages、surface 顺序和 compaction bracket；仅打印全 log 会把 shadowed 内容误作当前请求。Proposal：后续可补真实物理存储故障与更广摘要质量实验。本次已验证基本压缩事务和一个随机 code 的真实保留，尚未证明一般摘要质量、provider cache 性能或完整成本；[旧 45 项测试](historical-2026-08-31.md)保留为 2026-08-31 历史结果。

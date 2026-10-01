@@ -15,11 +15,16 @@ import {
   type runReduction,
 } from "../src/reduction-scenarios.ts";
 import { fingerprintJson, verifyReplay } from "../src/replay-evidence.ts";
+import {
+  TRANSACTION_SCENARIOS,
+  type runTransactionScenario,
+} from "../src/transaction-scenarios.ts";
 import { SCENARIOS, type runScenario } from "../src/fault-scenarios.ts";
 import { readPersisted } from "../src/verify.ts";
 type Report = (
   | Awaited<ReturnType<typeof runScenario>>
   | Awaited<ReturnType<typeof runReduction>>
+  | Awaited<ReturnType<typeof runTransactionScenario>>
 ) & { ok: true; runtimePid: number };
 async function readReport(path: string): Promise<Report> {
   const deadline = Date.now() + 60000;
@@ -49,14 +54,22 @@ async function readReport(path: string): Promise<Report> {
 }
 async function main() {
   const reductions = process.argv[2] === "reductions";
-  assert.ok(process.argv[2] === undefined || reductions, "Use: faults.ts [reductions]");
+  const transactions = process.argv[2] === "transactions";
+  assert.ok(
+    process.argv[2] === undefined || reductions || transactions,
+    "Use: faults.ts [reductions|transactions]",
+  );
   const root = await mkdtemp(join(tmpdir(), "dsh-compaction-faults-"));
   let owner: DeepSeekHarness | undefined;
   let closed = true;
   let verified = false;
   const results: object[] = [];
   try {
-    for (const scenario of reductions ? REDUCTION_SCENARIOS : SCENARIOS) {
+    for (const scenario of transactions
+      ? TRANSACTION_SCENARIOS
+      : reductions
+        ? REDUCTION_SCENARIOS
+        : SCENARIOS) {
       const directory = join(root, scenario);
       const workspace = join(directory, "workspace");
       const home = join(directory, "home");
@@ -93,20 +106,24 @@ async function main() {
                 config: reductions
                   ? reductionConfig(scenario as (typeof REDUCTION_SCENARIOS)[number])
                   : {
-                      auto: true,
+                      auto: !transactions,
                       thresholdRatio: 1,
                       headroomTokens: 0,
                       retainTokens: 0,
                       maxTokens: 64,
                       compactionRetries: 0,
-                      maxOverflowRetries: scenario === "disabled" ? 0 : 1,
+                      maxOverflowRetries: transactions || scenario === "disabled" ? 0 : 1,
                     },
               },
               {
                 id: "lesson-faults",
                 name: fileURLToPath(
                   new URL(
-                    reductions ? "../dist/reduction-plugin.js" : "../dist/fault-plugin.js",
+                    transactions
+                      ? "../dist/transaction-plugin.js"
+                      : reductions
+                        ? "../dist/reduction-plugin.js"
+                        : "../dist/fault-plugin.js",
                     import.meta.url,
                   ),
                 ),

@@ -32,7 +32,7 @@
 - [x] 完成复杂历史存储章节。文件：labs/session-format-migration、workflow-child-lifecycle。验收：压缩非空历史、附件与child catalog样本、固定版本采集、不可变predecessor、fresh backend重读；不用个人历史。
 ### Task 4: 完成compaction持久化/并发失败与PTC/child恢复章节
 
-- [ ] 完成compaction持久化/并发失败与PTC/child恢复章节。文件：labs/compaction-lifecycle、workflow-child-lifecycle。验收：可复现的失败与无错误成功声明；可区分正常关闭恢复与crash/森林恢复；工具外部状态核对。
+- [x] 完成compaction持久化/并发失败与PTC/child恢复章节。文件：labs/compaction-lifecycle、workflow-child-lifecycle。验收：可复现的失败与无错误成功声明；可区分正常关闭恢复与crash/森林恢复；工具外部状态核对。
 ### Task 5: 完成实时transport与Web控制收尾
 
 - [ ] 完成实时transport与Web控制收尾。文件：labs/web-host-lifecycle、机制第07章。验收：将已验证的官方Web实时帧接入课程入口，补admission断线、等待中取消/迟到回答、重复投递与crash场景，不将SDK committed事件当token。

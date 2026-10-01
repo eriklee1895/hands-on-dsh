@@ -66,7 +66,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 
 [`how-dsh-works/`](how-dsh-works/README.md) 的七篇中文机制笔记已按 `0.1.7-rc.2` 完整 SHA 逐条审查，覆盖 profile/preset、Agent/loop、V4 tool/session、context/compaction、subagent/workflow-ptc 和 SDK/ACP/Web Host。3 个发布包 keyless probes 与以下新版 Lab 分别提供运行证据：
 
-- Compaction：[真实 pressure、产物与持久重读](labs/compaction-lifecycle/README.md)、[受控溢出/取消](labs/compaction-lifecycle/RECOVERY.md)、[真实服务端overflow](labs/compaction-lifecycle/PROVIDER-OVERFLOW.md)、[裁剪/offload 及图片 projection](labs/compaction-lifecycle/REDUCTION.md)。
+- Compaction：[真实 pressure、产物与持久重读](labs/compaction-lifecycle/README.md)、[受控溢出/取消](labs/compaction-lifecycle/RECOVERY.md)、[真实服务端overflow](labs/compaction-lifecycle/PROVIDER-OVERFLOW.md)、[事务/并发失败](labs/compaction-lifecycle/TRANSACTIONS.md)、[裁剪/offload 及图片 projection](labs/compaction-lifecycle/REDUCTION.md)。
 - [附件输入](labs/attachment-input/README.md)：生产附件接纳/归一化、真实 Files 图片请求、历史复用与关闭后独立重读；[整请求fallback](labs/attachment-input/FALLBACK.md)验证受控Files失败后的真实inline传输。
 - [Workflow/child](labs/workflow-child-lifecycle/README.md)：PTC 产物与正常关闭后的 child 冷恢复。
 - 官方 Web：[实时帧、历史和重启续写](labs/web-host-lifecycle/README.md)、[审批、取消与离线控制](labs/web-host-lifecycle/CONTROLS.md)。
