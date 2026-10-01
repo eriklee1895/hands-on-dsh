@@ -21,7 +21,7 @@
 - [protocol-semantics](protocol-semantics/README.md)：固定 npm `0.1.7-rc.2` 的 SDK/ACP profiles、JSONL、committed output、cancel/permission、持久 session list/resume/close 与进程生命周期；[适配层](protocol-semantics/ADAPTERS.md)提供显式能力与共同场景
 - [cordis-plugin-lifecycle](cordis-plugin-lifecycle/README.md)：固定 DSH `0.1.7-rc.2` 的原创 proof journal、Cordis lifecycle/HMR/PENDING、preset scope、可复用 tool/listener 与真实模型调用
 
-计划中的实验：
+扩展范围：
 
 容器/SSH基础现见[sandbox补充课](sandbox-isolation/CONTAINERS.md)；完整生产多租户调度仍不属于该实验保证。
 Codex/Hermes基础已接入[协议适配课](protocol-semantics/ADAPTERS.md)，真实nonce与文件场景分别验收；未集成的控制仍由能力表明确标注。
