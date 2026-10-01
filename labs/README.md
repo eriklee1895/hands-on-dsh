@@ -4,6 +4,8 @@
 
 已完成：
 
+- [attachment-input](attachment-input/README.md)：真实附件 store、SDK 图片接纳、Files 视觉输入、字节核对与本次上传清理。
+
 - [官方 Web Host](web-host-lifecycle/README.md)：浏览器认证、实时帧、工具产物、页面刷新及正常重启后的同会话续写；[控制案例](web-host-lifecycle/CONTROLS.md)验证审批、取消和离线行为。
 
 - [Workflow PTC 与 child 冷恢复](workflow-child-lifecycle/README.md)：发布包 PTC、取消后的迟到 child 清理，以及两次独立 runtime 的持久 child 恢复和文件验证。

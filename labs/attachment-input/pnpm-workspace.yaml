@@ -1,0 +1,10 @@
+allowBuilds:
+  "@deepseek-ai/dsh-subprocess-local": true
+  "@google/genai": false
+  esbuild: true
+  koffi: true
+  node-pty: true
+  protobufjs: true
+# Keep the native binding version verified by this lab.
+overrides:
+  rolldown: 1.2.11

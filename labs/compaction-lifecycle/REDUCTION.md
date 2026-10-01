@@ -86,6 +86,6 @@ pruner 配置为 `thresholdChars: 256`、`headChars: 24`、`tailChars: 24`。预
 
 ## 未覆盖
 
-本课不是实际视觉供应商的预算错误或图片理解评测；附件 store、归一化、上传、Files API、路径授权与真实多平台执行尚未验证。没有覆盖所有嵌套 rich content、并发改写、持久化部分失败、强杀恢复、真实 provider overflow 与 prune 混合、成本/缓存性能。更大模型不会自动恢复旧 occurrence 的结论由本固定版本源码和受控 route 切换支持，不扩大为未来版本保证。
+本课不是实际视觉供应商的预算错误或图片理解评测；本课没有验证附件 store、归一化、上传、Files API、路径授权与真实多平台执行；其中本地 store 与 Files 正常链路另见[附件输入 Lab](../attachment-input/README.md)。没有覆盖所有嵌套 rich content、并发改写、持久化部分失败、强杀恢复、真实 provider overflow 与 prune 混合、成本/缓存性能。更大模型不会自动恢复旧 occurrence 的结论由本固定版本源码和受控 route 切换支持，不扩大为未来版本保证。
 
 这里的“重开”是只读日志及 projection 重放，不是第二个 Agent 冷恢复并继续视觉对话。保留/删除 fixture 目录由实验程序负责，与 image offload 的选择事件是两件事。
