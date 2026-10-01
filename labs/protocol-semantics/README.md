@@ -99,4 +99,4 @@ uv run --python 3.10 ruff format --check .
 
 测试覆盖 package metadata 与 profile argv、Python 3.10、JSONL 分帧与双向 ID、SDK receipt-to-idle/EOF、ACP list/resume/cwd/config、cancel/permission。fake 和 published run 是不同证据。一次成功的模型回复不证明错误恢复、跨平台行为、多租户安全或业务任务状态；业务 Run/Task 仍应有自己的权威状态。协议选择参见[SDK JSON-RPC 与 ACP 对比](../../docs/comparisons/sdk-jsonrpc-vs-acp.md)，进程管理实验参见[Runtime Supervision](../runtime-supervision/README.md)。固定源码依据：[公开 CLI](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/apps/cli/src/bin.ts)、[SDK server](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/server/src/server.ts)、[ACP bridge](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/acp/acp/src/index.ts)。
 
-[第 7.7 课适配层](ADAPTERS.md)用共享场景比较两个入口，保留能力与终态差异；Codex/Hermes仍未接入。
+[第 7.7–7.8 课适配层](ADAPTERS.md)用共享场景比较 DSH 双入口，并为 Codex/Hermes CLI 增加独立终态适配；两款 CLI 的 nonce 与文件真实任务均通过，Hermes 固定启动警告和早期失败分别记录。

@@ -66,15 +66,26 @@ def describe_adapter(engine: str, protocol: str) -> dict[str, object]:
 
     if engine not in {"dsh", "codex", "hermes"}:
         raise ValueError("unknown adapter engine")
-    if protocol not in {"sdk", "acp"}:
-        raise ValueError("unknown adapter protocol")
     if engine != "dsh":
+        expected = "exec-jsonl" if engine == "codex" else "chat-stream-json"
+        if protocol != expected:
+            raise ValueError("unknown adapter protocol")
         return {
             "engine": engine,
             "protocol": protocol,
-            "integration": "not-integrated",
-            "capabilities": dict.fromkeys(_CAPABILITIES, "not-integrated"),
+            "integration": "integrated",
+            "capabilities": {
+                "prompt": "supported",
+                "process_close": "supported",
+                "session_close": "not-integrated",
+                "resume": "not-integrated",
+                "cancel": "not-integrated",
+                "token_stream": "not-integrated",
+                "permission": "not-integrated",
+            },
         }
+    if protocol not in {"sdk", "acp"}:
+        raise ValueError("unknown adapter protocol")
     capabilities = {
         "prompt": "supported",
         "process_close": "supported",

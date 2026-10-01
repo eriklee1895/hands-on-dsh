@@ -12,6 +12,4 @@
 - [DSH Session events与AG-UI](session-events-vs-ag-ui.md)：执行事实、业务游标、UI投影与实时语义
 - [SSE与WebSocket](sse-vs-websocket.md)：本仓库两条实际链路、断线与恢复依据
 
-进行中的主题：
-
-- DSH、Codex 和 Hermes runtime adapter
+- [DSH、Codex和Hermes](dsh-codex-hermes.md)：共同任务、原生终态、能力声明与真实验收

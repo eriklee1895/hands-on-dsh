@@ -15,6 +15,7 @@ from protocol_labs.adapters import (
     describe_adapter,
     open_adapter,
 )
+from protocol_labs.cli_adapter import open_cli_adapter
 from protocol_labs.launch import load_versions
 
 
@@ -165,7 +166,7 @@ async def compare(server: str, negative_control: bool = False) -> dict:
         "evidence": "controlled-peers" if server == "fake" else "published-runtime",
         "release_reference": load_versions()["dsh"],
         "capabilities": [describe_adapter("dsh", protocol) for protocol in ("sdk", "acp")],
-        "not_integrated": ["codex", "hermes"],
+        "other_engines_not_run": ["codex", "hermes"],
         "not_run": []
         if server == "fake"
         else [
@@ -186,23 +187,87 @@ async def compare(server: str, negative_control: bool = False) -> dict:
     }
 
 
+async def compare_cli(engine: str) -> dict:
+    """Run two bounded live CLI tasks; report terminal and artifact evidence separately."""
+    rows = []
+    for scenario in ("nonce", "artifact"):
+        nonce = uuid4().hex
+        adapter = await open_cli_adapter(engine)
+        try:
+            if scenario == "nonce":
+                expected = "ENGINE_OK_" + nonce
+                prompt = "Do not use tools. Reply with exactly this one line: " + expected
+            else:
+                expected = "ARTIFACT_OK_" + nonce + "\n"
+                prompt = (
+                    "Create a file named result.txt in the current working directory. "
+                    "Its full UTF-8 content must be exactly this line followed by one newline: "
+                    + expected.strip()
+                    + " Use your file or shell tool. Then reply with done."
+                )
+            result = await adapter.prompt(prompt)
+            if scenario == "nonce":
+                checks = {
+                    "native_completed": result.status == "completed",
+                    "exact_text": result.text in {expected, expected + "\n"},
+                    "no_tools": result.tool_events == 0,
+                }
+            else:
+                artifact = adapter.state_root / "workspace/result.txt"
+                checks = {
+                    "native_completed": result.status == "completed",
+                    "exact_artifact": artifact.is_file()
+                    and artifact.read_bytes() == expected.encode(),
+                    "tool_observed": result.tool_events > 0,
+                }
+            evidence = {
+                "settlement": result.settlement,
+                "native": result.native,
+                "answer_sha256": hashlib.sha256((result.text or "").encode()).hexdigest(),
+                "artifact_sha256": hashlib.sha256(expected.encode()).hexdigest()
+                if scenario == "artifact" and checks["exact_artifact"]
+                else None,
+                "tool_events": result.tool_events,
+            }
+        finally:
+            closed = await adapter.close()
+        checks["native_clean_exit"] = closed.get("native_clean_exit") is True
+        rows.append({**_row(result.protocol, scenario, checks, closed), "evidence": evidence})
+    return {
+        "engine": engine,
+        "protocols": [rows[0]["protocol"]],
+        "evidence": "installed-cli-live",
+        "capabilities": [describe_adapter(engine, rows[0]["protocol"])],
+        "not_run": ["native-cancel", "resume", "permission", "token-stream"],
+        "cases": rows,
+        "counts": {
+            "selected": len(rows),
+            "passed": sum(row["passed"] for row in rows),
+            "failed": sum(not row["passed"] for row in rows),
+        },
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--server", choices=("fake", "package"), default="fake")
+    parser.add_argument("--server", choices=("fake", "package", "binary"), default="fake")
     parser.add_argument("--engine", choices=("dsh", "codex", "hermes"), default="dsh")
     parser.add_argument("--negative-control", action="store_true")
     args = parser.parse_args()
     try:
-        if args.engine != "dsh":
-            print(json.dumps({"engine": args.engine, "integration": "not-integrated"}))
-            return 2
-        report = asyncio.run(compare(args.server, args.negative_control))
+        if args.engine == "dsh":
+            report = asyncio.run(compare(args.server, args.negative_control))
+        elif args.server == "binary" and not args.negative_control:
+            report = asyncio.run(compare_cli(args.engine))
+        else:
+            raise ValueError("CLI engines require --server binary and no negative control")
     except Exception as error:
         print(
             json.dumps(
                 {
                     "error": "Adapter comparison could not complete",
                     "error_type": type(error).__name__,
+                    "error_kind": error.kind if isinstance(error, AdapterExecutionError) else None,
                 }
             )
         )

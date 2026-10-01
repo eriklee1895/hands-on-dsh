@@ -20,8 +20,11 @@ def test_capabilities_identify_integration_and_protocol_limits() -> None:
     assert acp["capabilities"]["cancel"] == "probe-only"
     assert acp["capabilities"]["permission"] == "probe-only"
     assert sdk["capabilities"]["token_stream"] == "unsupported"
-    for engine in ("codex", "hermes"):
-        assert describe_adapter(engine, "acp")["integration"] == "not-integrated"
+    for engine, protocol in (("codex", "exec-jsonl"), ("hermes", "chat-stream-json")):
+        selected = describe_adapter(engine, protocol)
+        assert selected["integration"] == "integrated"
+        assert selected["capabilities"]["prompt"] == "supported"
+        assert selected["capabilities"]["resume"] == "not-integrated"
     with pytest.raises(ValueError):
         describe_adapter("unknown", "acp")
 

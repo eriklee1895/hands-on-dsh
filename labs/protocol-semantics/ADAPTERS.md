@@ -1,8 +1,8 @@
-# 第 7.7 课：适配层基础——DSH 双协议与显式能力
+# 第 7.7–7.8 课：显式能力与跨引擎适配
 
-本课把同一项任务交给 DSH 的 SDK JSON-RPC 和 ACP 两种入口，验证应用可以统一哪些结果，以及哪些控制必须保留差异。两者的 engine 都是 DSH；本课没有接入 Codex 或 Hermes，不能将它们未接入本仓库写成产品不支持某项能力。
+先把同一项任务交给 DSH 的 SDK JSON-RPC 和 ACP，再用独立 CLI adapter 验证 Codex 与 Hermes。共同接口只承诺 `prompt(text)`、`close()` 和显式能力描述。各引擎的终态、失败及会话控制仍按原生入口解释；两款 CLI 的 nonce 和文件真实任务均通过，早期 Hermes 失败及修复见[验收记录](../../docs/reviews/2026-10-02-cross-engine.md)。
 
-前置：[协议语义实验](README.md)、[业务 Eval](../../projects/recoverable-agent-service/EVAL.md)。继续使用本 lab 的 npm DSH `0.1.7-rc.2`、ACP protocol v1 和既有 JSONL peer，不增加依赖或另写一份 transport。
+前置：[协议语义实验](README.md)、[业务 Eval](../../projects/recoverable-agent-service/EVAL.md)。DSH 继续使用本 lab 的 npm `0.1.7-rc.2`、ACP protocol v1 和既有 JSONL peer。Codex/Hermes 使用各自 CLI JSONL 事件流，并非 SDK JSON-RPC；专用 reader 不发送伪造的 JSON-RPC 请求。
 
 ## 1. 先运行共同场景
 
@@ -55,7 +55,7 @@ SDK 的 completed 必须建立在 matching inbox receipt、根 turn completed �
 | permission 交互 | unsupported | probe-only |
 | token stream | unsupported | unsupported |
 
-`supported` 表示本适配层提供实现；`unsupported` 限定这里锁定的协议/入口；`probe-only` 表示当前只有明确范围的实验，不是通用生产接口。`describe_adapter()` 对 Codex/Hermes 返回 `not-integrated`，不进行任何启动或产品能力推断。
+`supported` 表示本适配层提供实现；`unsupported` 限定这里锁定的协议/入口；`probe-only` 表示当前只有明确范围的实验，不是通用生产接口。`describe_adapter()` 对 Codex `exec-jsonl` 和 Hermes `chat-stream-json` 报告已实现的 prompt/process close；session close、resume、native cancel、逐 token 文本消费和 permission 仍是 `not-integrated`。这个标记只描述本 lab 的实现，不判断产品是否提供相应功能。
 
 `cancel_probe()` 仅适用于 ACP fake，复用既有 readiness-then-cancel 实验。它不能取消任意已发出的 prompt，也不接受 package 模式。ACP 的协议本身有 cancel 通知，但要实现通用 UI 取消还需定义发送时机、完成与取消的竞态、请求状态和部分输出；本课没有把这些未实现语义藏在一个布尔值里。
 
@@ -91,14 +91,22 @@ uv run --env-file ../../.env python -m protocol_labs.comparison --server package
 
 这批真实模式只有两个 prompt 场景，故障、cancel、resume 等明确列为 not_run。之前的 ACP 跨进程 resume 证据在[协议实验](README.md)中；本次 fake 的同进程 close/resume 不能取代它，也不扩大为通用历史会话可恢复。
 
+## 6. 运行 Codex 与 Hermes 的独立场景
+
+安装两款 CLI 并完成它们自己的账户配置后，从本目录运行：
+
 ```sh
-uv run python -m protocol_labs.comparison --engine codex
-uv run python -m protocol_labs.comparison --engine hermes
+uv run --python 3.10 python -m protocol_labs.comparison --engine codex --server binary
+uv run --python 3.10 python -m protocol_labs.comparison --engine hermes --server binary
 ```
 
-这两条返回 not-integrated 并退出 2，不调用对应产品、不安装任何 runtime。新增其他引擎时，应从它的官方入口、真实能力和结果语义重新验收，不能只把名字添加到表格就算接入。
+每个引擎的完整比较执行两个新的单轮任务：精确随机 nonce 回复，以及在隔离 workspace 写入 `result.txt` 并精确核对文件字节。nonce 只允许完全相同的文本或末尾恰好一个换行；前置空白、额外空行和后置空格均失败。脚本只输出 hash、状态和布尔验收，不输出提示词、回答或凭据。一次任务有不确定结果时不自动重发。Codex 使用当前配置的 model、内建 OpenAI provider 和精确复制到 `0700` 临时 home 的 `0600` `auth.json`；`--ignore-user-config`/`--ignore-rules` 避免加载个人 MCP 与规则。Hermes 从当前配置读取 model/provider，仅支持这里验证的 `deepseek` provider；只把对应 key 写入临时 `0600` `.env`，使用 `--safe-mode` 禁用个人插件、MCP 和规则。私有文件在写入首个字节前即以 `0600` 创建，准备失败时删除临时状态。两个 CLI 的可执行文件可用 `CODEX_ADAPTER_BIN` / `HERMES_ADAPTER_BIN` 指定；默认从 PATH 查找。特定账户可通过 `CODEX_ADAPTER_CONFIG`、`CODEX_ADAPTER_AUTH`、`HERMES_ADAPTER_CONFIG`、`HERMES_ADAPTER_ENV` 指向确切配置/凭据文件，model 可通过 `CODEX_ADAPTER_MODEL` 或 `HERMES_ADAPTER_MODEL` 加 `HERMES_ADAPTER_PROVIDER` 指定。无需改变原有登录。
 
-## 6. 检查与后续扩展
+Codex `exec --json` 的正常结果要求 `thread.started`、唯一末尾 `turn.completed` 和进程退出码 0；`turn.failed` 或非零退出是 failed。Hermes `chat --format stream-json` 的正常结果要求 `system/init`、唯一末尾 `result`、其 `exit_code` 与进程返回码一致且为 0；130 是 interrupted，其余非零是 failed。Hermes 0.21.5 在 `system/init` 后可能向 stdout 打印一条固定的 `tirith` 缺失警告。adapter 仅允许这条源码可定位的警告出现一次，并在 `native.startupWarning` 标记；任何其他非 JSON 行、提前 EOF、缺少终态、超时及输出超限都报执行错误。不能由部分文本推断 completed。`close()` 有界回收进程组，只有独立确认后删除临时状态。这里没有把关闭进程解释成 native cancel。真实二进制与真实模型任务是两级证据：`--version`/`--help` 只确认入口存在，不说明模型任务可用。
+
+Codex 0.156.1 与 Hermes v0.21.5 各在本机完成两个新的真实任务：nonce 精确匹配且零工具事件；文件字节精确匹配并观察到工具事件。Hermes 的成功结果保留 `startupWarning=tirith-unavailable`，并非声称 CLI stdout 完全干净。早期失败的两条任务没有重放；成功证据来自独立的新 nonce 和 workspace。更完整的语义矩阵见[跨引擎对比](../../docs/comparisons/dsh-codex-hermes.md)。
+
+## 7. 检查与后续扩展
 
 ```sh
 uv run --python 3.10 pytest tests
@@ -107,6 +115,6 @@ uv run --python 3.10 ruff format --check .
 uv lock --check
 ```
 
-CLI 退出码 0 表示本次选择的所有检查通过，1 表示检查失败，2 表示配置、未接入或执行基础设施错误。fake/package 两种证据分别报告，详见[本课验收](../../docs/reviews/2026-09-30-runtime-adapters.md)。
+CLI 退出码 0 表示本次选择的所有检查通过，1 表示检查失败，2 表示配置或执行基础设施错误。DSH fake/package 和 CLI binary 三种证据分别报告；DSH 原始验收见[第 7.7 课记录](../../docs/reviews/2026-09-30-runtime-adapters.md)，跨引擎记录见[第 7.8 课记录](../../docs/reviews/2026-10-02-cross-engine.md)。
 
-7.7 本次完成 DSH 双协议的适配基础。真正的跨引擎 Codex/Hermes 适配、通用取消与审批、其他平台验证仍待实现；这与 7.4 的容器/远程执行缺口一起保留在[工程化路线](../../docs/learning-paths/engineering.md)。业务 Run 的持久状态、授权、幂等和产物检查仍由应用负责，不因有了统一 prompt 接口而消失。
+7.7 保留 DSH 双协议适配基础；7.8 新增两个 CLI 入口并完成该版本的 nonce/文件真实验收。所有引擎的通用取消、审批与其他平台验证仍待完成。业务 Run 的持久状态、授权、幂等和产物检查仍由应用负责。

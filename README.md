@@ -159,7 +159,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] [Run 观测与用量估算](labs/run-observability/README.md)：白名单元数据、重放去重与显式教学费率
 - [x] [Eval 与可重放回归](projects/recoverable-agent-service/EVAL.md)：五类业务场景、负对照、独立真实成功路径
 - [x] [DSH 双协议适配基础](labs/protocol-semantics/ADAPTERS.md)：显式能力、原生终态与共同场景
-- [ ] Codex / Hermes 等其他引擎的适配与真实验收
+- [x] [Codex/Hermes CLI适配与真实验收](labs/protocol-semantics/ADAPTERS.md)：独立状态、原生终态、严格nonce与文件字节验证
 
 ## 仓库结构
 

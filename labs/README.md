@@ -24,6 +24,6 @@
 计划中的实验：
 
 容器/SSH基础现见[sandbox补充课](sandbox-isolation/CONTAINERS.md)；完整生产多租户调度仍不属于该实验保证。
-- Codex / Hermes 等其他引擎的 adapter 接入与共同场景实测
+Codex/Hermes基础已接入[协议适配课](protocol-semantics/ADAPTERS.md)，真实nonce与文件场景分别验收；未集成的控制仍由能力表明确标注。
 
 教程可以引用 lab，但不复制其实现。完整应用则放在 `projects/`。

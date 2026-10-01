@@ -41,10 +41,10 @@
 - [x] 完成容器workspace与远程执行章节。文件：labs/sandbox-isolation。验收：自有Linux容器/受限挂载与远程执行路径、跨workspace拒绝/外部产物/清理；当前docker可用。
 ### Task 7: 完成跨引擎适配章节
 
-- [ ] 完成跨引擎适配章节。文件：labs/protocol-semantics。验收：在既有显式能力接口上接入可用Codex/Hermes，真实binary与真实任务结果分开记录；失败/生命周期语义不伪装一致。
+- [x] 完成跨引擎适配章节。文件：labs/protocol-semantics。验收：在既有显式能力接口上接入可用Codex/Hermes，真实binary与真实任务结果分开记录；失败/生命周期语义不伪装一致。
 ### Task 8: 完成三篇计划中的比较：DSH Session events与AG-UI、SSE与WebSocket、DSH/Codex/Hermes adapter
 
-- [ ] 完成三篇计划中的比较：DSH Session events与AG-UI、SSE与WebSocket、DSH/Codex/Hermes adapter。文件：docs/comparisons。前两篇复用已有明确版本与运行证据，第三篇依赖跨引擎实跑；引用canonical实现，不复制教程。
+- [x] 完成三篇计划中的比较：DSH Session events与AG-UI、SSE与WebSocket、DSH/Codex/Hermes adapter。文件：docs/comparisons。前两篇复用已有明确版本与运行证据，第三篇依赖跨引擎实跑；引用canonical实现，不复制教程。
 ### Task 9: 全课程收尾
 
 - [ ] 全课程收尾。文件：全章索引及受影响README/路线。验收：相关测试、命令入口、所有文档相对链接、凭据扫描、独立review；每项有证据或明确尚未解决的阻塞，只有全目标满足才标记完成。
