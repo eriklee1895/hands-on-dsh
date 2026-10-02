@@ -4,7 +4,7 @@ English | [中文](04-workspace-agent.zh.md)
 
 ## Outcome
 
-Use [`04_workspace_agent.py`](../04_workspace_agent.py) to give the agent a real file task. Verify the resulting file directly instead of trusting the model's description of its own work.
+“The file is sorted” sounds like success, but it is still just a model response. In this chapter, [`04_workspace_agent.py`](../04_workspace_agent.py) asks the agent to sort three lines, then Python reads `output.txt` itself. The file bytes decide whether the task passes.
 
 ## Prerequisites
 
@@ -12,16 +12,28 @@ Complete [Tutorial 03](03-stream-events.md). Use a disposable directory because 
 
 ## Run it
 
+Run the command from `tutorials/python-sdk`; `../../.env` is the local credential file at the repository root. If the credential is already exported in your shell, omit env-file; for example, `uv run python 04_workspace_agent.py` uses the script’s default arguments.
+
 ```sh
-uv run python 04_workspace_agent.py \
+uv run --env-file ../../.env python 04_workspace_agent.py \
   --workspace /tmp/dsh-demo-04
 ```
 
-The script creates `input.txt`, asks the agent to sort it into `output.txt`, then compares the output file with the exact bytes `blue\ngreen\nred\n`.
+The script creates `input.txt`, asks the agent to sort it into `output.txt`, then compares the output with the exact bytes `blue\ngreen\nred\n`. On success it prints `output_verified: exact bytes` and the file contents:
+
+```text
+blue
+green
+red
+```
+
+The final newline is part of the check. Having all three colors in the right order is not enough if the bytes differ.
 
 ## How it works
 
-`cwd` selects the agent workspace; `dsh_home` independently holds profile and session data. The model sees tools registered by the bundled Cordis composition, chooses the necessary calls, and can execute several model steps before the turn ends. The Python caller remains responsible for checking external state after the run.
+Start with `profile="sdk"` in the configuration: this example selects the full profile for file tools. `cwd` selects the working directory; `dsh_home` independently holds profile and session data. The runtime’s Cordis composition registers the actual tools; the Python SDK does not implement them.
+
+Now find `actual = output.read_bytes()`. The caller executes that line independently of the model’s answer. The model may need several requests and tool steps; after the run, we inspect the file state that matters to the application.
 
 ```mermaid
 sequenceDiagram
@@ -43,6 +55,8 @@ The `cwd` and environment mapping are constructed by [`DeepSeekHarness.__init__`
 ## Verify it
 
 The script fails unless the run completes and `output.txt` contains exactly `b"blue\ngreen\nred\n"`. Inspect a retained `--dsh-home` for session events if needed. The default temporary home and workspace are removed only after the runtime closes.
+
+Open the retained `/tmp/dsh-demo-04/output.txt` after the run. Consider the opposite case: the answer says “done,” but the file is absent. Which check decides the outcome? Inspect `finish_reason` and `output_bytes` together to distinguish an incomplete run from an incorrect artifact. When finished, clean up only this experiment’s directory.
 
 ## Limitations
 

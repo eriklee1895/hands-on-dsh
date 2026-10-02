@@ -1,6 +1,8 @@
 # 官方 Web Host：实时输出与重启后的会话恢复
 
-本实验使用官方 `dsh web` 页面完成任务，分别核对浏览器、文件和持久日志。[控制案例](CONTROLS.md)验证拒绝、单次允许、执行中取消和浏览器离线；[恢复案例](RECOVERY.md)继续验证 admission 断线、重复投递、审批等待时取消和 Host 强杀。它补充[协议与 Web Host 机制章](../../how-dsh-works/07-sdk-jsonrpc-acp-and-web-host.md)，不复用自有 AG-UI 应用作为官方 Web 的验收证据。
+在官方 Web 页面里让 Agent 记住一个口令并写入文件。然后关闭 Host、启动一个新进程，再让它根据旧对话写出同一个口令。页面看起来接上了，我们还要检查两件事：第二轮是否使用原 Session，以及文件中的字节是否真的正确。
+
+本课从官方 `dsh web` 完成这两轮任务，用浏览器、文件和持久日志分别取证，补充[协议与 Web Host 机制章](../../how-dsh-works/07-sdk-jsonrpc-acp-and-web-host.md)。后续[控制案例](CONTROLS.md)讨论拒绝、允许、取消和浏览器离线，[恢复案例](RECOVERY.md)再进入 admission 断线、重复投递、审批等待时取消与 Host 强杀。自有 AG-UI 应用的表现不能替代官方 Web 的这些观察。
 
 ## 版本与前置
 
@@ -23,7 +25,9 @@ pnpm format:check
 pnpm exec node --env-file=../../.env --import tsx examples/start.ts
 ```
 
-已有环境变量时可用 `pnpm start`。终端打印 `labRoot`、去除 token 的 `baseUrl`、launcher/host PID；进程持续运行，保留该终端。另一个终端进入同一 Lab 目录，按实际输出设置：
+已有环境变量时可用 `pnpm start`。把这个终端当作 **Host 终端**：启动器打印 `labRoot`、去除 token 的 `baseUrl`、launcher/host PID 后会持续运行，先不要关闭。
+
+再打开一个**操作终端**，进入同一 Lab 目录，按实际输出设置变量并打开专属浏览器：
 
 ```sh
 LAB_ROOT='/替换为实际的/labRoot'
@@ -37,6 +41,16 @@ agent-browser --session dsh-web-lesson snapshot -i
 
 ## 两轮浏览器实验
 
+先看完整目标，运行中就容易判断当前到了哪一步：
+
+| 阶段 | 浏览器观察 | 独立检查 |
+| --- | --- | --- |
+| 第一轮 | `WEB_READY`，1 轮 2 步 | `web-proof.txt` 与 checkpoint 日志 |
+| Host 重启 | 原 Session 重新加载 | 原 Host 退出，新 Host PID 不同 |
+| 第二轮 | `WEB_RESUMED`，2 轮 4 步 | `resumed-proof.txt` 与旧日志前缀 |
+
+如果还想观察独立的实时帧，可先设置后文[只读观察器](#可选观察-web-的实时帧)，再发送第一轮。第一次学习不必同时运行观察器。
+
 1. 阅读并确认内测声明。在“添加工作区”中点击“编辑路径”，输入 `$LAB_ROOT/workspace` 的实际绝对路径，按 Enter，等待目录加载后点击“打开”。选择该工作区；保留工作区内修改模式和 Flash 模型。
 2. 本地打开 `$LAB_ROOT/state.json`，取出随机 `code`。将下列提示中的 `<CODE>` 两处替换成它，通过页面发送：
 
@@ -49,16 +63,17 @@ agent-browser --session dsh-web-lesson snapshot -i
 agent-browser --session dsh-web-lesson eval 'JSON.parse(localStorage.getItem("dsh.sessions.current")).sessionId'
 ```
 
-5. 在启动器终端按 Ctrl-C，等待 `hostExited`，并用 `ps` 确认记录的进程已退出。在另一个终端保存第一轮 checkpoint：
+5. 在 Host 终端按 Ctrl-C，等待 `hostExited`，并用 `ps` 确认记录的进程已退出。切回已设置 `LAB_ROOT` 的操作终端，保存第一轮 checkpoint：
 
 ```sh
 SESSION_ID='替换为实际的/session-id'
 pnpm verify "$LAB_ROOT" "$SESSION_ID" checkpoint
 ```
 
-6. 在启动器终端复用同一个实验目录，启动新 Host：
+6. 回到 Host 终端。两个终端不共享变量，先把 `LAB_ROOT` 设置为步骤 1–5 使用的同一个实际目录，再启动新 Host：
 
 ```sh
+LAB_ROOT='/替换为刚才同一个/labRoot'
 pnpm exec node --env-file=../../.env --import tsx examples/start.ts "$LAB_ROOT"
 ```
 
@@ -68,7 +83,7 @@ pnpm exec node --env-file=../../.env --import tsx examples/start.ts "$LAB_ROOT"
 
    > Write the exact recovery code from our earlier conversation to resumed-proof.txt with no newline. Call bash exactly once using printf '%s' 'RECOVERY_CODE' > resumed-proof.txt with the remembered code substituted. Do not read files, environment variables, or logs, and do not call any other tools. Then reply with exactly WEB_RESUMED.
 
-8. 等待 `WEB_RESUMED` 和“2 轮 4 步”，然后再次 Ctrl-C，确认 Host 退出，再验证：
+8. 等待 `WEB_RESUMED` 和“2 轮 4 步”，然后在 Host 终端再次 Ctrl-C，确认 Host 退出。切回保留 `LAB_ROOT` 和 `SESSION_ID` 的操作终端验证：
 
 ```sh
 pnpm verify "$LAB_ROOT" "$SESSION_ID" final
@@ -82,21 +97,23 @@ agent-browser --session dsh-web-lesson close
 ```mermaid
 sequenceDiagram
     participant B as 浏览器
-    participant H as 官方 Web Host
-    participant D as Session V4
-    B->>H: HTTP POST /api/session/prompt
-    H-->>B: remote.mux 实时 assistant-stream
-    H->>D: 提交 assistant/message 和 turn/end
+    participant H as Web Host
+    participant D as V4 日志
+    B->>H: POST prompt
+    H-->>B: 实时 assistant-stream
+    H->>D: assistant/message、turn/end
     H-->>B: 持久事件与投影
-    B->>H: 页面 reload，加载原 Session
+    B->>H: reload 原 Session
     H-->>B: 历史与当前状态
-    Note over H: SIGINT 退出，再用同一 home 启动新进程
-    B->>H: 原 cookie、原 Session、新 prompt
+    Note over H: SIGINT 退出；同一 home 重启
+    B->>H: 原 cookie 与 Session，新 prompt
     H->>D: 读取历史并追加第二轮
-    Note over D: Host 退出后独立 backend 比较前缀与文件
+    Note over D: 停机后独立核对
 ```
 
-[`verify.ts`](examples/verify.ts) 在 Host 停止后通过公开 JSONL backend 重读 V4。它核对同一 header、完整历史前缀、两个 completed turns、逐轮精确 Bash 命令、对应成功结果和文件字节。官方 Bash 还带描述性 `description` 参数；验证器允许该文本字段，但命令必须完全匹配。第二轮新增 user/message 不能提供旧口令。
+为什么验证一定放在 Host 停止后？这时 [`verify.ts`](examples/verify.ts) 可以用独立的公开 JSONL backend 重读 V4，核对同一 header 和完整历史前缀，再把两个 completed turns、每轮 Bash 命令、成功结果与外部文件对应起来。它不依赖页面还记得什么。
+
+官方 Bash 还带描述性的 `description` 参数，验证器允许这个文本字段，但命令必须完全匹配。第二轮新增 user/message 也不能含旧口令，否则文件正确只能说明模型照抄了新输入，不能证明它使用了持久历史。
 
 此次结果：Session `26 → 43` 条事件，前 26 条逐项相同；两个文件各 36 字节、SHA-256 相同。页面刷新和 Host 重启后都保留同一个选中 ID；浏览器未捕获 pageerror。关闭前的两个进程树快照中，所有记录 PID 在停止后均已退出。这是离散快照，不是完整后代进程审计。
 
@@ -104,14 +121,15 @@ sequenceDiagram
 
 安全的结果元数据保存在 [evidence/2026-09-30.json](evidence/2026-09-30.json)，完整检查说明见[验收记录](../../docs/reviews/2026-09-30-web-host.md)。原始日志、cookie、token、checkpoint 和 API Key 不随教程提交。
 
-## 观察 Web 的实时帧
+## 可选：观察 Web 的实时帧
 
-浏览器的 WebSocket 是 `/api/remote.mux`，unary 请求走 `/api/session/prompt` 等 HTTP POST。本次 CDP 观察只保存消息类别与时间，两个回复各出现 4 个独立 `assistant-stream + text-delta` 帧，随后才收到对应的持久 `event + assistant/message`。这与 SDK 把已提交消息内的 stream 事后展开不同。
+页面上的文字逐渐出现，是否就证明存在逐 token 通知？还需要看传输。浏览器用 `/api/remote.mux` WebSocket 接收消息，`/api/session/prompt` 等 unary 请求则走 HTTP POST。本次 CDP 观察只保存类别与时间：两个回复各出现 4 个独立 `assistant-stream + text-delta` 帧，之后才收到对应的持久 `event + assistant/message`。这与 SDK 把已提交消息内的 stream 事后展开不同。
 
-可在发送第一轮前，使用以下只读观察器复现。`CDP_URL` 来自 agent-browser 显示的本地调试地址，`WEB_ORIGIN` 使用启动器的 `baseUrl`：
+可在发送第一轮前，在已设置 `LAB_ROOT` 的操作终端启动只读观察器。`CDP_URL` 来自 agent-browser 的本地调试地址，`WEB_ORIGIN` 填入启动器实际输出的无 token `baseUrl`：
 
 ```sh
-agent-browser --session dsh-web-lesson get cdp-url
+CDP_URL="$(agent-browser --session dsh-web-lesson get cdp-url)"
+WEB_ORIGIN='替换为启动器输出的/baseUrl'
 node examples/browser-metadata.mjs "$CDP_URL" "$WEB_ORIGIN" "$LAB_ROOT/browser-metadata.jsonl"
 ```
 

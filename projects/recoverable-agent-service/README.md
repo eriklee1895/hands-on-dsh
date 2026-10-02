@@ -2,40 +2,63 @@
 
 > 已验收版本（2026-09-29）：PyPI `deepseek-harness-sdk==0.1.5rc1` 与匹配的 runtime wheel；对应上游 [`dsh-v0.1.5-rc.1`](https://github.com/deepseek-ai/deepseek-harness/tree/183f08e9c6dde7e36cd2318eaee70b0da08fb35e)。
 
-这是一个可直接运行的 Python 3.10+ FastAPI 学习项目。它演示怎样把 DSH 用作 Agent runtime，同时由应用自己的 SQLite 数据库持有权威业务状态。项目没有浏览器 UI；调用方通过 JSON HTTP API、SSE 和不可变产物下载接口完成整个流程。
+Agent 已经写好了文件，HTTP 连接却断了：客户端该重发任务，还是先查结果？如果服务随后重启，又凭什么判断那次工作有没有执行？这个 Python 3.10+ FastAPI 项目围绕这些问题，把业务记录存入应用自己的 SQLite，让 DSH 专心负责 Agent 执行。
+
+你会创建 Conversation、提交一个 Run，观察持久事件，再下载由服务验证并保存的产物。项目没有浏览器 UI，整个流程通过 JSON HTTP API、SSE 和产物下载接口完成。建议先跑过 [FastAPI 101](../../tutorials/fastapi-101/README.md)，再比较两者如何处理断连和进程退出。
 
 项目精确锁定 `deepseek-harness-sdk==0.1.5rc1`，安装时带入同版本 `deepseek-harness-runtime-bin`。adapter 通过公开的 `sdk-minimal` profile 和独立 Harness home 启动 runtime；运行不依赖单独安装 Node.js。
 
 ## 架构
 
 ```mermaid
-flowchart LR
-    Client[HTTP client] --> API[FastAPI API]
-    API --> Store[(SQLite)]
-    API --> SSE[SSE replay and live tail]
+flowchart TD
+    Client[调用方] --> API[FastAPI]
     API --> Coordinator[RunCoordinator]
+    Coordinator --> Adapter[DSH adapter]
+    Adapter --> DSH[DSH 进程]
+    DSH --> Files[产物文件]
+    Files --> Snapshot[描述符快照]
+    Snapshot --> Store[(SQLite)]
     Coordinator --> Store
-    Coordinator --> Adapter[DSHRuntimeAdapter]
-    Adapter --> DSH[DSH runtime process]
-    DSH --> Workspace[Run artifact directory]
-    Coordinator --> Snapshot[descriptor-based snapshot]
-    Workspace --> Snapshot
-    Snapshot --> Store
-    Store --> SSE
-    Store --> Download[immutable BLOB download]
+    Store --> Events[SSE 重放]
+    Store --> Download[BLOB 下载]
 ```
 
-`Conversation`、`Run`、`RunEvent` 和 `Artifact` 存在 SQLite 中。DSH session ID 只是 Run 调用 runtime 时使用的外部引用，不是业务 Task 或 Run 的主键，也不承担恢复事实。进程内 notifier 只负责唤醒 SSE reader；事件顺序、游标和终态都必须重新查询 SQLite。
+从客户端的角度，`Conversation` 是一段业务对话，`Run` 是其中一次工作；`RunEvent` 记录工作过程，`Artifact` 保存可下载结果。这四类记录都由 SQLite 持有。DSH session ID 是 Run 调用 runtime 时的引用，不是业务 Run 的主键，也不能单独告诉客户端该不该重试。
+
+事件通知也遵循这个分工：进程内 notifier 只负责叫醒 SSE reader，reader 醒来后重新查询 SQLite。即使错过一次唤醒，只要事件已提交，下一次查询仍能读到。事件顺序、游标与终态因此不依赖某条 HTTP 连接的寿命。
 
 ## 状态与不确定执行
 
-新 Run 先以 `queued` 持久化，再由单 worker 条件领取为 `running`。只有正常返回且 `finish_reason == "completed"` 才进入 `succeeded`。调用 `Session.run()` 前的启动错误记为 `runtime_unavailable`；调用开始后的异常无法证明 prompt 未被接受，因此记为 `execution_uncertain`，并把 Conversation 置为 `attention_required`。
+新 Run 先以 `queued` 写入数据库，单 worker 再有条件地领取为 `running`。只有正常返回且 `finish_reason == "completed"`，并完成本次结果提交，才能进入 `succeeded`。这让客户端可以先得到业务 ID，再持续查询；模型回复不承担任务状态记录的职责。
 
-服务重启时，历史 `running` Run 会保守地失败为 `execution_uncertain`，不会自动重跑。调用恢复确认接口后，Conversation 回到 `active` 并获得全新的 DSH session ID；旧 Run 保留原 session 快照。这个动作不重试旧 Run，也不声称外部工具副作用安全或 stock Python SDK 提供跨进程会话恢复。SDK 构造、启动、运行和关闭使用独立执行线程；等待方取消后先让已经提交的线程工作结算。回收失败时 adapter 禁止复用该 harness。
+失败要再分两种。调用 `Session.run()` 之前启动失败，服务知道输入尚未交出，记为 `runtime_unavailable`。调用开始后再抛异常，就不能证明输入没被接受：工具可能已经产生副作用。这时 Run 以 `execution_uncertain` 失败，Conversation 进入 `attention_required`，等待人确认。
+
+```mermaid
+stateDiagram-v2
+    [*] --> queued
+    queued --> running: worker 领取
+    running --> succeeded: completed 并提交结果
+    running --> failed: 已知失败
+    running --> failed: execution_uncertain
+```
+
+这里 `execution_uncertain` 是失败的错误码，不是额外的 Run state。它还会影响 Conversation：
+
+```mermaid
+stateDiagram-v2
+    [*] --> active
+    active --> attention_required: 执行不确定
+    attention_required --> active: 人工确认并更换 DSH session
+```
+
+服务重启时，历史 `running` Run 也按不确定执行处理，已排队的 `queued` Run 则保留。恢复确认接口让 Conversation 回到 `active` 并获得全新的 DSH session ID，旧 Run 保留原来的 session 快照。确认的含义是“允许下一次新工作”，不会自动重跑旧 Run，也不证明外部工具副作用可安全重复。
+
+因此，这个项目的“可恢复”首先指业务记录可查、事件可重放和不确定状态可处理，不是 stock Python SDK 自动恢复跨进程模型历史。SDK 的构造、启动、运行、关闭使用独立执行线程；等待方取消后，先让已经提交的线程工作结算。若回收失败，adapter 禁止复用该 harness。
 
 ## 安装与启动
 
-从项目目录运行：
+从仓库根目录开始，进入项目后安装并启动：
 
 ```sh
 cd projects/recoverable-agent-service
@@ -71,7 +94,7 @@ uv run python -m recoverable_agent_service
 | `POST /api/conversations/{id}/acknowledge-recovery` | 确认恢复并旋转 DSH session |
 | `GET /api/health` | 数据库、coordinator 与 worker 可用性 |
 
-创建和提交示例：
+下面走完一次文件任务。创建 Conversation 后，把响应里的 `id` 替换到第二条命令的 `CONVERSATION_ID`；提交 Run 后再记下它自己的 `id`。两者不是同一个 ID：
 
 ```sh
 curl -sS -X POST http://127.0.0.1:8000/api/conversations \
@@ -81,10 +104,26 @@ curl -sS -X POST http://127.0.0.1:8000/api/conversations \
 curl -sS -X POST http://127.0.0.1:8000/api/conversations/CONVERSATION_ID/runs \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: demo-1' \
-  -d '{"prompt":"write the requested proof","artifacts":["proof.txt"]}'
+  -d '{"prompt":"Write proof.txt with exactly RECOVERABLE_OK and no trailing newline.","artifacts":["proof.txt"]}'
 ```
 
-同一 Conversation 同时只允许一个 `queued` 或 `running` Run。同一个规范化 key 与相同请求指纹返回已有 Run；相同 key 但 prompt 或产物声明不同返回 409。请求响应不会暴露 agent-facing `runtime_input`，产物元数据也不会内嵌 BLOB。
+用响应里的 Run ID 替换下面的 `RUN_ID`。第一条查看当前状态，第二条接收已有事件并等待终态：
+
+```sh
+curl -sS http://127.0.0.1:8000/api/runs/RUN_ID
+curl -N http://127.0.0.1:8000/api/runs/RUN_ID/events
+```
+
+终态后再次 GET Run，检查 `state`、`finish_reason` 与 `artifacts`。若 `proof.txt` 的 Artifact 为 `available`，把下面的 `ARTIFACT_ID` 替换为该产物的 ID，直接校验下载字节：
+
+```sh
+curl -fsS http://127.0.0.1:8000/api/runs/RUN_ID/artifacts/ARTIFACT_ID | \
+  uv run python -c 'import hashlib, sys; data = sys.stdin.buffer.read(); print(len(data), hashlib.sha256(data).hexdigest()); assert data == b"RECOVERABLE_OK"'
+```
+
+长度应为 14，打印的 SHA-256 应与 Artifact 元数据相同。这是你本次运行的检查，不保证模型一定按要求写对；若 Run failed 或 Artifact 不可用，先查看错误和事件，不要直接重发。
+
+同一 Conversation 同时只允许一个 `queued` 或 `running` Run。可以用完全相同的 key 和请求再提交一次：应拿到已有 Run，状态码为 200，而不是再次执行。相同 key 但 prompt 或产物声明不同返回 409。请求响应不暴露 agent-facing `runtime_input`，产物元数据也不内嵌 BLOB。
 
 ## SSE 与断线重放
 
@@ -100,9 +139,20 @@ data: {"session_id":"session-example","text":"hello"}
 
 新运行的 `assistant_message` 是根会话已提交的完整文本，不是逐 token 增量。旧 SQLite 中已有的 `text_delta` RunEvent 保留原来的 seq、type 和 data，按原样重放；仅增加事件类型不会升级业务 schema。stream 会回放 `seq > Last-Event-ID`，在每次 notifier wake 或心跳后重新查询 SQLite，并在 `run.succeeded` 或 `run.failed` 后关闭。若游标已等于终态事件 seq，则返回空的正常 SSE 响应。断线后使用最后收到的 `id` 重连即可；notifier 不是重放存储。
 
+可以在收到几条事件后中断 curl，再携带最后收到的 `id` 连接同一个 Run。把 `LAST_SEEN_ID` 替换为实际的非负整数：
+
+```sh
+curl -N http://127.0.0.1:8000/api/runs/RUN_ID/events \
+  -H 'Last-Event-ID: LAST_SEEN_ID'
+```
+
+应只看到更大的 seq；已经到终态且没有剩余事件时，空响应也是正常结果。读源码可沿 `sse.py → store.py`，观察等待如何回到数据库查询。
+
 ## 产物安全
 
-调用方只能声明安全的单文件名。服务从不跟随预先放置的 `artifacts` 或 Run 目录符号链接；它在模型运行前保留 Run 目录描述符，完成后通过该描述符打开、检查并读取每个文件。只接受不超过 1 MiB 的普通文件。可用字节、SHA-256、大小和媒体类型原子写入 SQLite，下载始终读取不可变 BLOB，不会重新打开可变 workspace 路径。缺失、符号链接、非普通文件、超限或读取失败的产物不可下载。
+下载成功之后，即使 workspace 中的原文件被改了，客户端仍应拿到同一份结果。为做到这一点，服务在模型运行前保留 Run 目录描述符，运行后通过它打开并检查文件，再把可用字节、SHA-256、大小与媒体类型原子写入 SQLite。之后下载读的是 BLOB，而不是再次打开 workspace 路径。
+
+调用方只能声明安全的单文件名；服务不跟随预先放置的 `artifacts` 或 Run 目录符号链接，只接受不超过 1 MiB 的普通文件。缺失、符号链接、非普通文件、超限或读取失败的产物不可下载。Run 完成与某个声明文件可下载是两项检查，客户端应分别读取 Run 和 Artifact 的状态。
 
 ## 验证
 
@@ -114,6 +164,8 @@ uv run --python 3.10 ruff check .
 uv run --python 3.10 ruff format --check .
 uv lock --check
 ```
+
+若想理解“不确定执行”，先读 `tests/test_store.py` 的 startup recovery 与 acknowledgement 两个场景，再运行 `uv run pytest tests/test_store.py -k "startup_recovery or acknowledgement"`。它们用受控数据库状态验证重启处理与 session 轮换，不需要故意中断一次付费模型任务。
 
 真实 E2E 只能显式运行，并只从仓库根目录的本地 `.env` 注入凭据：
 

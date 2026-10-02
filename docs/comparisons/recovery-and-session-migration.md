@@ -1,12 +1,16 @@
 # 业务恢复、会话恢复与格式迁移
 
-三种操作处理不同的问题。一次操作成功，不能作为另两种操作已完成的证据。
+服务重启后，你可能同时看到三件事：SQLite 中还有旧 Run，磁盘中还有 DSH 日志，新进程却没有活跃的 Agent。此时“恢复成功”要先说清恢复的是哪一层。
+
+沿一个有文件副作用的任务来看，业务恢复决定下一步是否允许提交工作，会话恢复决定模型能否继续读取旧上下文，格式迁移决定当前 reader 能否理解旧文件。分别检查，才能避免重复执行。
 
 | 操作 | 权威数据 | 做什么 | 不保证什么 |
 | --- | --- | --- | --- |
 | 业务恢复 | 应用 SQLite 的 Conversation / Run / RunEvent / Artifact | 重启后处理旧 running，要求显式确认不确定执行，保留幂等键、事件和产物 | 不知道外部工具副作用是否完成，不能自动重跑 |
 | 模型会话恢复 | DSH 持久 Session 与当前 runtime | 如新版 ACP resume，将既有历史恢复到 Agent，后续输入可使用上下文 | 不回放旧 UI updates，不恢复应用业务 Run 状态 |
 | Session 格式迁移 | DSH 历史 generation 与当前 codec | 将旧物理记录翻译成当前逻辑事件；写打开时生成当前 generation | 不执行旧任务，不保证降级读取，不判断业务是否成功 |
+
+下面按服务重启后的检查顺序展开。先判断业务任务是否还有不确定副作用，再决定用哪种入口恢复模型上下文；格式读取失败时，才沿 generation 与 codec 排查。
 
 ## 可恢复服务的重启
 
@@ -20,7 +24,7 @@
 
 `0.1.7-rc.2` 的 ACP 可以 list、resume、close 持久 root session。resume 需要会话 inactive，cwd 与持久 header 一致；它恢复上下文但不重发旧消息/工具 updates。客户端自己的历史展示仍需单独存储。SDK JSON-RPC 没有同等 resume 方法。
 
-[协议实验](../../labs/protocol-semantics/README.md)通过两个实际 server 进程、相同 home/workspace/session 和不使用工具的 nonce 回读验证这一点。它验证的是固定版本内的恢复，不等于旧日志向新格式迁移。更换协议也不能直接替代旧 AG-UI 项目的适配与浏览器验收。
+[协议实验](../../labs/protocol-semantics/README.md)通过两个实际 server 进程、相同 home/workspace/session 和不使用工具的 nonce 回读验证这一点。它验证的是固定版本内的恢复，不等于旧日志向新格式迁移。当前 AG-UI 项目的 SDK deployment adapter 另有恢复与浏览器验证，不能仅凭 ACP 可用就删除。
 
 ## 历史 generation 的读取与发布
 
@@ -28,6 +32,6 @@
 
 不要把“返回的 header.version 已经为 4”误认为“磁盘上已存在 V4 文件”。实验同时核对逻辑消息、源字节/hash 和目录中的 generation 文件。已有最高 generation 损坏时，应报告错误，不能偷偷回退到较老记录。
 
-[Session 格式迁移 lab](../../labs/session-format-migration/README.md)只使用项目内 synthetic fixture 的临时副本，通过发布的 persistence backend 验证上述操作。它不读取个人会话，也不证明任意真实历史数据都能无损迁移。跨版本工具事件、子会话 catalog、附件与物理压缩编码应按需要增加独立样例。
+[Session 格式迁移 lab](../../labs/session-format-migration/README.md)只使用项目内 synthetic fixture 的临时副本，通过发布的 persistence backend 验证上述操作。它不读取个人会话，也不证明任意真实历史数据都能无损迁移。[复杂历史](../../labs/session-format-migration/RICH-HISTORY.md)已经补充压缩 V1/V3 与发布 backend 写出的 V4 附件样本；[父子目录实验](../../labs/workflow-child-lifecycle/RECOVERY.md)补充 catalog/forest。其他历史语料仍需按其版本和事件内容增加样例。
 
-固定源码：[JSONL backend](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/session/session-persistence-jsonl/README.md)、[format catalog](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/session/session-format-catalog/README.md)、[ACP Session](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/acp/acp/src/session.ts)。本批实际验证和局限见[第四批记录](../reviews/2026-09-29-recovery-storage.md)。
+固定源码：[JSONL backend](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/session/session-persistence-jsonl/README.md)、[format catalog](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/session/session-format-catalog/README.md)、[ACP Session](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/acp/acp/src/session.ts)。基础迁移的实际验证与限制见[2026-09-29 记录](../reviews/2026-09-29-recovery-storage.md)。

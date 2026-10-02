@@ -1,10 +1,9 @@
-# Projects
+# 把示例接成一个应用
 
-这里保存可以作为完整应用运行和演示的学习成果。一个 project 可以同时使用 Python、TypeScript、JSON-RPC、ACP、AG-UI 或 DSH plugins；归属由最终应用决定，而不是由单一技术决定。
+单个 SDK 调用结束时，程序可以直接退出。服务却要面对下一位调用者、浏览器断线和进程重启。这两个项目把这些问题放到同一套可运行代码里，让业务状态、runtime 与界面各自承担明确职责。
 
-已实现项目：
+[Recoverable Agent Service](recoverable-agent-service/README.md)从 Python SDK/runtime `0.1.5rc1` 出发，用 SQLite 保存 Conversation、Run、事件和不可变产物。你会提交任务、按游标读回事件，并在执行结果不确定时确认恢复。随后可加上[租户认证](recoverable-agent-service/TENANCY.md)与[可重放评测](recoverable-agent-service/EVAL.md)。
 
-- [`recoverable-agent-service/`](recoverable-agent-service/README.md)：固定 Python SDK/runtime `0.1.5rc1`，以 SQLite 为业务状态真源，提供 durable Run worker、FastAPI、SSE 断线重放、执行不确定性确认和不可变产物下载；[7.3 认证入口](recoverable-agent-service/TENANCY.md)提供按租户分开的 API 数据访问；[7.6 评测](recoverable-agent-service/EVAL.md)验证固定场景与离线重评。
-- [`ag-ui-dsh-runtime/`](ag-ui-dsh-runtime/README.md)：TypeScript/Fastify 持有 DSH runtime 与 SQLite 业务状态，React/CopilotKit 投影 AG-UI；固定 npm `0.1.7-rc.2`、公开 profile 与项目恢复适配器；当前 tool/model、跨 generation session、断线游标与浏览器验收见项目记录。
+[AG-UI DSH Runtime](ag-ui-dsh-runtime/README.md)使用 npm `0.1.7-rc.2`、Fastify、React 和 CopilotKit。除了业务状态，你还能观察界面事件怎样从 DSH 通知投影出来，浏览器断开后如何追赶，以及 runtime 换代后如何通过项目适配器恢复 Session。
 
-可复用适配器先留在第一个真实项目中；只有出现第二个消费者时再提取，避免为了目录整洁过早抽象。
+先沿项目的一条完整任务路径运行，再阅读抽象接口。可复用适配器保留在实际消费者附近；遇到第二个用途后，再判断哪些职责适合提取。

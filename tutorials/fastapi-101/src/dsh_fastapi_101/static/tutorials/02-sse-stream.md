@@ -2,7 +2,7 @@
 
 ## 学习目标
 
-把 Python SDK 的同步 `on_notification` 回调桥接成浏览器可以消费的 SSE 流。你将看到根会话的 `assistant/message` 在提交后、`RunResult` 返回前抵达浏览器；它不是逐 token 模型流，同时理解为什么本示例使用 `fetch()` 读取 SSE，而不是浏览器原生 `EventSource`。
+上一章里，Agent 调工具时，浏览器只能等最终 JSON。现在让同一条 HTTP 响应保持打开：有一条状态、工具或已提交消息事件，就发一帧 SSE。你会看到答案提交与整个活动结束是两个时刻；这里仍然没有逐 token 的打字机效果。
 
 ## 前置条件
 
@@ -10,8 +10,10 @@
 
 ## 运行
 
+在克隆仓库的 `tutorials/fastapi-101` 目录执行。命令用 Git 定位仓库根目录，再加载其中的本地 `.env`。若服务已在运行，沿用同一个进程即可，不必每章重启；若凭据已由 shell 导出，可省略 env-file 参数。
+
 ```sh
-uv run python -m dsh_fastapi_101
+uv run --env-file "$(git rev-parse --show-toplevel)/.env" python -m dsh_fastapi_101
 ```
 
 打开 `http://127.0.0.1:8000/chapter/2`。也可以用 curl 关闭客户端缓冲：
@@ -22,29 +24,41 @@ curl -N http://127.0.0.1:8000/api/chat/stream \
   -d '{"session_id":"chapter-2","prompt":"分三行解释 agent runtime。"}'
 ```
 
-每个帧都有 `event:` 名称和一行 JSON `data:`。最后一帧是 `final` 或 `error`。
+每帧都有 `event:` 名称和一行 JSON `data:`，帧之间用空行分隔。下面省略模型实际文本，展示一条已提交消息的编码：
+
+```text
+event: assistant_message
+data: {"type":"assistant_message","session_id":"chapter-2","data":{"text":"..."}}
+
+```
+
+最后一帧是 `final` 或 `error`。`assistant_message` 表示消息已提交；`final` 才告诉浏览器本次调用已成功结算。两者都带文本时，应替换当前回答，不能重复拼接。
 
 ## 源码分析
 
-`RuntimeService.stream()` 在事件循环中创建 `asyncio.Queue`，同时在线程中执行 `Session.run()`。SDK 回调不能直接操作 asyncio 对象，因此通过 `loop.call_soon_threadsafe()` 把投影后的 `BrowserEvent` 放回事件循环。`events.py` 只把根 session 的已提交 `assistant/message` 映射为 `assistant_message`，不会把模型推理内容发送给浏览器。
+从 `RuntimeService.stream()` 的 `queue` 和 `on_notification()` 两处读起。同步的 `Session.run()` 在工作线程中执行，SSE 生成器却由事件循环消费。回调不能直接把数据塞进另一个线程拥有的 asyncio 队列，所以使用 `loop.call_soon_threadsafe()` 把入队动作交回事件循环。
+
+在入队之前，`events.py` 已经把 DSH 通知转换成应用自己的 `BrowserEvent`。例如根 session 的 `assistant/message` 变成 `assistant_message`；模型推理事件不进入这个投影。前端只需理解应用事件，无需认识所有 runtime 插件的事件类型。
 
 ```mermaid
 sequenceDiagram
-    participant Browser
-    participant SSE as StreamingResponse
-    participant Queue as asyncio.Queue
-    participant Callback as SDK callback thread
-    participant DSH
-    Browser->>SSE: POST /api/chat/stream
-    SSE->>DSH: start Session.run in worker
-    loop Runtime notifications
-        DSH-->>Callback: Notification
-        Callback->>Queue: call_soon_threadsafe
-        Queue-->>SSE: BrowserEvent
-        SSE-->>Browser: named SSE frame
+    participant B as 浏览器
+    participant S as SSE
+    participant Q as Queue
+    participant T as SDK 工作线程
+    B->>S: POST
+    S->>T: Session.run
+    loop 通知回调
+        T->>Q: 调度入队
+        Q-->>S: BrowserEvent
+        S-->>B: SSE frame
     end
-    DSH-->>SSE: RunResult at idle
-    SSE-->>Browser: final event
+    T-->>S: RunResult
+    alt completed
+        S-->>B: final
+    else failed
+        S-->>B: error
+    end
 ```
 
 Starlette 在迭代生成器之前已经发送 HTTP 200 响应头，所以运行中发生的错误不能改成 HTTP 500。模型以 `error` 或 `max-tokens` 结束时也不能发成功 `final`。本项目用 `event: error` 作为终止帧，让浏览器在同一协议内处理失败。
@@ -55,6 +69,8 @@ Starlette 在迭代生成器之前已经发送 HTTP 200 响应头，所以运行
 2. 浏览器收到 `assistant_message` 时替换当前回答；`final` 再用权威最终回复替换，不重复拼接。
 3. 时间线不出现 `reasoning-delta`。
 4. `Cache-Control: no-cache` 和 `X-Accel-Buffering: no` 响应头存在。
+
+读代码时再找 `offer()`：队列最多保存 256 条待发事件，满了就丢最早的普通通知，终止事件仍保留。可运行 `uv run pytest -k sse_queue_saturation` 看无模型测试如何把队列填满。这验证的是应用背压选择，不是模型输出顺序。
 
 ## 限制
 

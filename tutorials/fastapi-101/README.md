@@ -1,8 +1,10 @@
-# DSH FastAPI 101：从零构建 Web Agent
+# DSH FastAPI 101：运行并拆解一个 Web Agent
 
 > 已验收版本（2026-09-29）：PyPI `deepseek-harness-sdk==0.1.5rc1` 与匹配的 `deepseek-harness-runtime-bin==0.1.5rc1`；对应上游 [`dsh-v0.1.5-rc.1`](https://github.com/deepseek-ai/deepseek-harness/tree/183f08e9c6dde7e36cd2318eaee70b0da08fb35e)。
 
-这是一套独立于 DeepSeek Harness 原仓文档的中文入门教程。“101”表示从零开始的基础课程，不是案例编号。项目用 FastAPI、原生 HTML/CSS/JavaScript 和已发布的 `deepseek-harness-sdk`，演示如何把 DSH 作为本地 agent runtime 嵌入自己的 Web 业务。
+在终端里调用一次 Agent 很直接；放进 Web 服务后，还要回答三个问题：等待模型时其他请求怎么办，浏览器怎样知道进展，用户刷新页面后谁继续照看任务？这套中文入门教程用一个已完成的 FastAPI 应用，依次拆开这些问题。
+
+“101”表示基础课程，不是案例编号。你会先运行现成项目，再沿五章阅读和试验，不需要从空目录手写整套应用。项目使用原生 HTML/CSS/JavaScript 和已发布的 `deepseek-harness-sdk`，独立于 DSH 官方文档。
 
 ![浏览器、FastAPI、异步桥与 DSH runtime 的概念架构](assets/dsh-fastapi-architecture.png)
 
@@ -13,17 +15,15 @@
 一个 FastAPI 进程在 lifespan 中拥有一个 DSH runtime 子进程。浏览器可以发送同步请求，也可以通过 POST + SSE 接收已提交的 assistant 消息、工具与生命周期事件；多个业务 session 共享 runtime，但对话历史和同 session 的并发控制相互隔离。
 
 ```mermaid
-flowchart LR
-    Browser[Browser UI] -->|POST JSON| FastAPI[FastAPI routes]
-    Browser <-->|Named SSE frames| FastAPI
-    FastAPI --> Service[RuntimeService]
-    Service --> Queue[asyncio.Queue]
-    Service --> Worker[Worker threads]
-    Worker <-->|Python SDK| Runtime[dsh sdk-minimal profile]
-    Runtime --> Model[DeepSeek endpoint]
-    Runtime --> Tools[Workspace tools]
-    Runtime --> Logs[Durable session logs]
-    Queue --> FastAPI
+flowchart TD
+    Browser[浏览器] -->|POST| API[FastAPI 路由]
+    API --> Service[RuntimeService]
+    Service --> Worker[工作线程]
+    Worker <-->|SDK| Runtime[DSH 进程]
+    Worker -->|回调交回事件循环| Queue[事件队列]
+    Queue -->|SSE| Browser
+    Runtime --> Model[模型]
+    Runtime --> Tools[工具与日志]
 ```
 
 ## 学习路径
@@ -36,7 +36,7 @@ flowchart LR
 4. [第四章：工具与 Agent 轨迹](src/dsh_fastapi_101/static/tutorials/04-tool-trajectory.md)
 5. [第五章：Runtime 生命周期与并发](src/dsh_fastapi_101/static/tutorials/05-runtime-lifecycle.md)
 
-建议按顺序阅读。前端左侧导航对应这五章，每一章都复用同一套后端并突出一个新概念。
+建议按顺序阅读。前端左侧导航对应这五章，每章复用同一套后端，只突出一个新概念。“在 GitHub 阅读本章”会在新标签页打开可渲染 Markdown 和 Mermaid 的仓库文档，需要联网；本地 UI 负责运行实验。
 
 ## 安装
 
@@ -123,7 +123,9 @@ uv run --env-file ../../.env python -m dsh_fastapi_101
 | `DSH_FASTAPI_WORKSPACE` | `workspace` | agent 工作目录 |
 | `DSH_FASTAPI_HOME` | `.dsh-fastapi-home` | 独立 Harness home，保存 profile 与会话数据 |
 
-目录只在 lifespan 启动时创建；单纯 import 应用不会修改文件系统。使用 `sdk-minimal` 公共 profile；本次运行的 home 与 workspace 应放在专用的可丢弃目录。关闭期间拒绝新任务，并等待已接纳的 JSON 与 SSE 工作结算；浏览器断连不会取消 DSH 执行。
+第一次看源码时，先跟随 `app.py` 的 lifespan，再读 `runtime.py`：目录只在启动时创建，单纯 import 应用不改文件系统；`sdk-minimal` 公共 profile 负责组装 runtime。为本次实验选专用、可丢弃的 home 与 workspace。
+
+退出时的顺序与启动同样值得观察：先拒绝新任务，等已接纳的 JSON 与 SSE 工作结算，再关闭 runtime。浏览器断连不会取消 DSH 执行，所以“页面已经关了”不能代替服务端的完成检查。
 
 ## 测试
 

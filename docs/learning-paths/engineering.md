@@ -1,8 +1,10 @@
-# 工程化学习路线
+# 从能运行到能解释失败
 
-目标是把“能调用 Agent”推进到“能解释并验证失败后的行为”。先读[2026-09-28 上游审查](../reviews/2026-09-28-upstream-refresh.md)，按各章实际 pin 运行。Phase 1–6 的历史完成状态不等于新版迁移完成。
+最小 SDK 示例通常只运行一次。服务则要连续接纳请求，还要回答超时后发生了什么、进程何时能再次使用、谁可以读取任务，以及日志重放会不会重复计数。这七课沿这些实际问题展开。
 
-## 课程与验收
+先完成一条 [Python](python-app-builder.md) 或 [TypeScript](typescript-runtime-builder.md)基础路线，理解 runtime、Session 与业务 Run。各课以自身 manifest/lockfile 为准；Python 服务与 npm 机制实验的版本独立，迁移背景见[上游审查](../reviews/2026-09-28-upstream-refresh.md)。
+
+## 学习顺序与完成条件
 
 | 单元 | 前置 | 作品 | 必须观察到的结果 | 状态 |
 | --- | --- | --- | --- | --- |
@@ -14,28 +16,20 @@
 | 7.6 Eval 与可重放回归 | 事件投影、7.5 | [可恢复服务 Eval](../../projects/recoverable-agent-service/EVAL.md) | 成功、工具错误、已结算 aborted、执行不确定和业务恢复；游标重放及负对照 | 已完成，[五受控案例/251 项测试与独立真实成功验证](../reviews/2026-09-30-eval-regression.md)；不提供 cancel/SDK 冷恢复 |
 | 7.7 跨 runtime 适配 | 协议课、7.6 | [DSH双协议与Codex/Hermes CLI适配](../../labs/protocol-semantics/ADAPTERS.md) | 保留原生终态、显式能力、共享关闭与共同场景 | 已完成，[DSH双profile验收](../reviews/2026-09-30-runtime-adapters.md)与[137项测试、Codex/Hermes真实验收](../reviews/2026-10-02-cross-engine.md)；各入口保留原生能力差异 |
 
-## 与旧课程升级的关系
+## 让前一课的问题带出下一课
 
-7.1 只依赖公开的 run/close，先独立完成。旧 Python/TS 入门随后迁移，事件与持久化升级排在 AG-UI 前；7.2 组合 supervisor 并把业务幂等留给调用方，7.3–7.7 再依次扩展。每课包含：问题、固定版本、可执行示例、故障实验、观察记录、边界与下一步。
+先管理一个 runtime：请求超时之后，等待自有进程回收，再决定能否重建。有了这个规则，进程池才知道什么时候能归还 slot，而不会在旧任务仍执行时把它借给下一位调用者。
 
-新版迁移清单：
+再加入身份。租户 API 把调用者映射到自己的数据库、workspace 和 runtime；随后 sandbox 与容器实验告诉你，这种数据路由与操作系统隔离分别能限制什么。alpha 的 API 读不到 beta 的记录，并不自动证明任意工具都无法读到宿主数据。
 
-- [x] Python：入门已迁移到 `0.1.5rc1`，公开 profile/home 启动并重新实跑六例；验收见 [SDK 迁移记录](../reviews/2026-09-28-sdk-migration.md)。
-- [x] TypeScript：入门已迁移到 `0.1.7-rc.2`，公开 profile/home/patch 启动、committed-message 投影与四例验证；同上记录。
-- [x] 协议与 FastAPI：公开 profiles、SSE 已提交消息投影与 ACP 持久会话控制，见[第三批验收](../reviews/2026-09-29-web-protocol-migration.md)。
-- [x] 真正的实时token transport：采用[官方Web Remote链路](../../labs/web-host-lifecycle/README.md)，已观察独立live帧早于持久消息；[SSE/WS比较](../comparisons/sse-vs-websocket.md)说明与自有AG-UI的区别。此结论不扩展为stock SDK/ACP支持live token。
-- [x] Session V4 基础实验：synthetic plaintext V1/V3 副本的只读迁移、写入 successor 与不可变 generation，见[第四批验收](../reviews/2026-09-29-recovery-storage.md)。
-- [x] 复杂历史数据：[压缩非空V1/V3与发布版V4附件样本](../../labs/session-format-migration/RICH-HISTORY.md)、[三节点历史catalog与独立进程forest恢复](../../labs/workflow-child-lifecycle/RECOVERY.md)已验证；对应[存储记录](../reviews/2026-10-01-rich-history.md)与[workflow记录](../reviews/2026-10-02-workflow-recovery.md)。
-- [x] 可恢复服务升级：Python `0.1.5rc1`、旧事件原样重放、reconciliation/恢复确认和产物/幂等兼容，与 Session 格式分开验收。
-- [x] Cordis/preset：固定新版公开 profile patch、packed plugin、effect teardown 和 preset composition probe。
-- [x] AG-UI：重新审计 SDK deployment resume adapter、V4 committed projector、公开 package runtime、跨 generation 与浏览器 hydration。
-- [x] 核心机制正文：七篇按固定新版源码更新，3 个新公开库 probe 和相关 lab 证据，旧结果独立归档。
-- [x] Compaction基础运行验证：[实际服务端overflow](../../labs/compaction-lifecycle/PROVIDER-OVERFLOW.md)核对真实拒绝与持久终态；[确定性engine与真实pressure实验](../../labs/compaction-lifecycle/README.md)，包含后续产物和持久surface重放；[事务/并发维护](../../labs/compaction-lifecycle/TRANSACTIONS.md)补commit/flush失败与admission序列；[溢出/取消课](../../labs/compaction-lifecycle/RECOVERY.md)补受控错误、重试预算与迟到摘要的独立进程证据；[裁剪/offload课](../../labs/compaction-lifecycle/REDUCTION.md)补原始日志、消息 projection、图片文件与已提交缩减的证据。
-- [x] Workflow/PTC 与 child 冷恢复基础：[运行 Lab](../../labs/workflow-child-lifecycle/README.md)，包含受控取消清理、真实文件和正常关闭后的双进程恢复；[进阶课](../../labs/workflow-child-lifecycle/RECOVERY.md)补真实PTC进程崩溃、受控并行/重试、post-flush SIGKILL森林恢复与历史catalog。
-- [x] 官方 Web Host 基础：[浏览器 Lab](../../labs/web-host-lifecycle/README.md)，包含认证、实时帧、历史加载、正常重启后同会话续写与文件验证；[控制案例](../../labs/web-host-lifecycle/CONTROLS.md)补上拒绝/单次允许、foreground 取消、浏览器离线后历史恢复。
-- [x] 生产附件基础：[附件输入 Lab](../../labs/attachment-input/README.md)，35项本地测试、随机图真实 Files 传输与存储重读，以及[整请求inline fallback](../../labs/attachment-input/FALLBACK.md)，以及[真实provider本地预算/offload](../../labs/attachment-input/BUDGET.md)与[已删除Files引用恢复](../../labs/attachment-input/STALE.md)；[基础验收](../reviews/2026-10-01-attachment-input.md)、[fallback验收](../reviews/2026-10-01-attachment-fallback.md)。
-- [x] Web恢复边界：[进阶课](../../labs/web-host-lifecycle/RECOVERY.md)与[验收](../reviews/2026-10-02-web-recovery.md)覆盖admission断线、审批取消/同事件迟到回答、串行/并发重复投递与Host crash；真实负面结果保留，不把HTTP成功当作用已生效。
+最后把结果记录下来。观测课按 Run、Session 与 attempt 解释事件和 usage；eval 将这些观察转成可重放的判据。跨引擎适配保留每个入口的原生终态，避免同一个 `prompt()` 名字掩盖复用、关闭与恢复的差异。
 
-先读[业务恢复、会话恢复与格式迁移](../comparisons/recovery-and-session-migration.md)，避免把底层可读或 resume 成功当成业务执行成功。
+## 与机制实验配合
 
-每次只把实际验收的单元标为完成。[全章验收索引](../reviews/2026-10-01-chapter-audit.md)汇总当前完成状态；旧执行记录保留其日期范围。
+遇到具体的不确定行为，可以插入一组更小的实验：
+
+- 数据仍在但恢复失败：先区分[业务恢复、Session恢复与格式迁移](../comparisons/recovery-and-session-migration.md)，再做[复杂历史](../../labs/session-format-migration/RICH-HISTORY.md)与[child forest](../../labs/workflow-child-lifecycle/RECOVERY.md)。
+- 压缩或附件处理失败：沿[compaction](../../labs/compaction-lifecycle/README.md)与[附件输入](../../labs/attachment-input/README.md)检查原始事件、模型输入、持久提交与外部对象。
+- 页面失去响应：用[官方 Web 控制](../../labs/web-host-lifecycle/CONTROLS.md)和[恢复实验](../../labs/web-host-lifecycle/RECOVERY.md)区分取消、断线、重复提交与 Host 崩溃。
+
+上表课程和列明扩展已有运行材料；具体版本、负面结果与未覆盖范围见[全章验收索引](../reviews/2026-10-01-chapter-audit.md)。学习时按各章条件复现，自己的结果与历史样本不同，就保留观察并分析原因。

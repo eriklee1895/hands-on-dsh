@@ -1,6 +1,8 @@
 # Workflow PTC 与 child 冷恢复
 
-本实验回答两个问题：PTC 脚本能否调用两个 child 完成可检查的任务；整个 runtime 退出后，父 Agent 能否恢复同一个 continuable child 的历史。先运行，再对照[机制说明](../../how-dsh-works/06-subagent-and-workflow.md)。进阶的进程崩溃、并发上限和三节点森林见[恢复与失败章节](RECOVERY.md)。
+先让一个 child 写文件，再让另一个 child 读回来，这验证了 workflow 能协调两个独立任务。接着换一种 child：让它记住一段口令，关闭整个 runtime，再在新进程里找到它、继续对话。这才开始检验持久历史与冷恢复。
+
+本课把这两个问题放在同一个实验中，但分别取证：writer/reader 是一次性 child，记忆口令的是 continuable child，即可接收后续消息的子会话。先运行，再对照[机制说明](../../how-dsh-works/06-subagent-and-workflow.md)。进程崩溃、并发上限和三节点森林放在[恢复与失败章节](RECOVERY.md)。
 
 ## 版本与条件
 
@@ -34,30 +36,35 @@ pnpm exec node --env-file=../../.env --import tsx examples/live.ts
 
 ## 实验结构
 
+先看对象，避免把三个 child 混成一个会话。这里的父 Agent 由课程 plugin 驱动，workflow 脚本依次调用 writer 和 reader；另一个 continuable child 独立保存口令。
+
+```mermaid
+flowchart TD
+    Parent[父 Agent] --> W[PTC workflow]
+    W --> Writer[一次性 writer<br/>写 workflow-proof.txt]
+    W --> Reader[一次性 reader<br/>读取同一文件]
+    Parent --> Memory[continuable child<br/>保存独立口令]
+    Memory --> Log[持久 Session 与 descriptor]
+    Log --> Cold[新 runtime 恢复同一个 child]
+```
+
+第一阶段由外部程序启动 runtime A，课程 plugin 调用 `workflowEngine.start(script)`，完成写入和读取，再通过 `startContinuable()` 让记忆 child 完成第一轮。等所有 child 释放后，外部程序关闭 SDK owner、等待进程退出，并用独立 backend 读取 V4 历史。
+
+第二阶段使用新的 SDK owner 和不含口令的 resume patch：
+
 ```mermaid
 sequenceDiagram
-    participant H as 外部实验程序
-    participant A as runtime A / 课程 plugin
-    participant P as Node PTC
-    participant C as child sessions
-    participant D as Session V4 日志
-    participant B as runtime B / 课程 plugin
-    H->>A: SDK start + seed patch
-    A->>P: workflowEngine.start(script)
-    P->>C: 一次性 writer，随后 reader
-    C-->>A: 文件写入与读取结果
-    A->>C: startContinuable(随机口令)
-    C->>D: descriptor + 首次 completed turn
-    A-->>H: 所有 child 已释放
-    H->>A: close，并等待退出
-    H->>D: 独立 backend 读取历史
-    H->>B: 新 SDK owner，resume patch 不带口令
-    B->>D: agents.resume(parent)，listChildren
-    B->>C: sendMessage，冷恢复相同 child
-    C->>D: 追加第二个 completed turn
+    participant H as 实验程序
+    participant B as 新 runtime
+    participant D as 持久日志
+    participant C as 原 child
+    H->>B: 启动，不带口令
+    B->>D: 恢复父，查 child
+    B->>C: sendMessage，冷恢复
+    C->>D: 第二轮 completed
     B-->>H: child 已释放
-    H->>B: close，并等待退出
-    H->>D: 再次读取并比较历史前缀
+    H->>B: close 并等待退出
+    H->>D: 重读并比较前缀
 ```
 
 [`lesson-plugin.ts`](src/lesson-plugin.ts) 用 host 代码调用公开服务。固定 workflow 脚本先让 writer 用一次 Bash 写出 `workflow-proof.txt`，再让 reader 用一次 Bash 读取；脚本要求返回内容与随机 `FLOW_…` 字符串一致。另一个 continuable child 只记住独立的 `MEMORY_…` 口令，第一次不得调用工具。第二次 runtime 使用相同 Harness home 和 workspace，恢复父 Session，通过 `sendMessage()` 向原 child 发送不包含口令的任务，要求一次 Bash 写出 `cold-proof.txt`。
@@ -81,7 +88,9 @@ sequenceDiagram
 
 `src/lifecycle.ts` 持有每个 workflow run 并在所有路径 await dispose。continuable API 的返回只表示 inbox admission；实验继续等待该 child 从 registry 移除，再检查其 residency outcome。plugin 最后 drain descendants 并释放父 handle。
 
-`sessionPersistence` 保存日志；`sessionQuery` 负责读取冷 child 的 descriptor 和父子关系。这里额外加载 `dsh-session-query-sqlite`，配置 `openAt: never` 与 `path: ':memory:'`，保留 exact reads 和 catalog 查询，不开启 SQLite 全文搜索。只有 JSONL persistence 的组合能够创建 child，但无法完成这个冷恢复路径。
+新 runtime 为什么能找到已经不在内存里的 child？`sessionPersistence` 保存日志，`sessionQuery` 负责读取冷 child 的 descriptor 和父子关系。catalog 列出这个 child，只代表历史中能发现它，不代表它已经在 Agent registry 中活跃；后续 `sendMessage()` 才进入恢复路径。
+
+所以这里额外加载 `dsh-session-query-sqlite`，配置 `openAt: never` 与 `path: ':memory:'`，保留 exact reads 和 catalog 查询，不开启 SQLite 全文搜索。仅有 JSONL persistence 的组合能够创建 child，却无法完成本实验的冷恢复路径。
 
 workflow 使用 `maxConcurrentAgents: 2`、`maxTotalAgents: 2`；脚本顺序执行两个 child。这些是 helper 的协作限制，不是恶意代码的安全配额。workspace-write 限制来自公开 sandbox provider，VM 本身不是安全隔离层，文件策略不封禁网络。
 

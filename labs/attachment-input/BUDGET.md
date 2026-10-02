@@ -1,10 +1,14 @@
 # Inline 图片预算与持久 offload
 
-本课使用真实发布的 `llm-deepseek` provider 和 `compaction-image-offload` 插件，固定 npm `0.1.7-rc.2` / upstream `477b4f420553e8a52c2fbccc464d7561b239c443`。接续[整请求fallback](FALLBACK.md)：当Files被本地拦截、两张inline图片超过预算时，如何验证拒绝和恢复？
+Files 不可用时，上一课把图片全部放进了 Messages 请求。不过，改为 inline 不意味着图片可以无限增加。本课故意把预算设得很小：一张图能放下，两张一起就超限。先看没有恢复插件时的拒绝，再看插件如何舍弃最旧的图片位置，让请求继续。
+
+实验接续[整请求 fallback](FALLBACK.md)，使用真实发布的 `llm-deepseek` provider 和 `compaction-image-offload` 插件，固定 npm `0.1.7-rc.2` / upstream `477b4f420553e8a52c2fbccc464d7561b239c443`。
 
 ## 配置及对照
 
-两张512×512色块图仍先通过生产store归一化为256×256JPEG。本课把 `maxInlineRequestImageBytes` 设为2000、`inlineImageOffloadByteQuantum` 设为1；实际断言每张图片的base64字节数都不超过2000，而两张之和超过2000。计数是 `4 × ceil(encodedBytes / 3)`，不是整个JSON请求体大小。
+这里的“预算”先要说清楚：`maxInlineRequestImageBytes` 计的是图片 base64 字节，计算为 `4 × ceil(encodedBytes / 3)`，不是整个 JSON 请求体大小，也不是供应商的账户配额。
+
+两张 512×512 色块图先通过生产 store 归一化为 256×256 JPEG。本课将预算设为 2000，`inlineImageOffloadByteQuantum` 设为 1；程序实际断言每张图的 base64 字节数不超过 2000，而两张之和超过 2000。这样错误一定来自图片组合，不能误解释为单张图不可用。
 
 | 模式      | 插件            | 预期                                                     |
 | --------- | --------------- | -------------------------------------------------------- |
@@ -39,13 +43,26 @@ pnpm budget:offload
 node --env-file=../../.env --import tsx examples/live.ts --files=reject-all --budget=offload
 ```
 
-恢复模式的prompt要求只描述仍可见的图片，忽略offload占位符，不调用工具。父进程只接受第二张的准确颜色顺序。后续轮次已经有首轮文本答案，只作为持久选择与传输复用检查。
+恢复模式要求模型只描述仍可见的图片、忽略 offload 占位符并且不调用工具。父进程只接受第二张的准确颜色顺序。运行后重点看三个位置：一次 `image/offload`、两轮各一张 inline 图片，以及原始消息里仍保留的两张图片引用。
+
+```mermaid
+flowchart TD
+    Both[初次请求：图 0 + 图 1] --> Error[本地预算超限]
+    Error --> Choice[记录 image/offload<br/>原消息 seq + index 0]
+    Choice --> Retry[重试：图 0 占位文本 + 图 1]
+    Choice --> Next[下一轮：同一旧位置仍被省略]
+    Both --> Stored[原消息引用和两个本地对象保留]
+```
+
+下一轮已经能从历史中读到首轮文本答案，所以只用来检查持久选择与传输复用，不再计为独立视觉样本。
 
 ## 执行链与验证
 
 [provider的 `inlineImages()`](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/images.ts)计算base64预算，发现需要移除一个最旧occurrence时返回带 `offloadImages` 的错误。没有恢复插件时，Agent结束为error；SDK的 `run()` 仍可能正常返回一个RunResult，因此必须检查 `turn/end.reason`，不能把Promise兑现当成成功。
 
-[官方offload插件](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/compaction/compaction-image-offload/src/index.ts)在 `agent/request-error` 记录 `image/offload` 后请求retry。选择是“原消息seq + imageIndexes:[0]”，不会删除或改写原图片引用。错误处理属于持久输入缩减，不是 `retryPolicy.maxRetries` 的transient重试；本课该值仍为0。
+[官方 offload 插件](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/compaction/compaction-image-offload/src/index.ts)在 `agent/request-error` 记录 `image/offload`，随后请求 retry。它选择的是“原消息 seq + imageIndexes:[0]”。因此同一个位置在下一轮仍被省略，但原图片引用没有被删除或改写。
+
+这次重试之所以有意义，是持久记录已经改变了下一次模型输入。它不消耗 `retryPolicy.maxRetries` 的 transient 重试预算；本课该值仍为 0。
 
 硬断言包括：
 

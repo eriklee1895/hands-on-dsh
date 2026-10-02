@@ -1,12 +1,14 @@
 # 一次真实服务端 context overflow
 
-前面的[溢出与取消](RECOVERY.md)通过受控adapter精确验证恢复分支。本课补充固定 npm `0.1.7-rc.2` provider 实际收到服务端溢出错误的证据，源码仍固定 `477b4f420553e8a52c2fbccc464d7561b239c443`。
+前面的[溢出与取消](RECOVERY.md)能稳定走到每条恢复分支，但错误由受控 adapter 提供。这里换成一个更窄的问题：真实服务端拒绝过长输入后，发布版 provider 能否把它识别为 `CONTEXT_WINDOW_EXCEEDED`，并把失败写进持久日志？
+
+本课只验证这条错误路径，不加载压缩恢复插件。npm 固定 `0.1.7-rc.2`，源码仍为 `477b4f420553e8a52c2fbccc464d7561b239c443`。
 
 ## 有界实验
 
 `examples/provider-overflow.ts` 只提交一次请求：固定110万份 `x ` 加短指令，prompt总计2,200,104字节；这不是完整HTTP请求体大小。模型为已有 `deepseek-flash`，reasoning off、maxTokens16，transient重试0；禁用SDK minimal的Bash/Pwsh工具，不加载compaction恢复插件。180秒活动deadline触发后关闭owner，不自动重放。
 
-实验显式把本地catalog的contextWindow声明为4,000,000，使客户端的容量说明高于这次服务端能接受的输入。它是制造配置不一致的测试设置，不是生产配置建议，也不能增加服务端容量。重复片段数不是经过实际服务端tokenizer测得的token数。
+为了让请求到达服务端，实验把本地 catalog 的 `contextWindow` 声明为 4,000,000，高于这次服务端能接受的输入。这个设置只改变客户端的容量说明，不能增加服务端容量，也不是生产配置建议。110 万份片段同样不是实际服务端 tokenizer 测得的 token 数。
 
 在本Lab目录，有已有凭据时运行：
 
@@ -16,7 +18,9 @@ pnpm overflow:provider
 node --env-file=../../.env --import tsx examples/provider-overflow.ts
 ```
 
-这是较长的真实请求；脚本只接受一次实际拒绝。若服务端今后接受它，实验必须失败并保留证据，不会自行增大输入或继续压测。
+运行结果有一个容易误读的地方：**实验通过时，Agent 任务应当失败**。预期报告同时出现一次远端拒绝和一个 canonical overflow 终态；脚本 exit 0 表示验证到了预期错误，不表示模型完成了任务。
+
+这是较长的真实请求，脚本只接受一次实际拒绝。若服务端今后接受它，实验必须失败并保留证据，不会自行增大输入或继续压测。
 
 ## 验证标准
 
@@ -27,7 +31,7 @@ node --env-file=../../.env --import tsx examples/provider-overflow.ts
 - 最终模型正文为空、工具调用为0；不会把SDK `run()` 返回误认为业务成功。
 - 关闭后重开V4，原长输入和全部现场事件一致；只在报告中导出输入hash/字节数和白名单状态，不提交原Session。
 
-固定版[错误分类器](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/transport.ts)先检查context-window含义，再处理一般invalid request。HTTP400本身不足以证明溢出，因此实验也要求canonical错误码。
+为什么既检查 HTTP 状态，又检查 DSH 错误码？HTTP 400 也可能来自其他无效参数。固定版[错误分类器](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/transport.ts)先检查 context-window 含义，再处理一般 invalid request。代理证明请求确实到达了远端，canonical code 则证明 DSH 将这次拒绝识别成了上下文溢出。
 
 ## 实际观察
 

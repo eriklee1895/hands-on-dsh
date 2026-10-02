@@ -1,6 +1,8 @@
 # 已删除 Files ID 的重新上传与恢复
 
-本课固定 npm `0.1.7-rc.2` / upstream `477b4f420553e8a52c2fbccc464d7561b239c443`。前置：[附件输入](README.md)与[fallback](FALLBACK.md)。实验主动删除自己刚上传的一张图片，然后把原Messages请求原样转发，观察真实服务端拒绝及provider恢复。
+本地还记着一个 Files ID，供应商那边的文件却已经被删除，下一次请求会怎样？这与前一课“上传失败”的时点不同：ID 已经取得，请求也真正发到了 Messages endpoint，错误来自服务端对旧引用的拒绝。
+
+本课主动删除自己刚上传的一张图片，再把仍含旧 ID 的 Messages 原样转发，观察 provider 能否用保留的本地字节重新上传。固定 npm `0.1.7-rc.2` / upstream `477b4f420553e8a52c2fbccc464d7561b239c443`。前置为[附件输入](README.md)与 [fallback](FALLBACK.md)。
 
 ## 运行
 
@@ -16,7 +18,9 @@ pnpm live:stale
 node --env-file=../../.env --import tsx examples/live.ts --files=stale-once
 ```
 
-该模式先上传两张图，在第一条Messages转发前等待第一张的DELETE确认，再发出仍含旧ID的原始请求。它只处理代理记录的本次ID，不扫描账户文件，也不删除其他任务的对象。被删除图的本地归一化文件与请求版本仍保留，可用于重新上传。
+运行前先留意故障注入的顺序：上传两张图 → 等待第一张的 DELETE 确认 → 发送仍含旧 ID 的请求。如果未等删除确认就发送，请求可能仍然成功，便没有验证到 stale 恢复。
+
+代理只处理本次记录的 ID，不扫描账户文件，也不删除其他任务的对象。删除的是远端对象；该图的本地归一化文件与请求版本仍保留，恢复时就从这里取得重新上传的字节。
 
 ## 实际调用序列
 
@@ -33,7 +37,9 @@ node --env-file=../../.env --import tsx examples/live.ts --files=stale-once
 
 ## 固定源码说明
 
-[RequestFiles.retry()](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/request-files.ts)基于错误文本中的失效Files含义处理已使用的映射。若详情准确命名ID，失效对应映射；没有明确ID时，失效本次使用的候选映射。`retried` 限制同一请求的修复机会；这属于源码事实，本课实跑只触发一次修复。
+为什么本次只多了一次上传？[RequestFiles.retry()](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/request-files.ts)先识别错误文本中的失效 Files 含义。如果详情准确点名第一张的 ID，就只失效这份映射，第二张继续复用；如果错误没有明确 ID，就失效本次使用的候选映射。
+
+`retried` 将同一请求的修复机会限制为一次。这是固定源码的规则；本课真实运行只触发了一次修复，没有测试连续两次失效。
 
 [adapter](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/adapter.ts)收到允许修复的结果后重新组装请求。[file-store](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/file-store.ts)在已失效映射缺失时，使用相同request variant字节重新上传。它不会重新让模型识别或生成图片。
 
@@ -43,6 +49,6 @@ node --env-file=../../.env --import tsx examples/live.ts --files=stale-once
 
 [`verifyTransport()`](src/verify.ts)要求一条HTTP400/404失败请求、恰好一次自有ID删除注入、两条后续HTTP200、三条请求均为2 Files / 0 inline，且重传字节与原图匹配。没有初始失败、没有受控删除、修复了不同字节或多出请求均不通过。最终脚本要求确认删除数等于本次上传数。
 
-35项本地测试通过，包含“删除发生在Messages前”的RED/GREEN、两种映射失效范围的验收，以及错误恢复声明的负对照。默认的保守上传清理、权限限制和私有清单继续生效。
+当次 35 项本地测试通过：测试检查删除确认发生在 Messages 之前，并用两种映射失效范围验证上传计数；负对照会拒绝缺少初始失败、字节变化或多出请求的“恢复成功”。实现过程中的失败记录见前面的验收链接。默认的保守上传清理、权限限制和私有清单继续生效。
 
 这验证了主动删除自有文件后的真实拒绝与恢复，不是自然expiry、用户更换账户、并发映射竞争、两次连续失效或进程强杀。fallback与stale恢复也不同：前者在Files解析失败时改成全inline；本次一直使用Files，只替换了失效的远端ID。

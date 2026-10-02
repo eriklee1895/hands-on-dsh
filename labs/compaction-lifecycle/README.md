@@ -1,6 +1,8 @@
 # Compaction：实际压缩、继续任务与持久化重放
 
-压缩改变的是模型可见的消息序列，不会删除原始 Session 事件。本课通过真实 compaction engine、真实模型摘要和一个文件产物验证这件事：旧消息被替换后，模型仍能从 checkpoint 使用其中的随机代号完成后续任务。
+Agent 聊了很久，旧消息被摘要替换了。它还能记住之前交代的一条关键信息吗？本课先给模型一个随机代号，压缩历史后再让它把代号写进文件。第二次任务不提供答案，我们同时检查摘要、后续请求和文件，确认信息确实经过了压缩这一步。
+
+先记住两个词：**surface** 是当前模型可见的消息序列，**checkpoint** 是用来替换一段旧消息的摘要消息。压缩改变 surface，原始 Session 事件仍保留在日志里。下面使用真实 compaction engine 和真实模型摘要，观察这两份状态如何分开变化。
 
 固定 npm SDK/runtime `0.1.7-rc.2`、Cordis `4.0.4`，源码 revision `477b4f420553e8a52c2fbccc464d7561b239c443`。前置：[Session log 与 projection](../../how-dsh-works/04-session-event-log-and-projection.md)、[Compaction 与 context assembly](../../how-dsh-works/05-compaction-and-context-assembly.md)。
 
@@ -19,7 +21,7 @@ pnpm format:check
 
 Node 支持 `^22.19.0 || >=24.0.0`；本机运行 Node `26.7.0`、pnpm `12.3.4`、macOS arm64。
 
-[`engine.test.ts`](tests/engine.test.ts)挂载发布的 Context、AgentLoop、TokenMeter 和 BasicCompactionEngine。只有 LlmAdapter 使用确定性输出；压缩选区、事务事件、消息替换和后续请求都执行真实发布库代码：
+先不调用外部模型。打开 [`engine.test.ts`](tests/engine.test.ts)，可以看到它只给 LlmAdapter 安排确定性输出；Context、AgentLoop、TokenMeter 和 BasicCompactionEngine 都来自发布包。这样我们先回答“机制是否按预期执行”，再让真实模型负责摘要内容：
 
 - 空历史手动压缩返回 null，不增加日志。
 - 手动压缩生成完整 bracket 与 checkpoint，原事件前缀保持；下一次模型请求使用摘要，不再包含旧噪声。
@@ -44,7 +46,7 @@ pnpm exec node --env-file=../../.env --import tsx examples/live.ts
 
 示例通过公开 sdk-minimal profile 启动独立 workspace、HOME 和 dshHome；它不启动私有 demo bin。sdk-minimal 自身没有 token-meter 或 compaction，patch 显式添加这两个发布包的入口，版本由本 lab 的依赖和 lockfile 固定。
 
-保留 `deepseek-flash` 在该版本模型目录声明的 1,000,000-token capacity，只把实验的 pressure 阈值调早。`DSH_CONTEXT_WINDOW` 是 fallback，不能据此假设已经覆盖目录中的模型容量。
+怎样用一小段历史触发压缩？本例保留 `deepseek-flash` 在该版本模型目录声明的 1,000,000-token capacity，只把 pressure 阈值调早。我们改变的是“什么时候开始整理历史”，不是模型本身的容量。`DSH_CONTEXT_WINDOW` 是 fallback，不能据此假设已经覆盖目录中的模型容量。
 
 | 配置                 | 本实验值 | 用途                                       |
 | -------------------- | -------- | ------------------------------------------ |
@@ -64,21 +66,35 @@ pnpm exec node --env-file=../../.env --import tsx examples/live.ts
 
 ```mermaid
 sequenceDiagram
-    participant C as SDK caller
-    participant E as Compaction engine
-    participant L as LLM
-    participant S as Session log
-    C->>L: 第一轮 code + 可丢弃噪声
-    L-->>C: READY
-    C->>E: 第二轮新任务触发 pre-step pressure
+    participant A as AgentLoop
+    participant E as 压缩器
+    participant L as 模型
+    participant S as 日志
+    Note over A,S: 第一轮已经完成，历史中有 code 和噪声
+    A->>E: 第二轮 pre-step 检查压力
     E->>S: compaction/start
-    E->>L: purpose=compaction 摘要请求
+    E->>L: 请求摘要
     L-->>E: 保留 code 的摘要
-    E->>S: summary + replacement + end
-    E->>L: 用新 surface 执行第二轮
-    L->>S: 一次 Bash 写文件
-    L-->>C: DONE
-    C->>S: 关闭后通过新 backend 只读重开
+    E->>S: summary、replacement、end
+    E-->>A: 新 surface 可用
+    A->>L: 使用新 surface 请求回复
+```
+
+这组 `start` 到 `end` 的压缩记录称为 bracket。摘要完成后，真正的文件任务才开始。模型只产生工具调用；AgentLoop 通过工具执行器运行命令，文件系统中的字节是另一份独立证据：
+
+```mermaid
+sequenceDiagram
+    participant A as AgentLoop
+    participant L as 模型
+    participant T as Bash 工具
+    participant F as 文件系统
+    L-->>A: 提议写 proof.txt 的工具调用
+    A->>T: 执行已记录的调用
+    T->>F: 写入代号
+    T-->>A: 工具结果
+    A->>L: 带工具结果继续请求
+    L-->>A: DONE
+    Note over A,F: 关闭后分别核对日志与文件
 ```
 
 [`verify.ts`](src/verify.ts)要求以下证据同时成立：
@@ -97,7 +113,7 @@ SDK 返回时订阅到的完整根事件前缀会被保存于本进程内，并�
 
 重开必须读到 V4 完整压缩记录；每个现场观察事件和磁盘同 seq 内容相等，surface 节点序列也必须一致。只检查进程退出码不够：固定 SDK shutdown 会容纳部分 dispose 失败，所以持久化必须另行读取验证。
 
-替换节点占据旧消息的 surface 位置，所以本次节点顺序含 `19,10`，并非按 seq 递增。不要将“最后 N 个事件”或对 seq 排序误当成当前模型上下文。
+重放时会遇到一个值得停下来看的结果：本次 surface 节点顺序含 `19,10`。19 明明比 10 晚写入，为什么排在前面？因为 replacement 占据了被替换消息原来的位置。seq 记录写入顺序，surface 记录当前对话顺序；读取“最后 N 个事件”或按 seq 排序，都不能代替 surface 重建。
 
 原始 seed 和噪声仍在 log，只是 seed 不再属于当前 surface。这个实验不证明数据已删除、摘要脱敏或供应商忘记原文，也不演示 SDK 跨进程重新执行同一会话；它验证的是 persistence 重开与纯 surface replay。
 

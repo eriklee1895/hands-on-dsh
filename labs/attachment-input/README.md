@@ -1,6 +1,8 @@
 # 从 SDK 图片输入到真实视觉请求
 
-本实验回答：图片经过 SDK 接纳后存在哪里，模型收到哪些字节，如何分别验证持久引用、传输和回答？先读 [TypeScript SDK](../../tutorials/typescript-sdk/README.md) 与 [图片 offload](../compaction-lifecycle/REDUCTION.md)。本课使用发行版 `LocalAttachmentStore`，不改变上一课的 fixture 结论。
+把两张图片交给 Agent，它准确说出了图中的颜色。到这里，我们知道这次回答正确，却还不知道图片保存在哪里、传给模型的是原图还是缩小后的版本，以及下一轮是否会再次上传。
+
+这次实验就沿着两张图追下去：先看本地对象，再看实际请求，最后核对回答和持久日志。使用的是发行版 `LocalAttachmentStore`；[图片 offload 实验](../compaction-lifecycle/REDUCTION.md)中的 fixture 不能替代这里的存储与传输验证。开始前需要能运行 [TypeScript SDK 示例](../../tutorials/typescript-sdk/README.md)。
 
 ## 版本与条件
 
@@ -21,7 +23,7 @@ pnpm lint
 pnpm format:check
 ```
 
-本地测试不需要 Key，也不调用外部模型。真实例子需要环境中的 `DEEPSEEK_API_KEY`，可选 `DEEPSEEK_BASE_URL`；沿用已有环境配置即可，勿把 Key 写入代码。默认 endpoint 为 `https://api.deepseek.com/anthropic`。环境变量就绪后：
+先运行这些无 Key 测试，确认附件归一化、存储和验收器能在本机工作。接下来才运行真实例子：它读取环境中的 `DEEPSEEK_API_KEY`，可选 `DEEPSEEK_BASE_URL`；默认 endpoint 为 `https://api.deepseek.com/anthropic`。沿用已有凭据配置，勿把 Key 写入代码。环境变量就绪后：
 
 ```sh
 pnpm live
@@ -33,34 +35,43 @@ pnpm live
 node --env-file=../../.env --import tsx examples/live.ts
 ```
 
-这会产生真实 API 调用。脚本通过公开 SDK 的 `sdk-minimal` profile 和 patch 启动 runtime；runtime、home、workspace、Session 和附件均放在本次临时目录。SDK patch 挂载真实附件 provider，并将归一化尺寸限制为256×256，确保512×512输入确实经过转换。每轮等待上限120秒，超时调用 owner.close；关闭自身耗时不计入这个等待上限。失败不自动重放模型任务。
+这会产生真实 API 调用。成功时，报告应同时显示首轮视觉答案匹配、两轮请求中的图片字节匹配、V4 日志重读一致。只看到一个正确的颜色数组，还没有完成本课的验证。
+
+脚本通过公开 SDK 的 `sdk-minimal` profile 和 patch 启动 runtime；runtime、home、workspace、Session 和附件均位于本次临时目录。patch 挂载真实附件 provider，并将归一化尺寸限制为 256×256，让 512×512 输入实际经过转换。每轮等待上限 120 秒，超时调用 `owner.close()`；关闭自身耗时不计入这个上限。失败不会自动重放模型任务。
 
 ## 先分清三种图片身份
 
 ```mermaid
-flowchart LR
-    A[SDK encoded PNG] --> B[接纳与归一化]
-    B --> C[本地 JPEG 对象及 attachmentId]
-    C --> D[Session V4 图片引用]
-    C --> E[按模型生成 request variant]
-    E --> F[Files 上传及远端 file ID]
-    F --> G[Messages 图片引用]
-    E -. provider fallback .-> H[Messages inline base64]
-    G --> I[模型回答校验]
-    H --> I
+flowchart TD
+    A[SDK 输入 PNG] --> B[接纳并归一化]
+    subgraph Local[本地]
+        B --> C[持久 JPEG 对象<br/>attachmentId]
+        D[Session V4 引用] --> C
+        C --> E[请求版本缓存<br/>variantId]
+    end
+    E --> F[Files 上传]
+    F --> G[远端 file_id]
+    G --> H[Messages 使用 Files 引用]
+    E -. fallback .-> I[Messages 使用 inline 字节]
+    H --> J[核对传输与回答]
+    I --> J
 ```
 
 - `attachmentId` 对应归一化后内容。两份相同字节即使展示名不同，也可复用同一本地对象；它不是原输入文件的 hash。
 - `variantId` 标识含变换参数的请求版本。它不等于请求字节的 SHA-256；在本次小图中，variant 与归一化对象的字节恰好一致。
 - `file_id` 是供应商返回的远端引用，生命周期独立于本地 Session/对象。只删除它不会删除本地图片。
 
-SDK 的 `durablePromptContent()` 调用 `admitEncodedImages()`，把 wire 上的 encoded image 转成 Session 的附件引用。`LocalAttachmentStore` 在 `<DSH_HOME>/attachments/v1/objects/` 保存归一化对象，在 `<DSH_HOME>/cache/attachments/request-images/` 缓存请求版本。收紧接纳限制影响新写入；已接纳对象仍可读。请求 cache 可以重建，本地 durable 对象不会自动删除。
+为什么要分开这些身份？因为三份数据承担不同职责。Session 要长期引用本地对象；provider 需要适合当前模型的请求字节；Files ID 则只在供应商侧有意义。删除远端 ID 后，只要本地请求字节还在，就有重新上传的可能，后续 [stale 实验](STALE.md)会验证这一点。
+
+具体接纳入口是 SDK 的 `durablePromptContent()`：它调用 `admitEncodedImages()`，将 wire 上的 encoded image 转成 Session 附件引用。`LocalAttachmentStore` 在 `<DSH_HOME>/attachments/v1/objects/` 保存归一化对象，在 `<DSH_HOME>/cache/attachments/request-images/` 缓存请求版本。收紧接纳限制影响新写入；已接纳对象仍可读。请求缓存可以重建，本地持久对象不会自动删除。
 
 provider 的 `prepareImages()` 根据模型 route 获取请求版本。实验关闭 runtime 后，用独立 Context 重开 store，调用同版本包根导出的 `resolveAdapterOptions()` / `resolveRequestImageTarget()`，重建相同 target，并逐张比较真实传输字节的 hash 和顺序。这两个 resolver 属于固定版本机制探针，其中 target resolver 的源码标注为 `@internal`，不要据此承诺未来版本兼容。
 
 ## 如何核对证据
 
-[`examples/live.ts`](examples/live.ts) 先让模型返回两图四象限的颜色数组，再执行同一 Session 的文本后续轮次。两轮都必须以 `completed` 结束、没有工具调用；第一次答案和父进程内的随机真值精确一致。第二轮答案也匹配，但历史已含第一次答案，因此只把它计为历史/传输复用检查，不当作第二个独立视觉样本。
+打开 [`examples/live.ts`](examples/live.ts) 时，先找两轮任务的区别。首轮让模型返回两张图四个象限的颜色数组，答案与父进程保存的随机真值精确比较。下一轮只有文本输入，却继续使用同一个 Session。两轮都必须 `completed`，而且没有工具调用。
+
+第二轮答案也要匹配，但此时历史里已经有首轮答案。因此它回答的是“历史图片如何继续传输、回答能否复用”，不能再算一个独立视觉样本。
 
 关闭 runtime 后独立打开 JSONL V4，要求完整事件与现场订阅记录一致，读取两个 `user/message` 图片引用，验证尺寸、类型、originalDimensions、content address 和 host 文件字节。原始512×512 PNG与归一化JPEG的 hash 必须不同。只有模型说“看见了图片”，不足以通过这些断言。
 

@@ -2,7 +2,9 @@
 
 ## 问题与版本
 
-非空、压缩的 V1/V3 Session 能否通过发布版 backend 只读迁移为 V4 逻辑事件，随后发布不可变的 V4 successor？一个由发布版 backend 写出的非空 V4 Session 能否在全新 backend 中重读，并关联到发布版附件 store 保存的图像？这两个问题分别验证历史迁移与当前格式采集；V4 的新写入压缩不等于 V1/V3 迁移。
+上一课可以直接打开 plaintext 日志逐行阅读。文件改为 Zstandard 压缩后，我们还能验证同一套 read/write 行为吗？这里先比较压缩与 plaintext 旧日志的迁移结果，再检查一份由当前发布版 backend 写出的 V4 日志及其附件。
+
+这两组样本回答不同的问题：V1/V3 检查历史格式迁移，当前 V4 检查发布版写出与重读。即使新写入的 V4 压缩文件完全正常，也不能据此说旧日志已经能够迁移。
 
 固定版本：`@deepseek-ai/dsh-session-persistence-jsonl`、`@deepseek-ai/dsh-session-persistence`、`@deepseek-ai/dsh-session`、`@deepseek-ai/dsh-attachment-local`、`@deepseek-ai/dsh-attachment` 均为 `0.1.7-rc.2`，Cordis `4.0.4`；上游 tag `dsh-v0.1.7-rc.2` 对应 commit [`477b4f420553e8a52c2fbccc464d7561b239c443`](https://github.com/deepseek-ai/deepseek-harness/commit/477b4f420553e8a52c2fbccc464d7561b239c443)。实验使用 Node 26.7.0、pnpm 12.3.4、macOS arm64；发行包锁定在本目录的 `pnpm-lock.yaml`。
 
@@ -17,20 +19,35 @@
 
 ## 复现与观察
 
-从本目录运行：
+从仓库根目录运行已提交样本的检查：
 
 ```sh
 cd labs/session-format-migration
 pnpm install --frozen-lockfile
-node --import tsx scripts/generate-compressed.ts
-node --import tsx scripts/capture-release.ts
 pnpm test
 pnpm typecheck
 pnpm lint
 pnpm format:check
 ```
 
-两个脚本只重建本 lab 的固定样本文件，运行用临时 root，并在结束后清理。`capture-release.ts` 会重建 `fixtures/recorded-v4/`，保留可重读的图像对象。历史测试将样本复制到各自新的临时 root：`open(id, "read")` 暴露 V4 逻辑事件，但只留下原 V1/V3 generation；`open(id, "write")` 新增压缩 V4 successor。压缩与 plaintext 迁移结果逐事件相等，并固定检查事件顺序、连续 seq、user/assistant 文本、V1/V3 embedded stream，以及 step/turn 结束事件；故意清空 user 文本或移除结束事件会让这些断言失败。原压缩字节和 SHA-256 前后相同，全新 backend 读到相同事件，V4 successor 字节在重开后也相同。测试还改变完整 frame 的 checksum 字节、加入一个真正带 `version: 5` 的带 checksum 压缩 header、破坏已发布 V4；这些输入拒绝读取和写入，V5 明确给出升级 harness 的错误，不回退到可读 predecessor，也不改动原文件。发布版采集测试在全新 backend 和附件 store 中读出六条事件，并按引用取回图像对象核对内容 digest。
+先看历史测试。每份样本都复制到独立临时 root：`open(id, "read")` 暴露 V4 逻辑事件，磁盘只保留原 V1/V3 generation；`open(id, "write")` 则新增压缩 V4 successor。这个顺序与上一课相同。
+
+“能读出来”还不够。测试要求压缩与 plaintext 的迁移结果逐事件相等，检查事件顺序、连续 seq、user/assistant 文本、embedded stream 和 step/turn 结束事件。故意清空 user 文本或移除结束事件时，断言必须失败。原压缩字节及 SHA-256 始终不变；新 backend 读到相同事件，V4 successor 重开后的字节也相同。
+
+再看拒绝路径。测试分别修改完整 frame 的 checksum、放入真正带 `version: 5` 的有效 checksum 压缩 header，以及破坏已发布 V4。这些输入都拒绝 read/write；V5 明确要求升级 harness，不回退到可读 predecessor，也不改写原文件。三种拒绝分别检查损坏检测、未来版本识别和最高 generation 的选择，不能只用一个随意损坏的文件代替。
+
+最后看当前 V4 采集。全新的 backend 读出六条事件，再由附件 store 按消息引用取回图像对象，比较内容 digest。Session 日志和图像对象是两份存储，日志读出成功并不自动证明附件还在。
+
+## 可选：重建固定样本
+
+只有在研究样本的生成方式时才需要这一步。仍在本 Lab 目录执行：
+
+```sh
+node --import tsx scripts/generate-compressed.ts
+node --import tsx scripts/capture-release.ts
+```
+
+第一个脚本从固定 plaintext 输入重写两个 `.zstd` fixture；第二个在临时 root 中调用发布版 backend 和附件 store，再重建 `fixtures/recorded-v4/`。采集的临时 root 在结束后清理，固定样本里的图像对象保留供后续重读。两条命令都会重建仓库内的样本文件，不是普通只读检查。
 
 本次固定样本 SHA-256：V1 压缩 `d881a991be26ea439d1886a6ecef8f25b1380cfa6416c299ce4b645f62f0a76d`；V3 压缩 `92b98c232d38a064333512ba7e1e101f4f8132f93988686eaa8d878c6d8af8d3`；发布版 V4 `c74df16205faa900da9f27283d0b0aff569c2e5022840cdc9f650b1b74541577`。V4 样本的图像对象 digest 和路径在 `metadata.json` 中。SHA 仅核对这些字节，不是所有历史格式的兼容性声明。
 

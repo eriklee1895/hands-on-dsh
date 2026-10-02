@@ -1,6 +1,6 @@
 # DSH Session events 与 AG-UI events
 
-需要保存Agent执行事实、检查工具副作用与重建模型上下文时，读DSH Session；需要给业务前端呈现消息、工具和Run状态时，使用应用定义的投影。本章比较本仓库的固定实现：DSH npm `0.1.7-rc.2`、AG-UI `0.0.57`、CopilotKit `1.69.3`，不是所有AG-UI服务端的通用能力表。
+一个工具执行完，界面上出现结果卡片，SQLite 里也新增了业务事件。它们来自同一次工作，却没有相同的字段和编号。诊断执行时需要回到 DSH Session，重连界面时则要使用应用保存的事件游标。本章比较本仓库的固定实现：DSH npm `0.1.7-rc.2`、AG-UI `0.0.57`、CopilotKit `1.69.3`，不是所有AG-UI服务端的通用能力表。
 
 前置：[Session与projection](../../how-dsh-works/04-session-event-log-and-projection.md)、[AG-UI项目](../../projects/ag-ui-dsh-runtime/README.md)。
 
@@ -30,15 +30,19 @@
 工具自身返回error不等于整轮必然失败；Agent可能继续处理。反过来，即使存在工具产物，max-tokens或error终态也不能包装成业务成功。实际判定由[coordinator](../../projects/ag-ui-dsh-runtime/src/server/coordinator.ts)和[测试](../../projects/ag-ui-dsh-runtime/tests/projector.test.ts)共同约束。
 
 ```mermaid
-flowchart LR
+flowchart TD
     Runtime[DSH runtime] --> Raw[原始通知]
-    Raw --> DB[SQLite业务事件]
+    Raw --> DB[SQLite 业务事件]
     Raw --> Project[严格root投影]
     Project --> DB
-    DB --> SSE[AG-UI与业务cursor下行]
+    DB --> SSE[AG-UI / cursor 下行]
     SSE --> UI[React和Run Inspector]
     DB --> Recover[重连与业务恢复判断]
 ```
+
+可以从工具结果做一次字段追踪：先在 root `tool/result` 找到 `data.message.toolCallId`，再在 `AguiProjector` 中看它怎样匹配已提交的调用，最后观察 `TOOL_CALL_RESULT` 怎样进入业务存储和界面。若缺少匹配的调用，严格投影会拒绝这段轨迹，而不是凭结果文本补造一次工具调用。
+
+这个阅读练习不要求再发一次模型任务。对照项目的 projector 测试，找到缺失调用或重复结果的负例，便能理解为什么只转发一段 JSON 不足以构成可靠 UI。
 
 ## 为什么CONTENT事件不等于实时token
 

@@ -4,7 +4,7 @@ English | [中文](01-hello.zh.md)
 
 ## Outcome
 
-Run one prompt through [`01_hello.py`](../01_hello.py), observe the generated session ID, the interval finish reason, and the final committed assistant text. This is the smallest production-shaped SDK lifecycle because the context manager also closes the owned runtime process.
+Start by handing one sentence from Python to DSH and getting an answer back. After running [`01_hello.py`](../01_hello.py), inspect three things: the conversation ID, the finish reason, and the final text. The context manager has another useful job: when the block ends, it closes the runtime process it started.
 
 ## Prerequisites
 
@@ -12,17 +12,30 @@ Complete the installation in the [demo index](../README.md). The command reads t
 
 ## Run it
 
+Run the command from `tutorials/python-sdk`; `../../.env` is the local credential file at the repository root. If the credential is already exported in your shell, omit env-file; for example, `uv run python 01_hello.py` uses the script’s default arguments.
+
 ```sh
-uv run python 01_hello.py \
+uv run --env-file ../../.env python 01_hello.py \
   --dsh-home /tmp/dsh-demo-01 \
   "Reply with exactly: PYTHON_DEMO_01_OK"
 ```
 
-The response contains a generated `session_id`, `finish_reason: completed`, and the requested text.
+A successful output has this form. The ID is generated each time, and you must check whether the model followed the wording request; this is an illustrative output, not a new recorded run:
+
+```text
+session_id: session-<generated-id>
+finish_reason: completed
+response:
+PYTHON_DEMO_01_OK
+```
+
+Check `finish_reason` before reading the answer. A function returning does not by itself mean success: the model can also stop because of an error or a token limit. The script rejects a result other than `completed`; compare the response text with your input separately.
 
 ## How it works
 
-`DeepSeekHarness` resolves the bundled runtime lazily. Entering the context starts it and sends `initialize`; `run()` creates a session ID when none is supplied, enqueues the prompt, collects notifications after the durable inbox receipt, waits for the whole agent to become idle, and projects the final assistant message into `RunResult.final_response`.
+Open the script and find `result = harness.run(args.prompt)`. That is the business call; the surrounding code selects a workspace, home, and profile and closes resources reliably. `cwd` selects where the agent works, while `dsh_home` holds configuration and session data. They have different jobs.
+
+Entering the `DeepSeekHarness` context resolves the bundled runtime, starts it, and sends `initialize`. `run()` generates a conversation ID, puts the input in the inbox, and waits for the whole agent to reach `idle`. We call the period from the durable input receipt to that idle notification the “activity interval.” `final_response` comes from the final committed assistant message within it. Tutorial 05 opens up that waiting process.
 
 ```mermaid
 sequenceDiagram
@@ -45,6 +58,8 @@ The high-level lifecycle is implemented by [`DeepSeekHarness`](https://github.co
 ## Verify it
 
 Confirm all three facts: the process exits with status 0, `finish_reason` is `completed`, and the response matches the prompt. The selected home holds the initialized profile and session data; remove it after closing the runtime when no longer needed.
+
+Try once more with a different short marker in the prompt. Check what the answer, finish reason, and new session ID each tell you. Seeing the marker is not a substitute for checking how the run ended.
 
 ## Limitations
 

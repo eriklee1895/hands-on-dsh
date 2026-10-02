@@ -4,7 +4,7 @@ English | [中文](06-raw-jsonrpc.zh.md)
 
 ## Outcome
 
-Use [`06_raw_jsonrpc.py`](../06_raw_jsonrpc.py) to launch the bundled runtime without `DeepSeekHarness` or `HarnessClient`. This is a protocol probe and SDK-authoring example, not the recommended application integration.
+The previous chapter relied on `HarnessClient`, but how much work did that client save us? [`06_raw_jsonrpc.py`](../06_raw_jsonrpc.py) starts the runtime directly and sends and receives JSON-RPC itself. After running it, you should be able to distinguish protocol semantics from the work needed to communicate reliably with a child process. This is useful for diagnostics or a new language SDK; ordinary applications should use the existing client.
 
 ## Prerequisites
 
@@ -12,8 +12,10 @@ Complete [Tutorial 05](05-low-level-client.md). The installed `deepseek-harness-
 
 ## Run it
 
+Run the command from `tutorials/python-sdk`; `../../.env` is the local credential file at the repository root. If the credential is already exported in your shell, omit env-file; for example, `uv run python 06_raw_jsonrpc.py` uses the script’s default arguments.
+
 ```sh
-uv run python 06_raw_jsonrpc.py \
+uv run --env-file ../../.env python 06_raw_jsonrpc.py \
   --session-id python-demo-06 \
   --dsh-home /tmp/dsh-demo-06 \
   "Reply with exactly: PYTHON_DEMO_06_OK"
@@ -23,7 +25,11 @@ The script prints the prompt message ID and final root committed response, then 
 
 ## How it works
 
-The script resolves the published runtime carrier and launches its public `dsh --profile sdk-minimal` entry, spawns the process with piped stdio, drains stdout and stderr concurrently, encodes one compact JSON-RPC object per line, correlates responses by ID, consumes notifications, and enforces the same durable-receipt-to-idle interval as the SDK.
+Start with process launch: the script resolves the published carrier through `deepseek_harness_runtime` and still uses the public `dsh --profile sdk-minimal` entry. We changed the client, not the runtime’s launch rules.
+
+Then read `encode_request()` and the two readers. Each stdout line is a JSON-RPC object. Stderr must be drained concurrently too: a full pipe can stall a child process. The reader does not echo stderr, to avoid printing credentials from diagnostics.
+
+Finally, inspect `PromptProjection`. It treats the RPC response ID and the input messageId separately, retaining receipts and messages that arrive before the response. It settles at the first root idle after the matching receipt, then checks completion and final text. This is the previous chapter’s activity interval, not “read one JSON object and finish.”
 
 ```mermaid
 flowchart TD
@@ -39,6 +45,8 @@ flowchart TD
 ```
 
 Compare this file with [`client.py`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/client.py): the SDK additionally owns concurrent request waiters, filtered subscriptions, descendant discovery, diagnostics, timeout behavior, transport closure errors, and reusable lifecycle management.
+
+Start with a keyless reading exercise: inspect the `encode_request()` test to see how a request becomes one JSON line. Then follow `test_raw_prompt_projection_accepts_receipt_before_response_and_ignores_child`, marking the interval’s start and end in fixture order. Run `uv run pytest -k "raw_jsonrpc or raw_prompt_projection"` to check those rules.
 
 ## Verify it
 
