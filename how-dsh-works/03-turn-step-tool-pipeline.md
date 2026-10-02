@@ -1,115 +1,64 @@
-# Turn、Step 与工具执行流水线
+# Turn、Step 与 V4 工具流水线
 
-本文回答一个具体问题：一条输入如何在 DeepSeek Harness 中变成一个或多个模型请求、工具调用和最终的 durable 事件。结论只适用于 upstream tag `dsh-v0.1.1-rc.2`，完整 commit 为 `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`。
+> 固定版本：`dsh-v0.1.7-rc.2`；revision：`477b4f420553e8a52c2fbccc464d7561b239c443`；源码审查：2026-09-29。
 
-## 入口文件
-
-| 入口 | 在本链路中的职责 |
-| --- | --- |
-| [`packages/sdk/server/src/server.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/sdk/server/src/server.ts#L127-L143) | SDK JSON-RPC 的 `session/prompt` 把用户消息交给 `Agent.followup()`。 |
-| [`packages/core/agent-loop/src/agent.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/core/agent-loop/src/agent.ts#L63-L505) | 默认 Agent driver；拥有 inbox、Turn/Step 边界、请求组装、流消费和继续条件。 |
-| [`packages/core/agent-loop/src/tool-calls.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/core/agent-loop/src/tool-calls.ts#L1-L288) | 按 execution mode 调度工具，限制并行度，并按模型顺序提交结果。 |
-| [`packages/core/tools/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/core/tools/src/index.ts#L1328-L1885) | 执行 `pre → guards → execute → post → finalize → result notification`。 |
-| [`packages/llm/llm/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/llm/llm/src/index.ts#L930-L1010) | 选择 adapter，运行 `llm/stream` waterfall，并把 adapter 失败正规化为 terminal finish chunk。 |
-| [`packages/core/session/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/core/session/src/index.ts#L569-L654) | 接受、冻结并发布每个 `SessionEvent`；事件日志是后续模型历史和 replay 的真源。 |
-
-对应的 upstream 说明是 [architecture 的 Turn flow](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/docs/architecture.md#turn-flow)、[Agent lifecycle](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/docs/agent-lifecycle.md) 和 [Tool execution pipeline](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/docs/tool-execution-pipeline.md)。
+一轮可以没有 step，也可以因工具和 steering 包含多步；一个 step 可以因显式 retry 包含多次 provider attempt。日志坐标和业务重试不是同一种身份。
 
 ## Verified from source
 
-### Turn 与 Step 的边界
+| 入口 | 职责 |
+| --- | --- |
+| [driver](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/core/agent-loop/src/agent.ts) | pre-step、prepared call、attempt settlement 与继续条件 |
+| [tool scheduler](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/core/agent-loop/src/tool-calls.ts) | dispatch overlap、模型顺序提交、call/result 配对 |
+| [ToolRuntime](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/core/tools/src/index.ts) | policy、guard、执行、后处理与冻结结果 |
+| [Session event types](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/core/session/src/types.ts)、[message](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm/src/message.ts) | V4 event data 与 first-class tool message |
+| [repair](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/core/session/src/repair.ts) | 中断历史中的缺失工具结果 |
 
-`followup()` 把 identified `UserMessage` 放入 `next-turn` inbox 并唤醒 driver。driver 先写 `turn/start`，再 claim 一条 ordinary follow-up 加所有 `next-step` 输入，运行 `agent/pre-step` waterfall。只有最终 decision 是 `enter` 且首批消息非空时才写 `step/start`；因此被拒绝或被清空的首批输入会留下一个没有 Step 的 Turn。
+### 从输入到模型请求
 
-一个 Step 包围一次 logical model request 以及该响应要求的全部工具执行；`agent/request-error` 明确要求 retry 时，新的 provider attempt 仍沿用同一 Turn/Step 坐标。进入 Step 后，loop 依次写 `user/message`，从 `systemPrompt` 和 `session.deriveMessages()` 组装请求，经 `agent/request` 与 `llm/stream` 获取 chunks，逐条写 `assistant/chunk`，最后写携带 `sourceEventSeqs` 的 `assistant/message`。`step/end` 位于外层 `finally`，所以 terminal 模型、工具或 scheduler 异常也会关闭已经打开的 Step。
+`followup()` → durable inbox → turn/start → claim → prompt/context assembly → `agent/pre-step`。只有进入的非空首批输入才建立 step。`agent/request` 和 `prepareCall()` 先解析实际 route；在这些 async 阶段赢得取消时，不提交 system/users。随后按 prepared capability 协调 `system/message`，第一次 attempt 才追加 accepted user messages，记录 header/context 并派生冻结的模型历史。retry 复用本步 assembly，不重复 claim/pre-step。
+
+实时输出走 process-local `agent/assistant-stream` 的 start/chunk/end；每个完成结算的 attempt 提交一条 `assistant/message` 或 log-only `assistant/attempt`，其中 `stream` 保存紧凑的带时序记录。它们不是旧顶层 `assistant/chunk` 事件。取消时已输出的 text/reasoning 前缀可以作为 `interrupted: true` 的 assistant message 提交；未 dispatch 的工具调用不混入该前缀。进程在 settlement 前硬退出时不能假定已有 durable stream。
 
 ```mermaid
-sequenceDiagram
-  participant Input as Agent inbox
-  participant Driver as ReactLoopAgent
-  participant Log as Session log
-  participant LLM as ctx.llm
-  participant Scheduler as tool-calls scheduler
-  participant Tools as ctx.tools
-  Input->>Driver: followup / steer / inject
-  Driver->>Log: turn/start
-  Driver->>Driver: claim + agent/pre-step
-  Driver->>Log: step/start + user/message*
-  Driver->>LLM: agent/request → llm/stream
-  LLM-->>Log: assistant/chunk* → assistant/message
-  alt assistant has tool calls
-    Driver->>Scheduler: executeToolCalls(model order)
-    Scheduler->>Log: tool/call before dispatch
-    Scheduler->>Tools: pre → guards → execute → post → finalize
-    Tools-->>Scheduler: frozen ToolExecutionResult
-    Scheduler->>Log: tool/result in model order
-    Scheduler-->>Driver: continue unless concluded
-  else no tool calls
-    LLM-->>Driver: completed / max-tokens
-  end
-  Driver->>Log: step/end
-  opt more tool context or steering
-    Driver->>Log: next step/start
-  end
-  Driver->>Log: turn/end
+flowchart TD
+    A["turn/start + input claim"] --> B["pre-step admits step"]
+    B --> C["agent/request + prepareCall"]
+    C --> D["system / user / header / context committed"]
+    D --> E["derive frozen model request"]
+    E --> F["live assistant stream"]
+    F --> G["assistant/message or assistant/attempt"]
+    G --> H["tool/call + tool execution"]
+    H --> I["tool/result in model order"]
+    I --> J["step/end"]
+    J -->|"tools or steering owe work"| B
+    J -->|"no work owed"| K["turn-stopping + turn/end"]
 ```
 
-### 具体调用路径
+### 工具结果的准确字段
 
-1. `HarnessSdkJsonRpcServer.prompt()` → `getOrCreateSession()` → `Agent.followup()`，或其他 client 直接调用 `followup()` / `steer()` / `inject()`。
-2. `ReactLoopAgent.followup()` → `send()` → `Inbox.splice()` → `wakeDriver()` → `kick()` → `turn()`，打开 durable `turn/start`。
-3. `turn()` → `preStep()` → `systemPrompt.assemble()` → `agent/pre-step` → `step()` → `buildRequest()` → `agent/request` → `LlmRuntime.stream()`。
-4. `step()` → `executeToolCalls()` → scheduler `prepare/dispatch/finalize` → `ToolRuntime` waterfalls → `Session.append("tool/result")`。
-5. `step/end` 后，tool continuation 或 pending steering 回到 `preStep("next-step")`；否则经过 `agent/turn-stopping` 写 `turn/end`，driver 再决定是否领取下一 Turn。
+`tool/call.data` 为 `{ turn, step, callId, name, arguments }`，arguments 保留模型给出的 JSON 字符串。V4 `tool/result.data` 为 `{ turn, step, message, error?, meta? }`；`message` 是直接的 tool-role message，包含 `toolCallId`、`content`、`isError` 和 identity/source。关联读取应使用 **`data.message.toolCallId`**，不能照搬旧 `data.result` 或假设 result 顶层仍有 callId。内部 failure identity 放在可选 `data.error`，只有 isError 为 true 才允许；UI 数据放在 tool-owned JSON meta。
 
-### 模型请求与继续条件
+scheduler 先提交 tool/call，再进入 `pre-execute → guards → execute → post-execute → finalizeContent → tools/result`。最后一个是 live 观察事件，不是 durable event。scheduler 将最终内容写入 `tool/result`，其 `sourceEventSeqs` 引用对应 call 的 seq，模型下次请求直接读 first-class tool message。
 
-`buildRequest()` 先从 Agent options 和最新 durable request header 得到候选 route，再让 `agent/request` listeners 替换配置。`ctx.llm.prepareCall()` 把 exact model defaults 与 adapter generation 绑定；loop 在 dispatch 前写 `request/header`，route 或 context-window 改变时另写 `request/context`。真正的请求 history 每一步重新来自 `session.deriveMessages()`，不是 Agent 内另一份可变 message list。
+`exclusive` 是 barrier，`parallel` 使用配置的 rolling pool。准备和提交保持模型调用顺序，body 可以重叠；后来者先完成不改变 durable result 顺序。工具结果通常使同一 turn 进入下一步；`concludesTurn` 仍需尊重已经到达的 next-step 输入。
 
-模型返回普通 stop 且没有工具时，Step 返回 `completed`。`max-tokens` 是 sticky Turn outcome；后续 Step 正常完成也不会把它降为 `completed`。含工具调用且没有任何 result 标记 `concludesTurn` 时，Step 返回“尚未结束”，loop 在已记录的 `tool/result` 之后开启下一 Step，让模型读取工具结果；`concludesTurn` 仅在没有待处理 `next-step` 输入时结束 Turn，已经到达的 steering 仍可继续。
+### 错误与不确定结果
 
-### 工具 scheduler 与结果顺序
+工具 pipeline 可把失败表达为 isError 结果，让模型在下一步处理。scheduler 自身终止失败不伪造已经开始的 call 的结果；中断恢复根据历史生成 `TOOL_NOT_STARTED` 或 `TOOL_OUTCOME_UNKNOWN` 等结果。看到 durable call 但没有 durable result，无法推出外部工具没有执行。
 
-工具参数先尝试 JSON parse；无效 JSON 作为原字符串交给 tool pipeline。scheduler 每次启动前读取 `ctx.tools.executionMode()`：`exclusive` 形成 barrier，`parallel` 进入受 `maxParallelToolCalls` 限制的 rolling pool。`tools/pre-execute` 和最终 commit 保持模型顺序，只有 tool body/around-dispatch 可以重叠；即使后一个调用先完成，`tool/result` 仍按 assistant message 中的调用顺序写入。
-
-每个调用在 dispatch 前先写 `tool/call`。`ToolRuntime` 依次运行 `tools/pre-execute`、approval、monotonic guards、`tools/execute`、`tools/post-execute` 和 tool-owned `finalizeContent`，然后冻结结果并发出 non-vetoing `tools/result` notification。loop 随后把同一结果写成 model-visible `tool/result` SessionEvent；`additionalContexts` 按模型顺序进入 `next-step` inbox。
-
-### 错误与 outcome unknown 的边界
-
-adapter selection、dispatch 或 iteration failure 由 `LlmRuntime` 转成 `finish {kind: "error" | "aborted"}`。loop 在仍打开的 Step 内运行 `agent/request-error`；listener 可明确返回 `retry`，同一 Step 随即重建并重发 request。没有 retry 时才抛出保留 provider failure code 的 `LlmError`，随后外层 `finally` 写 `step/end`。waterfall、scheduler 或其他非 `LlmError` 异常在 `turn/end.reason` 中正规化为 `code: "UNKNOWN"`，但原异常仍通过 live `agent/error` 报告。
-
-tool body、policy listener、result projection 等已进入 ToolRuntime 的失败通常被物化为 `isError: true` 的 `tool/result`，模型可以在下一 Step 看到错误。scheduler 自身在已经写下 `tool/call` 后失败时不会伪造 result；它停止补充新调用、等待已启动调用 settle，然后让 Turn 失败。若进程在 call 已 durable、result 未 durable 时终止，cold persistence repair 才会生成 `TOOL_OUTCOME_UNKNOWN` 结果，提醒调用方先检查外部状态；这个“工具副作用未知”与业务系统自己的 Run `execution_unknown` 不是同一个状态类型。
+provider error 只有在 `agent/request-error` 明确返回 retry 时才重试该 step；这不授权业务层重放整条 prompt。run resolve、非空文本、Agent idle 都不单独代表 `turn/end.reason.kind === completed`。
 
 ## Observed at runtime
 
-在固定 rc.2 checkout 根目录实际运行了以下无 key probe：
+2026-09-29 从仓库根目录执行：
 
 ```sh
-env -u DEEPSEEK_API_KEY -u DEEPSEEK_BASE_URL \
-  corepack pnpm exec vitest run \
-  packages/core/agent-loop/tests/loop.spec.ts \
-  packages/core/agent-loop/tests/tool-calls.spec.ts \
-  -t 'round-trips tool calls|commits tool/result in model order'
+node --test --test-name-pattern='missing tool' how-dsh-works/probes/published-core.test.mjs
 ```
 
-结果为 2 个 test files 通过，选中的 2 个 tests 通过，73 个未匹配 tests skipped，exit 0。第一个场景观察到模型请求工具、工具结果进入下一次模型请求；第二个场景让后一个 parallel 调用先 settle，durable `tool/result` 仍保持模型顺序。本 probe 使用本地 mock adapter 和 test tools，不调用真实模型。
+本次完整 probe 3/3 passed；该 case 由确定性 adapter 请求一个未注册工具，真实 ToolRuntime 生成 V4 error message，再由下一步模型请求读取；验证 toolCallId、call seq 引用和两个 step。另一个 inbox case 验证 live frames 与 embedded stream。没有真实工具副作用或 provider 网络请求。
 
-## Inference
+## Inference、Proposal 与未确认
 
-Turn 是 driver 的排空和错误归属区间，不是某次 SDK request 的同步返回值；一个 Turn 可以没有 Step，也可以因工具结果或 steering 包含多个 Step。相应地，`Agent.whenIdle()` 只说明整个 Agent 已静止，不能单独证明某条 follow-up 的因果结果。
-
-工具的并行性只影响 dispatch overlap，不改变模型可见结果顺序。业务层若按完成时间重排工具结果，会得到与 DSH 下一次模型请求不同的 transcript。
-
-SessionEvent 是事实流而不是数据库事务：`tool/call` 和 `tool/result` 分开提交。看到 call 没看到 result 时，不能从日志推出“工具没有执行”。
-
-## Proposal
-
-业务应用应在 DSH Session/Turn 之外拥有自己的 Run 标识和 terminal policy，并以 SessionEvent seq 作为观察证据。对缺失 result 的 side-effecting tool，默认动作应是查询外部状态或询问用户，而不是自动重试。
-
-需要扩展行为时，优先挂在 `agent/pre-step`、`agent/request`、`agent/request-error`、`agent/turn-stopping` 或 `tools/*` documented events 上；只有无法由这些扩展点表达的通用 driver 语义才需要修改 agent loop。
-
-## Unconfirmed / version boundary
-
-- 本文没有验证真实 provider 的 streaming 时序、retry middleware、approval UI、取消时的外部副作用或不同平台的 scheduler timing。
-- probe 只锁定 `dsh-v0.1.1-rc.2` / `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`；developer preview 后续 revision 可能改变事件、错误或调度语义。
-- `TOOL_OUTCOME_UNKNOWN` 只表示缺失 result 的工具 outcome 无法从 durable log 判定，不代表整个业务 Run 一定未知，也不授权重试。
+Inference：持久化 call/result 分开意味着重试前必须查询外部状态。Proposal：增加受控双 parallel 工具验证 out-of-order settlement。本次没有重新执行 parallel scheduler、真实取消、repair 或 retry probes；[旧两项测试](historical-2026-08-31.md)不能算新版证据。

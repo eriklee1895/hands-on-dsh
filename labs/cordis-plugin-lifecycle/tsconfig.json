@@ -11,5 +11,5 @@
     "types": ["node", "vitest/globals"],
     "verbatimModuleSyntax": true
   },
-  "include": ["scripts/**/*.ts", "src/**/*.ts", "tests/**/*.ts"]
+  "include": ["examples/**/*.ts", "scripts/**/*.ts", "src/**/*.ts", "tests/**/*.ts"]
 }

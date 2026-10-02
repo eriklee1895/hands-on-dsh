@@ -2,7 +2,7 @@ import { access, chmod, mkdir, mkdtemp, readFile, rm, stat, symlink } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Context } from "@deepseek-ai/cordis";
-import { CallId, createToolResultMessage } from "@deepseek-ai/dsh-llm";
+import { ToolCallId, createToolResultMessage } from "@deepseek-ai/dsh-llm";
 import SessionStore, { SessionId } from "@deepseek-ai/dsh-session";
 import SystemPrompt from "@deepseek-ai/dsh-system-prompt";
 import ToolRuntime from "@deepseek-ai/dsh-tools";
@@ -119,7 +119,7 @@ describe("proof tool boundary", () => {
     abort.abort(new Error("cancel before create"));
     await expect(
       ctx.tools.execute({
-        callId: CallId("cancel-call"),
+        callId: ToolCallId("cancel-call"),
         name: "write_stage4_proof",
         arguments: { content: "must not exist" },
         signal: abort.signal,
@@ -267,7 +267,7 @@ describe("listener correlation boundary", () => {
     const emitLive = () =>
       ctx.emit(
         "tools/result",
-        { name: "write_stage4_proof", callId: CallId("retry-call"), agent } as never,
+        { name: "write_stage4_proof", callId: ToolCallId("retry-call"), agent } as never,
         result as never,
       );
     await chmod(auditPath, 0o400);
@@ -281,7 +281,7 @@ describe("listener correlation boundary", () => {
         turn: 1,
         step: 1,
         message: createToolResultMessage({
-          callId: CallId("retry-call"),
+          callId: ToolCallId("retry-call"),
           content: [{ type: "text", text: "ok" }],
           isError: false,
         }),
@@ -342,7 +342,7 @@ describe("listener correlation boundary", () => {
         "tools/result",
         {
           name: "write_stage4_proof",
-          callId: CallId(callId),
+          callId: ToolCallId(callId),
           agent: { session: sessions[index] },
         } as never,
         result as never,
@@ -354,7 +354,7 @@ describe("listener correlation boundary", () => {
           turn: 1,
           step: 1,
           message: createToolResultMessage({
-            callId: CallId(callId),
+            callId: ToolCallId(callId),
             content: [{ type: "text", text: "ok" }],
             isError: false,
           }),
@@ -497,22 +497,22 @@ describe("listener correlation boundary", () => {
 
     ctx.emit(
       "tools/result",
-      { name: "other", callId: CallId("other"), agent: rootAgent } as never,
+      { name: "other", callId: ToolCallId("other"), agent: rootAgent } as never,
       result as never,
     );
     ctx.emit(
       "tools/result",
-      { name: "write_stage4_proof", callId: CallId("foreign"), agent: foreignAgent } as never,
+      { name: "write_stage4_proof", callId: ToolCallId("foreign"), agent: foreignAgent } as never,
       result as never,
     );
     ctx.emit(
       "tools/result",
-      { name: "write_stage4_proof", callId: CallId("accepted"), agent: rootAgent } as never,
+      { name: "write_stage4_proof", callId: ToolCallId("accepted"), agent: rootAgent } as never,
       result as never,
     );
     ctx.emit(
       "tools/result",
-      { name: "write_stage4_proof", callId: CallId("duplicate"), agent: rootAgent } as never,
+      { name: "write_stage4_proof", callId: ToolCallId("duplicate"), agent: rootAgent } as never,
       result as never,
     );
 
@@ -523,7 +523,7 @@ describe("listener correlation boundary", () => {
           turn: 1,
           step: 1,
           message: createToolResultMessage({
-            callId: CallId(callId),
+            callId: ToolCallId(callId),
             content: [{ type: "text", text: "ok" }],
             isError: false,
           }),
@@ -548,7 +548,7 @@ describe("listener correlation boundary", () => {
     await listener.dispose();
     ctx.emit(
       "tools/result",
-      { name: "write_stage4_proof", callId: CallId("accepted"), agent: rootAgent } as never,
+      { name: "write_stage4_proof", callId: ToolCallId("accepted"), agent: rootAgent } as never,
       result as never,
     );
     appendDurable(rootSession, "accepted");
@@ -567,7 +567,7 @@ describe("listener correlation boundary", () => {
     await listener2;
     ctx.emit(
       "tools/result",
-      { name: "write_stage4_proof", callId: CallId("accepted-2"), agent: rootAgent } as never,
+      { name: "write_stage4_proof", callId: ToolCallId("accepted-2"), agent: rootAgent } as never,
       result as never,
     );
     appendDurable(rootSession, "accepted-2");

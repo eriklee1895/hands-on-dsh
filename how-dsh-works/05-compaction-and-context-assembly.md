@@ -1,126 +1,75 @@
-# Compaction 与 Context Assembly 如何共同形成下一次模型请求
+# Compaction 与 Context Assembly：从日志重建模型请求
 
-> 固定版本：`dsh-v0.1.1-rc.2`
-> 固定 revision：`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`
-> 验证日期：2026-08-31
+> 固定版本：`dsh-v0.1.7-rc.2`；revision：`477b4f420553e8a52c2fbccc464d7561b239c443`；源码审查：2026-09-29。
 
-## 要回答的问题
-
-DSH 不会把 Session 的整个 append-only event log 原样发送给模型。AgentLoop 在每个 step 边界重新组装 system prompt、tools、动态 runtime context，并从 Session 的当前 surface 派生消息；compaction 则保留原始日志，用一个有来源记录的 checkpoint 替换 surface 上的一段旧消息。本篇追踪这两条路径在下一次模型请求前如何汇合。
-
-```mermaid
-flowchart TD
-    Inbox[Inbox claim] --> Assemble[systemPrompt.assemble]
-    Assemble --> Snapshot[RuntimeContextProjection.project]
-    Snapshot --> PreStep[agent/pre-step waterfall]
-    Log[(Append-only SessionEvent log)] --> Surface[Session surface fold]
-    Surface --> Compact{Pressure or overflow?}
-    PreStep --> Compact
-    Compact -->|yes| Bracket[compaction start / summary / checkpoint replace / end]
-    Bracket --> Log
-    Compact -->|no| Append[Append claimed and changed context messages]
-    Bracket --> Append
-    Append --> Surface
-    Surface --> Derive[session.deriveMessages]
-    Assemble --> Header[Rendered system and ordered tools]
-    Derive --> Request[buildRequest]
-    Header --> Request
-    Request --> LLM[Prepared LLM stream]
-```
-
-## 入口与源码路由
-
-| 主题 | 固定 revision 入口 |
-| --- | --- |
-| 每个 step 的组装与请求派生 | [`packages/core/agent-loop/src/agent.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/core/agent-loop/src/agent.ts) |
-| system/context/tool registry | [`packages/core/system-prompt/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/core/system-prompt/src/index.ts) |
-| runtime-context durable projection | [`packages/core/agent-loop/src/runtime-context.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/core/agent-loop/src/runtime-context.ts) |
-| append-only log 上的 surface fold | [`packages/core/session/src/surface.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/core/session/src/surface.ts)、[`packages/core/session/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/core/session/src/index.ts) |
-| compaction Service Definition 与事件 | [`packages/compaction/compaction/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/compaction/compaction/src/index.ts)、[`types.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/compaction/compaction/src/types.ts) |
-| basic policy 与 AgentLoop hooks | [`packages/compaction/compaction-basic/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/compaction/compaction-basic/src/index.ts) |
-| range selection 与 durable transaction | [`packages/compaction/compaction-basic/src/region.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/compaction/compaction-basic/src/region.ts) |
-| direct summarization call | [`packages/compaction/compaction-basic/src/summarizer.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/compaction/compaction-basic/src/summarizer.ts) |
+上下文压缩改变模型可见的 surface，不删原始事实。动态 runtime context、system prompt 和摘要 checkpoint 各有来源，不能因为最后都是 Message 就合并解释。
 
 ## Verified from source
 
-### 1. Context assembly 每个 step 都重新执行
+| 入口 | 职责 |
+| --- | --- |
+| [Agent driver](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/core/agent-loop/src/agent.ts) | assembly、prepared call、system admission 和 request series |
+| [SystemPrompt](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/core/system-prompt/src/index.ts) | scoped sections、contexts、tools 与 variables |
+| [Runtime context](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/core/agent-loop/src/runtime-context.ts) | 当前完整快照去重、清除与恢复 |
+| [Compaction engine](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/compaction/compaction-basic/src/index.ts) | pressure hook、overflow retry、manual maintenance |
+| [Region transaction](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/compaction/compaction-basic/src/region.ts)、[summarizer](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/compaction/compaction-basic/src/summarizer.ts) | 稳定范围、bracket、summary 与替换 |
 
-`ReactLoopAgent.preStep()` 先从 Inbox claim 本 step 的消息，再调用 `systemPrompt.assemble(assembleContextFor(agent, signal))`。`SystemPrompt` 合并 global 与当前 Agent scope 的 sections、contexts、tool providers 和 variables：同名 scoped section/variable 遮蔽 global 值，section/context 按 `order` 排序，tools 按配置顺序或稳定字典序排列。最后还会经过 cooperative `system-prompt/assemble` waterfall。
+### 本步 assembly 与每次 attempt
 
-`renderPrompt()` 把非空 section 插值后连接成 system string。动态 context 不直接塞入 system prompt；`renderContextSections()` 和 `joinContextSections()` 形成一份完整快照，`RuntimeContextProjection.project()` 仅在快照相对当前 retained surface 值发生变化时生成一条尚未提交的 user message。空快照在曾经存在旧快照时会生成明确的 cleared marker。
+claim 后用 `assembleContextFor(agent, signal)` 汇总 sections、contexts、tools 和 variables。scoped contribution 影响当前 Agent；`system-prompt/assemble` 与 `agent/pre-step` 都是 cooperative waterfall，包装 listener 要委托 next。runtime context 渲染为完整快照，只有相对当前 retained surface 改变时才提出新 user message；其 `source.kind` 是 `runtime-context`，不是旧的 plugin-name 判定。
 
-`agent/pre-step` waterfall 返回后，loop 才追加 claimed messages 与这条可能变化的 runtime-context message。随后 `step()` 调用 `session.deriveMessages()`，从当时最新的 surface 构建模型消息。因此 waterfall listener 在 `next()` 前完成的 surface replacement 会进入本次 request；不能从 `preStep()` 最初生成的 message 数组推断最终历史。
+`agent/request` 与 `prepareCall()` 解析实际 route 后才协调 system/users。system prompt 是 surface 中的 `system/message`，**不再是 `request/header.system`**。prepared route 支持 in-history update 时可在同一 series 后面追加非空新 prompt；不支持或开始新 series 时归并到首个 system 节点。清空时必须用日志中的空 replacement 清除全部活跃 system 节点，不能使旧内容重新显现。
 
-### 2. Request header 与消息 surface 分工不同
+`request/header` 保存非历史 envelope：config、tools 和 adapterDefaults 等。reason 包括 initial、resume、change、series；surface content generation 改变或显式 `startsRequestSeries` 可建立新 series，envelope 同时改变则带 startsSeries。`request/context` 记录模型容量等元数据，不能用之前的容量快照代替当前 prepared capability。
 
-`buildRequest()` 将 adapter 解析后的 provider/model、rendered system 和 ordered tools 规范化为 `request/header`。首次写 `initial` 或 `resume`，后续只有 header 变化才写 `change`；context-window 元数据另写 `request/context`。真正的 `GenerateOptions.messages` 来自 `session.deriveMessages()`，不是从所有 event 过滤得到。
-
-Session log 始终 append-only。`SurfaceFold` 只投影带 `surfaceOp` 的 message-producing events：普通消息 append；compaction checkpoint 用 `{ op: 'replace', start, end }` 替换当前 surface 位置范围。旧 event、原始 chunks、compaction 计量与 bracket 都仍在 log 中。replacement 之后，新 checkpoint 的 seq 可以出现在旧位置，所以 surface 顺序不能按 seq 数字排序。
-
-### 3. Automatic compaction 是 AgentLoop extension，不是 loop 内硬编码分支
-
-`BasicCompactionEngine` 在 `auto` 开启时注册两个 waterfall listener：
-
-- `agent/pre-step` 在请求派生前调用 `compactIfNeeded(agent, 'pressure', signal)`，失败时记录 warning 并继续当前 turn。
-- `agent/request-error` 只对规范化的 context-window overflow 尝试 `compactIfNeeded(agent, 'context-overflow', signal)`；只有 `surface.replaceGeneration` 前进才授权原 step retry，并受 target-specific retry cap 限制。
-
-普通压力先从最新 durable route 获取 provider/model 和容量，使用 `ctx.tokenMeter` 对请求 envelope 与当前 surface 计量。可选 tool-result pruner 会先对超大文本结果做 model-free replacement；若重测已经安全，就不调用 summarizer。range selection 从最旧头部选择完整 surface units，保留近期 tail，并移动边缘以避免切开 assistant tool-call / tool-result 对。
-
-### 4. Compaction 以 durable bracket 和 checkpoint 提交
-
-`compactSurfaceRegion()` 的调用路径是：
-
-```text
-validateSurfaceRegion
-→ inspect/assert no active durable compaction
-→ append compaction/start
-→ measure + buildSummarizationInput
-→ summarize
-→ revalidate surface stability
-→ append compaction/summary
-→ append replacement user/message
-→ append compaction/end
+```mermaid
+flowchart TD
+    A["claim + scoped assembly"] --> B["runtime-context snapshot"]
+    B --> C["agent/pre-step / compaction"]
+    C --> D["resolve request + prepareCall"]
+    D --> E["log system and admitted users"]
+    E --> H["header / context / series"]
+    H --> F["derive surface messages and freeze"]
+    F --> G["stream prepared call"]
+    G -->|"overflow + durable reduction"| D
 ```
 
-`compaction/start` 是 durable lock。automatic/explicit-region transaction 归属当前开放 turn，并要求 whole-surface stability；manual `compactNow()` 先通过 `Agent.runMaintenance()` 保留 idle admission，使用 `turn: null`，只要求选中 span 稳定，并在 closed attempt 后 flush persistence。失败会尝试写带 `error` 的 `compaction/end`；close 本身失败会留下可检测的 unmatched lock。
+### 压缩是 plugin 行为
 
-默认 summarizer 不重新运行 AgentLoop。它从最新 `request/header` 取 system/tools，把 shadowed region 的派生消息按 surface 顺序回放，在尾部增加 compaction instruction，然后直接调用 `ctx.llm.stream()`，并设置 `purpose: 'compaction'`。只有 text 输出进入 checkpoint；reasoning/tool calls 不进入摘要，image 输出失败。`compaction/summary` 保存安全摘要、raw output provenance、route、usage 与 shadow price；紧邻的 synthetic `user/message` 使用 `<compacted-summary>` framing，并引用 start、summary 与所有被遮蔽 seq。
+automatic compaction 监听 agent/pre-step 的压力检查，以及 agent/request-error 的 context overflow。overflow retry 需要 durable surface replacement 前进且未取消，并受 retry cap 限制；如果 model-free prune 已产生有效缩减，后续可选 summary 失败仍可能允许重试。重试同一步不重新 assembly 或领取 inbox。
 
-### 5. Context snapshot 与 compaction checkpoint 不是一回事
+选区按 surface 顺序保留近期 tail，避免拆开工具调用与结果；summary 前后检查所选范围仍有效。事务为 compaction/start → summarize → compaction/summary → replacement user/message → compaction/end。checkpoint 的 replacement 使用 startSeq/endSeq，sourceEventSeqs 引用 opening marker、summary 与被覆盖节点。旧 events 保留。自动流程检查 whole surface，manual compactNow 通过 runMaintenance 占据 idle admission，并按其选区稳定规则执行。
 
-两者都可能表现为 user-role surface message，但 source 不同、生命周期也不同：runtime context 的 source plugin 是 `@deepseek-ai/dsh-system-prompt`，表达“本 step 的当前动态事实”；compaction checkpoint 的 source 是 `{ kind: 'plugin', plugin: 'compact', compactionId }`，表达“这段旧对话已被一份 durable summary 替代”。业务投影必须按 provenance 分辨，不能仅按 role 判断。
+summarizer 直接调用 LLM service，purpose 为 compaction；输入以派生 system head 和按 surface 顺序选出的消息为基础，工具 schema 用于请求前缀，末尾追加摘要指令。它不是另起一轮 AgentLoop。summary、checkpoint 和 closing event 使结果可重放，但不能把多次 append 当作数据库原子事务；失败的 closing marker 可能留下可识别的未闭合 compaction。
 
 ## Observed at runtime
 
-在固定 rc.2 checkout 运行了以下 keyless focused probes：
+2026-09-29 的 published-core probe 使用真实发布库、确定性 adapter：
 
 ```sh
-corepack pnpm exec vitest run \
-  packages/compaction/compaction-basic/tests/compaction-basic.spec.ts \
-  -t 'lands a framed, replayable checkpoint with exact source seqs and token price'
-# 1 file / 1 passed / 79 skipped
-
-corepack pnpm exec vitest run \
-  packages/core/agent-loop/tests/runtime-context.spec.ts \
-  packages/core/system-prompt/tests/system-prompt.spec.ts
-# 2 files / 44 tests passed
+node --test --test-name-pattern='runtime context|inbox waits' how-dsh-works/probes/published-core.test.mjs
 ```
 
-第一条 probe 实际落地了 bracket、summary、带 source seqs 的 replacement checkpoint 与 shadow price。第二组覆盖 assembly 排序/作用域/waterfall、context snapshot 去重/清除/恢复与 surface replacement 后的 projection 状态。它们没有发起真实模型压缩，也不是 compaction 全套测试。
+上述 probe 完整 3/3 passed，覆盖相同 context 在连续两轮只记一次、变化后新增 runtime-context 快照、system prompt 出现在已记录 history。该 probe 本身不调用 compaction engine 或 summarizer。
 
-## Inference
+2026-09-30 新增 [compaction-lifecycle lab](../labs/compaction-lifecycle/README.md)：基础批次的7个 keyless tests 执行发布的 compaction engine，覆盖 manual no-op、成功 bracket/replacement、失败不提交、后续请求和 automatic pressure，以及验收器的反例。
 
-- 调试“模型为什么看到这些内容”时，需要同时查看最新 `request/header`、当前 surface 顺序、runtime-context snapshot provenance 与 compaction events；只打印最终 messages 会丢掉决策依据，只打印全量 log 又会混入已 shadowed 历史。
-- 应用自己的 Conversation/Run event log 应保存 DSH 原始事件或其可追溯引用；UI 可以显示压缩后的当前 transcript，但不能把它当成唯一审计记录。
-- context-overflow recovery 是 provider error 之后的补救。没有可靠 context capacity metadata 时，不能假设 proactive pressure 一定在首次 overflow 前触发。
+真实 sdk-minimal 显式挂 meter/compaction 插件，将触发比率调低后完成一次成功的 pressure compaction。旧 seed seq 5 进入 shadowedSeqs，checkpoint seq 19 仍含随机 code，end seq 20 早于产物 step/start seq 21；当时其余保留消息不含 code。模型随后一次 Bash 写出精确 40 字节产物。关闭后通过新 public persistence backend 读回 34 个事件，原始前缀和 surface 重放验证通过。
 
-## Proposal
+首次实跑的 1024-token 摘要预算出现截断，未提交 checkpoint，原始上下文仍可继续任务；提高预算至 4096 后使用全新 fixture 获得以上成功结果。命令、hash、usage、失败与成功分开的证据见[执行记录](../docs/reviews/2026-09-30-compaction.md)。这不是 `/compact` 的 SDK RPC，也不是 SDK 冷恢复：manual 由库级测试验证，live 通过 pre-step pressure 触发。
 
-学习项目可以增加一个只读“Request Inspector”：并排展示 header、surface seq 列表、被 shadowed seq、runtime-context sections 和最近一次 compaction bracket。它应从持久事件重建，不读取 Agent 私有字段。若未来做 eval，还应把 compaction 前后 model-visible envelope 和外部任务结果一起记录，避免只比较摘要文本。
+[溢出与取消实验](../labs/compaction-lifecycle/RECOVERY.md)另增10种 controlled adapter 场景，该批次 Lab 合计17项测试；每个场景还经独立 sdk-minimal profile 执行并重开 V4，完整事件指纹和 surface 一致。覆盖 thrown/in-band 标准溢出、零重试/预算耗尽、无进展/摘要失败、非标准错误与取消。故障输入来自 fixture，不是真实供应商 overflow。
 
-## Unconfirmed / version boundary
+该固定版的重要观察：手动取消会拒绝迟到摘要，正常响应取消的自动摘要也不提交；但自动摘要若忽略 signal 并迟到返回有效结果，可以先提交 checkpoint，随后 listener 仍因取消拒绝 retry，turn 以 aborted/user 结束。不能由 turn 取消推断 surface 未变化。详见[验收](../docs/reviews/2026-09-30-compaction-recovery.md)。
 
-- 结论只适用于固定 rc.2；compaction event vocabulary、pressure policy 与 assembly hook 可能变化。
-- 本篇没有用真实 API 测量摘要质量、prefix-cache 命中或 token 成本；focused probe 使用确定性测试 adapter。
-- 本篇没有证明所有 provider 都提供准确的 context-window metadata，也没有覆盖图片输入在具体 adapter 上的行为。
-- `system-prompt/assemble` 是 cooperative waterfall；第三方 listener 若不调用 `next()` 可短路后续 listener。这里只验证了官方实现和测试组合，不代表任意 plugin composition 都保持同样结果。
+[裁剪与图片 offload](../labs/compaction-lifecycle/REDUCTION.md)将 Lab 扩展到29项测试，并完成旧10个和新10个独立 profile 验证。裁剪追加 replacement；offload 只记录 occurrence 选择，节点编号可保持不变。大 route 不会自动撤销旧选择，同附件的新 occurrence 可以仍是图片。已提交的 prune/offload 在后续摘要失败或取消后保留。
+
+这一批同时比较原始事件、模型适配器的占位符视图、显式 image projection 的重放与真实70字节 PNG 文件；没有调用外部视觉模型或生产附件 store。缺失 projection、重复图片索引、交换合法索引，以及 live pruner 改动图片字段/位置的负对照均可拒绝，详见[验收](../docs/reviews/2026-09-30-compaction-reduction.md)。
+
+[附件输入 Lab](../labs/attachment-input/README.md)另行验证了生产 store 的接纳/归一化、两张随机图片的真实 Files 传输与关闭后独立重读；[fallback课](../labs/attachment-input/FALLBACK.md)补上受控Files失败后的整请求真实inline传输；这不扩大上述 offload fixture 的证据范围，其中[本地provider图片预算](../labs/attachment-input/BUDGET.md)与[已删除Files引用](../labs/attachment-input/STALE.md)分别有独立运行证据；[服务端overflow课](../labs/compaction-lifecycle/PROVIDER-OVERFLOW.md)另以单次长输入观察到真实400/CONTEXT_WINDOW_EXCEEDED、0工具和12个持久事件。
+
+[事务与并发维护课](../labs/compaction-lifecycle/TRANSACTIONS.md)补充4个独立profile：第二维护owner被拒绝、followup等待flush、flush前/后注入失败、end append失败。失败调用可能已有checkpoint；未闭合标记会阻止同owner再次压缩。36项测试与各自持久重读不能扩大为真实磁盘故障保证。
+
+## Inference、Proposal 与未确认
+
+Inference：Request Inspector 应并排显示 header、system/developer messages、surface 顺序和 compaction bracket；仅打印全 log 会把 shadowed 内容误作当前请求。Proposal：后续可补真实物理存储故障与更广摘要质量实验。本次已验证基本压缩事务和一个随机 code 的真实保留，尚未证明一般摘要质量、provider cache 性能或完整成本；[旧 45 项测试](historical-2026-08-31.md)保留为 2026-08-31 历史结果。

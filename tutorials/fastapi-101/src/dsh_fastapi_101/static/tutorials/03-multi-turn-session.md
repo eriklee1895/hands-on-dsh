@@ -35,7 +35,7 @@ flowchart LR
     Runtime --> Model[DeepSeek model]
 ```
 
-`RuntimeService._sessions` 只是本进程已经接纳过哪些 ID 的应用内目录，用于演示 `/api/sessions`。它不是 DSH 持久会话的权威目录；服务重启后集合会清空，但 `.sessions/` 中的事件日志仍可存在。
+`RuntimeService._sessions` 只是本进程已经接纳过哪些 ID 的应用内目录，用于演示 `/api/sessions`。它不是 DSH 持久会话的权威目录；服务重启后集合会清空，但所选 `DSH_FASTAPI_HOME` 中的事件日志仍可存在。
 
 ## 验证
 

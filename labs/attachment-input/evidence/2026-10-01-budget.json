@@ -1,0 +1,158 @@
+{
+  "date": "2026-10-01",
+  "baselineCommit": "77f3fdd",
+  "dshVersion": "0.1.7-rc.2",
+  "upstreamRevision": "477b4f420553e8a52c2fbccc464d7561b239c443",
+  "budgetBytes": 2000,
+  "inlineImageOffloadByteQuantum": 1,
+  "failureSource": "configured provider-side local budget before Messages dispatch",
+  "externalModelResponses": 2,
+  "independentVisionSamples": 1,
+  "runs": [
+    {
+      "budgetMode": "reject",
+      "exitCode": 0,
+      "localTemporaryDirectoryRemoved": true,
+      "credentialKind": "fixture-only",
+      "result": {
+        "dshVersion": "0.1.7-rc.2",
+        "filesPolicy": "reject-all",
+        "budgetMode": "reject",
+        "imageOffloadDecisions": 0,
+        "sessionId": "images-a01dc0a1-4146-4691-aa7f-1d030226eb06",
+        "firstVisionAnswerMatched": null,
+        "historyAnswerMatched": null,
+        "wireImagesMatch": null,
+        "completedTurns": 0,
+        "errorTurns": 1,
+        "toolCalls": 0,
+        "eventCount": 12,
+        "persistedV4": true,
+        "fullEventsEqual": true,
+        "sourceImageCount": 2,
+        "stored": [
+          {
+            "sourceBytes": 5803,
+            "sourceSha256": "d667db2faca720d6160d1a206a04a15e28f59d269be7281e020c2cd6fd5c58db",
+            "normalizedBytes": 1320,
+            "normalizedSha256": "8a2dfddecbbf596abc921d105fda4c6f029c0ae7a23e7eb2ca6149981860817e",
+            "normalizedDimensions": [256, 256],
+            "requestVariantId": "sha256:689375b9bc8975985f434cab72305589456ba5a034858740ce1573fd405a776e",
+            "requestVariantBytes": 1320,
+            "requestDimensions": [256, 256],
+            "requestSha256": "8a2dfddecbbf596abc921d105fda4c6f029c0ae7a23e7eb2ca6149981860817e"
+          },
+          {
+            "sourceBytes": 5295,
+            "sourceSha256": "a88f2eb07eca68cdd08beef82cafe54eb61c7fefd905ad4b65f1e24b57314f8c",
+            "normalizedBytes": 1412,
+            "normalizedSha256": "625dd2ec4e86cd468b72c4f16dd91acf86f9acf448156da8f9782051e351b56d",
+            "normalizedDimensions": [256, 256],
+            "requestVariantId": "sha256:ffc759d6b6dfe6ff7cedd26e0e7d3095b6fbae8530014d815505ab3a9bd0aa38",
+            "requestVariantBytes": 1412,
+            "requestDimensions": [256, 256],
+            "requestSha256": "625dd2ec4e86cd468b72c4f16dd91acf86f9acf448156da8f9782051e351b56d"
+          }
+        ],
+        "transport": {
+          "injectedRejections": [
+            {
+              "status": 501,
+              "bytes": 1320,
+              "sha256": "8a2dfddecbbf596abc921d105fda4c6f029c0ae7a23e7eb2ca6149981860817e"
+            }
+          ],
+          "uploads": [],
+          "messages": [],
+          "blockedRequests": 0,
+          "deletedUploads": 0
+        }
+      }
+    },
+    {
+      "budgetMode": "offload",
+      "exitCode": 0,
+      "localTemporaryDirectoryRemoved": true,
+      "credentialKind": "existing-env",
+      "result": {
+        "dshVersion": "0.1.7-rc.2",
+        "filesPolicy": "reject-all",
+        "budgetMode": "offload",
+        "imageOffloadDecisions": 1,
+        "sessionId": "images-731b8fdf-5aa0-40f7-9500-b1a76ca1f9da",
+        "firstVisionAnswerMatched": true,
+        "historyAnswerMatched": true,
+        "wireImagesMatch": true,
+        "completedTurns": 2,
+        "errorTurns": 0,
+        "toolCalls": 0,
+        "eventCount": 25,
+        "persistedV4": true,
+        "fullEventsEqual": true,
+        "sourceImageCount": 2,
+        "stored": [
+          {
+            "sourceBytes": 5267,
+            "sourceSha256": "b657af36a47d191a0b03062c2a4836dc01e096743568c3c0eb5b88f224bd13e1",
+            "normalizedBytes": 1316,
+            "normalizedSha256": "77649a470168f4d850acb31f02ad119bf1c855b85dc70582ccaba004d27b6f7d",
+            "normalizedDimensions": [256, 256],
+            "requestVariantId": "sha256:30e25ba0ef08c3fc6f594687ea193e021b570b2c25c9740174f9be96398d796c",
+            "requestVariantBytes": 1316,
+            "requestDimensions": [256, 256],
+            "requestSha256": "77649a470168f4d850acb31f02ad119bf1c855b85dc70582ccaba004d27b6f7d"
+          },
+          {
+            "sourceBytes": 5664,
+            "sourceSha256": "327a7197ba1d094848241a97b3bc3bfbf1900c86c0cddf0adbedaf886e7444c0",
+            "normalizedBytes": 1422,
+            "normalizedSha256": "890c8b2d3fbbaf3d90ab1141cf7a03d1a0ed48eca5b516fa1a87c2dbe0b41e77",
+            "normalizedDimensions": [256, 256],
+            "requestVariantId": "sha256:716e99fc67a6bef9b3b9ea1ffff3a432f13785758423bed245ea8f8a9545924c",
+            "requestVariantBytes": 1422,
+            "requestDimensions": [256, 256],
+            "requestSha256": "890c8b2d3fbbaf3d90ab1141cf7a03d1a0ed48eca5b516fa1a87c2dbe0b41e77"
+          }
+        ],
+        "transport": {
+          "injectedRejections": [
+            {
+              "status": 501,
+              "bytes": 1316,
+              "sha256": "77649a470168f4d850acb31f02ad119bf1c855b85dc70582ccaba004d27b6f7d"
+            },
+            {
+              "status": 501,
+              "bytes": 1422,
+              "sha256": "890c8b2d3fbbaf3d90ab1141cf7a03d1a0ed48eca5b516fa1a87c2dbe0b41e77"
+            },
+            {
+              "status": 501,
+              "bytes": 1422,
+              "sha256": "890c8b2d3fbbaf3d90ab1141cf7a03d1a0ed48eca5b516fa1a87c2dbe0b41e77"
+            }
+          ],
+          "uploads": [],
+          "messages": [
+            {
+              "status": 200,
+              "fileImages": 0,
+              "inlineImages": 1,
+              "inlineHashes": ["890c8b2d3fbbaf3d90ab1141cf7a03d1a0ed48eca5b516fa1a87c2dbe0b41e77"],
+              "fileHashes": []
+            },
+            {
+              "status": 200,
+              "fileImages": 0,
+              "inlineImages": 1,
+              "inlineHashes": ["890c8b2d3fbbaf3d90ab1141cf7a03d1a0ed48eca5b516fa1a87c2dbe0b41e77"],
+              "fileHashes": []
+            }
+          ],
+          "blockedRequests": 0,
+          "deletedUploads": 0
+        }
+      }
+    }
+  ]
+}

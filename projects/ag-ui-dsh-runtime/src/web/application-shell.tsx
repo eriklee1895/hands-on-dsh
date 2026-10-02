@@ -76,7 +76,7 @@ export function ApplicationShell({
         </p>
       </header>
 
-      <div className="mobile-conversation-picker">
+      <nav className="mobile-conversation-picker" aria-label="Mobile conversations">
         <label htmlFor="mobile-conversation">Conversation</label>
         <div className="mobile-conversation-controls">
           <select
@@ -102,7 +102,7 @@ export function ApplicationShell({
             New
           </button>
         </div>
-      </div>
+      </nav>
 
       <div className="workspace-layout">
         <aside className="conversation-sidebar" aria-label="Conversation navigation">

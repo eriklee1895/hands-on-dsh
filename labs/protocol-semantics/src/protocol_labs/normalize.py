@@ -19,6 +19,25 @@ def normalize_committed_transcript(
     Returns:
         Protocol-neutral user, assistant, and completed-turn records.
     """
+    return [
+        *_committed_messages(prompt, committed_answer),
+        {"kind": "turn_end", "reason": {"kind": "completed"}},
+    ]
+
+
+def normalize_acp_transcript(
+    prompt: str | Sequence[TextBlock], committed_answer: str
+) -> list[dict[str, object]]:
+    """Preserve ACP end_turn without claiming a completed DSH root turn."""
+    return [
+        *_committed_messages(prompt, committed_answer),
+        {"kind": "protocol_end", "protocol": "acp", "stop_reason": "end_turn"},
+    ]
+
+
+def _committed_messages(
+    prompt: str | Sequence[TextBlock], committed_answer: str
+) -> list[dict[str, object]]:
     if isinstance(prompt, str):
         prompt_blocks = [{"type": "text", "text": prompt}]
     else:
@@ -29,5 +48,4 @@ def normalize_committed_transcript(
             "kind": "assistant_message",
             "content": [{"type": "text", "text": committed_answer}],
         },
-        {"kind": "turn_end", "reason": {"kind": "completed"}},
     ]

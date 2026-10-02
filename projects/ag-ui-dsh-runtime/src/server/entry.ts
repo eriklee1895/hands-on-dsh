@@ -1,23 +1,22 @@
 import { EventEmitter } from "node:events";
 import { readFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
 import { createServer, listenLocal } from "./app.js";
 import { RunCoordinator } from "./coordinator.js";
 import { FakeDshRuntime, type DshRuntimePort } from "./runtime.js";
-import { SourceRuntimeManager, type SourceRuntimeManagerOptions } from "./source-runtime.js";
+import { PackageRuntimeManager, type PackageRuntimeManagerOptions } from "./package-runtime.js";
 import { AuthoritativeStore } from "./store.js";
 
 export interface ServerOptions {
-  runtime: "fake" | "source";
+  runtime: "fake" | "package";
   host: "127.0.0.1" | "localhost" | "::1";
   port: number;
   fakeDelayMs: number;
   serveWeb: boolean;
   stateRoot?: string;
-  sourceRoot?: string;
   webRoot?: string;
 }
 
@@ -44,7 +43,6 @@ export function parseServerOptions(
   let fakeDelayMs = 0;
   let serveWeb = false;
   let stateRoot: string | undefined;
-  let sourceRoot: string | undefined;
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
     if (argument === "--serve-web") {
@@ -54,7 +52,8 @@ export function parseServerOptions(
     const value = argumentValue(arguments_, index, argument ?? "argument");
     index += 1;
     if (argument === "--runtime") {
-      if (value !== "fake" && value !== "source") throw new Error("--runtime must be fake|source");
+      if (value !== "fake" && value !== "package")
+        throw new Error("--runtime must be fake|package");
       runtime = value;
     } else if (argument === "--host") {
       if (value !== "127.0.0.1" && value !== "localhost" && value !== "::1")
@@ -66,19 +65,12 @@ export function parseServerOptions(
       fakeDelayMs = integer(value, "--fake-delay-ms", 0, 60_000);
     } else if (argument === "--state-root") {
       stateRoot = value;
-    } else if (argument === "--source-root") {
-      sourceRoot = value;
     } else {
       throw new Error(`unknown argument ${argument}`);
     }
   }
-  if (runtime === undefined) throw new Error("--runtime fake|source is required");
-  if (runtime === "source") {
-    sourceRoot ??= environment.DSH_SOURCE_ROOT;
-    if (sourceRoot === undefined || sourceRoot.trim() === "")
-      throw new Error("source runtime requires --source-root or DSH_SOURCE_ROOT");
-    if (!isAbsolute(sourceRoot)) throw new Error("source runtime root must be absolute");
-  }
+  if (runtime === undefined) throw new Error("--runtime fake|package is required");
+  void environment;
   return {
     runtime,
     host,
@@ -86,7 +78,6 @@ export function parseServerOptions(
     fakeDelayMs,
     serveWeb,
     ...(stateRoot === undefined ? {} : { stateRoot }),
-    ...(sourceRoot === undefined ? {} : { sourceRoot }),
   };
 }
 
@@ -120,8 +111,8 @@ export interface ApplicationServer {
 export async function createApplicationServer(
   options: ServerOptions,
   dependencies: {
-    testOnlySourceRuntimeFactory?: (
-      options: SourceRuntimeManagerOptions,
+    testOnlyPackageRuntimeFactory?: (
+      options: PackageRuntimeManagerOptions,
     ) => Promise<DshRuntimePort>;
     environment?: NodeJS.ProcessEnv;
   } = {},
@@ -194,11 +185,10 @@ export async function createApplicationServer(
       fake.delayMs = options.fakeDelayMs;
       runtime = fake;
     } else {
-      const sourceRuntimeFactory =
-        dependencies.testOnlySourceRuntimeFactory ??
-        SourceRuntimeManager.create.bind(SourceRuntimeManager);
-      runtime = await sourceRuntimeFactory({
-        sourceRoot: resolve(options.sourceRoot!),
+      const packageRuntimeFactory =
+        dependencies.testOnlyPackageRuntimeFactory ??
+        PackageRuntimeManager.create.bind(PackageRuntimeManager);
+      runtime = await packageRuntimeFactory({
         appStateRoot: stateRoot,
         parentEnv: dependencies.environment ?? process.env,
       });

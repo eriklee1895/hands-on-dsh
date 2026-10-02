@@ -16,21 +16,22 @@ await runCli(async () => {
 
   const launch = await resolveRuntimeLaunch({
     exampleName: "04-low-level-client",
-    ...(args.sourceRoot === undefined ? {} : { sourceRoot: args.sourceRoot }),
-    ...(args.configPath === undefined ? {} : { configPath: args.configPath }),
+    ...(args.patch === undefined ? {} : { patches: [args.patch] }),
   });
-  const client = new HarnessClient(launch.options);
+  let client: HarnessClient | undefined;
 
   try {
-    const result = await withOwnerDeadline("example 04", args.deadlineMs, client, async () => {
-      client.start();
-      const initialized = await client.initialize({
+    const owner = new HarnessClient(launch.options);
+    client = owner;
+    const result = await withOwnerDeadline("example 04", args.deadlineMs, owner, async () => {
+      owner.start();
+      const initialized = await owner.initialize({
         cwd: launch.state.workspace,
         provider: launch.provider,
         model: launch.model,
       });
       const run = await runLowLevelPrompt(
-        client,
+        owner,
         args.sessionId ?? "typescript-low-level",
         args.prompt ?? "请只用文字回答：底层 TypeScript client 已连接。不要调用工具。",
       );
@@ -44,13 +45,12 @@ await runCli(async () => {
           finalResponse: result.run.finalResponse,
           notificationCount: result.run.notifications.length,
         },
-        launch.source,
         launch.state,
         process.env.DEEPSEEK_API_KEY,
       )}\n`,
     );
   } finally {
-    await client.close();
+    if (client !== undefined) await client.close();
     await cleanupRuntimeState(launch.state);
   }
 });

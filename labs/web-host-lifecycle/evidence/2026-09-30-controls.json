@@ -1,0 +1,100 @@
+{
+  "dshVersion": "0.1.7-rc.2",
+  "sessionIds": {
+    "approval": "session-fe2ab813-366c-4ea3-8f85-9b52be57fc6e",
+    "cancel": "session-149818a1-cea4-49a4-8fd3-61573584ee87",
+    "reconnect": "session-4eddfda3-a76f-4fa1-bd51-3a441b49a497"
+  },
+  "approval": {
+    "denied": {
+      "approvalId": "93f6f819-d097-441a-bda0-e16c98b6704d",
+      "outcome": "rejected",
+      "turn": 1,
+      "toolCalls": 2,
+      "toolCallId": "call_00_aaAWnyxk4UgH18Fu2RFA9804"
+    },
+    "allowed": {
+      "approvalId": "ec78f06f-ed5c-451a-b338-ab85391a91b2",
+      "outcome": "allowed-once",
+      "turn": 2,
+      "toolCalls": 2,
+      "toolCallId": "call_00_ET_NLWKFHNDUdrCUZMIUw104738"
+    },
+    "persistentMode": "read-only",
+    "events": 61
+  },
+  "cancel": {
+    "turn": 1,
+    "toolCallId": "call_00_Y6VbTXUqqtYEu2XSS2pA2935",
+    "reason": {
+      "kind": "aborted",
+      "reason": {
+        "kind": "user"
+      }
+    },
+    "events": 22,
+    "startedMarkerRetained": true,
+    "lateEffectAbsent": true,
+    "checkedAfterOriginalDelay": true
+  },
+  "reconnect": {
+    "turn": 1,
+    "toolCallId": "call_00_UAXXHXKR5u2FsHHrXDF89617",
+    "completed": true,
+    "events": 26,
+    "exactlyOneAppendObserved": true
+  },
+  "artifactBytes": 36,
+  "artifactSha256": "3f3f8f6f0f5eef5436d4c19047e7487ad47ab14e708d128ceab1633cc4eef57a",
+  "publicBackendReopened": true,
+  "date": "2026-09-30",
+  "platform": "macOS arm64",
+  "nodeVersion": "26.7.0",
+  "hostPid": 6762,
+  "hostExitCode": 130,
+  "browserAutomation": "agent-browser 0.37.0 / Chromium",
+  "approvalUi": {
+    "pendingDeniedFileAbsent": true,
+    "pendingAllowedFileAbsent": true,
+    "afterAllowAccessMode": "read-only",
+    "exactFinalReplies": ["DENIED", "ALLOWED"]
+  },
+  "cancelProcesses": {
+    "observedAt": 1790762337.384185,
+    "pids": [22269, 22270],
+    "remainingAfterCancel": []
+  },
+  "offline": {
+    "sessionId": "session-4eddfda3-a76f-4fa1-bd51-3a441b49a497",
+    "browserOfflineCommandSucceeded": true,
+    "artifactAbsentBeforeOffline": true,
+    "reloadDocument": "chrome-error://chromewebdata/",
+    "reloadErrorText": "ERR_INTERNET_DISCONNECTED",
+    "markerMtime": 1790762510.8760915,
+    "artifactMtime": 1790762522.8927517,
+    "fileObservedBeforeReturningOnline": true,
+    "offlineObservationAt": 1790762609.570198
+  },
+  "reconnectedUi": {
+    "sameSelectedSession": true,
+    "exactReplyCount": 1,
+    "turns": 1,
+    "steps": 2
+  },
+  "hostProcessSnapshot": {
+    "pids": [6707, 6761, 6762],
+    "beforeStopAt": 1790762637.276033,
+    "remainingAfterStop": []
+  },
+  "browserReconnectMetadata": {
+    "socketPaths": ["/api/remote.mux"],
+    "baselineFrames": 4,
+    "snapshotFrames": 2,
+    "socketCreationCount": 15,
+    "observerExitCode": 1,
+    "observerExitDiagnostic": "CDP observer failed",
+    "stopOrder": "browser closed before observer"
+  },
+  "sourceRevision": "477b4f420553e8a52c2fbccc464d7561b239c443",
+  "experimentDirectoryRemovedAfterVerification": true
+}

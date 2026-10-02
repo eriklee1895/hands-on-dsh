@@ -138,9 +138,10 @@ class SdkProbe:
         descendant_events = 0
         subagent_finished = 0
         foreign_events = 0
-        raw_text: list[str] = []
         committed_answer: str | None = None
         turn_completed = False
+        root_turn_end_reason: str | None = None
+        root_tool_calls = 0
         deadline = asyncio.get_running_loop().time() + timeout
         while True:
             remaining = deadline - asyncio.get_running_loop().time()
@@ -216,21 +217,20 @@ class SdkProbe:
                 continue
             event_type = event.get("type")
             data = event["data"]
-            if event_type == "assistant/chunk":
-                chunk = data.get("chunk")
-                if (
-                    isinstance(chunk, dict)
-                    and chunk.get("type") == "text-delta"
-                    and isinstance(chunk.get("text"), str)
-                ):
-                    raw_text.append(chunk["text"])
-            elif event_type == "assistant/message":
+            if event_type == "assistant/message":
                 message = data.get("message")
                 if isinstance(message, dict):
                     committed_answer = _content_text(message.get("content"))
+            elif event_type == "tool/call":
+                root_tool_calls += 1
             elif event_type == "turn/end":
                 reason = data.get("reason")
-                turn_completed = isinstance(reason, dict) and reason.get("kind") == "completed"
+                root_turn_end_reason = (
+                    reason.get("kind")
+                    if isinstance(reason, dict) and isinstance(reason.get("kind"), str)
+                    else None
+                )
+                turn_completed = root_turn_end_reason == "completed"
         if not receipt_matched:
             raise RuntimeError("root settlement lacked the matching inbox receipt")
         return {
@@ -242,9 +242,10 @@ class SdkProbe:
             "settlement": "receipt-to-root-idle",
             "staleRootIdleIgnored": stale_root_idle,
             "staleRootEventsIgnored": stale_root_events,
-            "rawTextDeltas": raw_text,
             "committedAnswer": committed_answer,
             "completedTurnObserved": turn_completed,
+            "rootTurnEndReason": root_turn_end_reason,
+            "rootToolCalls": root_tool_calls,
             "transcript": (
                 normalize_committed_transcript(prompt, committed_answer)
                 if committed_answer is not None and turn_completed

@@ -1,0 +1,11 @@
+# Compaction 运行证据设计
+
+固定npm SDK/runtime0.1.7rc2，新增compaction-lifecycle lab，不改上游。闭环：确定性真实engine验证 + 公开SDK真实pressure compaction + 文件产物 + 关闭后从公开persistence backend重新读取、重建surface。
+
+Keyless：发布Context/Agent/Loop/TokenMeter/BasicCompactionEngine，唯一fixture LlmAdapter提供普通回复和purpose=compaction摘要，不模拟engine事务。验证成功bracket/replacement、原事件prefix不变、旧内容从surface消失但仍在log、后续request实际使用summary、no-op不写日志、summary错误不提交replacement；实际provider的overflow不在本批范围。
+
+Live：sdk-minimal显式挂token-meter与compaction-basic，保留已有sessions/session-projection，配置早期pressure阈值、固定retainTokens和summary maxTokens，关闭overflow恢复及每触发的额外摘要重试；后续step仍可能重新触发pressure。第一轮只提交随机recovery code和可丢弃噪声，要求READY且工具0；第二轮不再给code，只要求一次精确Bash printf模板将记忆code写proof.txt，再回复DONE。assert compaction summary真实记录llmStreamCall/route/usage、seed seq处于shadowedSeqs、replacement引用正确且checkpoint保留code，压缩早于proof所属step且其他保留消息不含code、根turn completed、实际tool命令只写proof不读log、文件字节等于code。
+
+只使用临时自有workspace/HOME/dshHome，env只给需要字段和已授权DeepSeek key；不输出key或原始provider错误。SDKclose确认后用新Context挂公开JsonlPersistence只读打开session，完整events构建Session surface；验证压缩后projection等于同一log前缀的现场折叠、旧seed仍在log但不再在当前surface，summary中code存在。整个记录与surface不能混为一谈。
+
+parent拥有live、verify/reopen helpers、docs与机器证据；独立agent拥有keylessengine tests。所有实际模型请求单独记录，不把fixture摘要当作真实模型质量，不把compaction当作原始内容删除或安全脱敏。

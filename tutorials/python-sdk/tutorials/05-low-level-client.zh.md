@@ -4,7 +4,7 @@
 
 ## 结果
 
-使用 [`05_low_level_client.py`](../05_low_level_client.py)执行 `Session.run()` 隐藏的生命周期：初始化运行时、在入队前订阅、获取 `messageId`、关联其持久 inbox 回执、流式输出根会话文本，并在空闲状态完成结算。
+使用 [`05_low_level_client.py`](../05_low_level_client.py)执行 `Session.run()` 隐藏的生命周期：初始化运行时、在入队前订阅、获取 `messageId`、关联其持久 inbox 回执、投影根会话已提交消息，并在空闲状态完成结算。
 
 ## 前置要求
 
@@ -15,11 +15,11 @@
 ```sh
 uv run python 05_low_level_client.py \
   --session-id python-demo-05 \
-  --session-root /tmp/dsh-demo-05 \
+  --dsh-home /tmp/dsh-demo-05 \
   "Reply with exactly: PYTHON_DEMO_05_OK"
 ```
 
-输出包含流式文本、服务器元数据、已接受的消息 ID 和观察到的会话事件数量。
+输出包含已提交的根会话回复、服务器元数据、已接受的消息 ID 和观察到的会话事件数量。
 
 ## 工作原理
 
@@ -33,19 +33,19 @@ sequenceDiagram
     App->>Client: subscribe(session tree)
     App->>Client: session_prompt
     Client->>Runtime: session/prompt
-    Runtime-->>Client: result messageId
     Runtime-->>Client: agent/inbox/spliced
+    Runtime-->>Client: result messageId
     Note over App,Runtime: Owned activity interval starts
     Runtime-->>Client: session.event stream
     Runtime-->>Client: session.status idle
     Note over App,Runtime: Owned activity interval ends
 ```
 
-公开方法位于 [`HarnessClient`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/client.py)。[`Session.run()`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/api.py)的高层实现使用相同的回执到空闲规则，再派生 `final_response` 与 `finish_reason`。
+公开方法位于 [`HarnessClient`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/client.py)。[`Session.run()`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/api.py)的高层实现使用相同的回执到空闲规则，再派生 `final_response` 与 `finish_reason`。
 
 ## 验证
 
-确认服务器能标识自身、`message_id` 非空、文本先于最终计数器到达，而且进程干净退出。事件数量随模型行为和配置而变化；业务代码不应断言精确值。
+确认服务器能标识自身、`message_id` 非空、已提交回复与最终计数器一起输出，而且进程干净退出。事件数量随模型行为和配置而变化；业务代码不应断言精确值。
 
 ## 限制
 

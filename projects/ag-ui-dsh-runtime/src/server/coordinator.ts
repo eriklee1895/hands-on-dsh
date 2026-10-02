@@ -250,6 +250,7 @@ export class RunCoordinator {
       let callbackFailure: unknown;
       let rawAuthorityFailure = false;
       let proofResultSeen = false;
+      let lastRootTurnEnd: string | undefined;
       const result = await this.runToDrain({
         sessionId: conversation.dshSessionRef,
         prompt: input.prompt,
@@ -284,27 +285,32 @@ export class RunCoordinator {
             if (
               notification.method === "session.event" &&
               notification.params.sessionId === conversation.dshSessionRef &&
+              event?.type === "turn/end"
+            ) {
+              const reason = event.data?.reason;
+              const kind =
+                typeof reason === "object" && reason !== null && !Array.isArray(reason)
+                  ? (reason as Record<string, unknown>).kind
+                  : undefined;
+              if (typeof kind !== "string" || kind === "")
+                throw new Error("root turn end has no finish reason");
+              lastRootTurnEnd = kind;
+            }
+            if (
+              notification.method === "session.event" &&
+              notification.params.sessionId === conversation.dshSessionRef &&
               event?.type === "tool/result" &&
               proofCallId !== undefined
             ) {
               const message = event.data?.message;
-              const content =
-                typeof message === "object" && message !== null && !Array.isArray(message)
-                  ? (message as Record<string, unknown>).content
-                  : undefined;
-              const result = Array.isArray(content)
-                ? content.find(
-                    (block) =>
-                      typeof block === "object" &&
-                      block !== null &&
-                      !Array.isArray(block) &&
-                      (block as Record<string, unknown>).type === "tool-result" &&
-                      (block as Record<string, unknown>).toolCallId === proofCallId,
-                  )
-                : undefined;
-              if (result !== undefined) {
+              if (
+                typeof message === "object" &&
+                message !== null &&
+                !Array.isArray(message) &&
+                (message as Record<string, unknown>).toolCallId === proofCallId
+              ) {
                 if (proofResultSeen) throw new Error("multiple proof tool results");
-                if ((result as Record<string, unknown>).isError === true)
+                if ((message as Record<string, unknown>).isError !== false)
                   throw new Error("proof tool result reported an error");
                 proofResultSeen = true;
               }
@@ -330,6 +336,8 @@ export class RunCoordinator {
       }
       if (callbackFailure !== undefined) throw callbackFailure;
       projector.assertClosed();
+      if (lastRootTurnEnd !== "completed")
+        throw new Error(`root agent finished with reason ${lastRootTurnEnd ?? "missing"}`);
       if (proofCallId === undefined) throw new Error("proof tool was not called exactly once");
       if (!proofResultSeen) throw new Error("proof tool result was not observed exactly once");
       proofSnapshotted = await this.snapshotProofArtifact(

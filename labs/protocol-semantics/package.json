@@ -1,0 +1,13 @@
+{
+  "name": "hands-on-dsh-protocol-semantics-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.7-rc.2"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "packageManager": "pnpm@12.3.4"
+}

@@ -1,5 +1,6 @@
 import type { HarnessClient, HarnessNotification } from "@deepseek-ai/dsh-sdk-client";
 import { textOfAssistantEvent } from "./notification-projection.ts";
+import { requireCompletedTurn } from "./run-outcome.ts";
 
 export interface LowLevelRunResult {
   readonly messageId: string;
@@ -43,6 +44,7 @@ export async function runLowLevelPrompt(
   const subscription = client.subscribeSessionTree(sessionId);
   const notifications: HarnessNotification[] = [];
   const observedRootEvents: string[] = [];
+  const rootEvents: unknown[] = [];
   let finalResponse = "";
   try {
     const messageId = await client.prompt(sessionId, [{ type: "text", text: input }]);
@@ -55,6 +57,7 @@ export async function runLowLevelPrompt(
       }
       notifications.push(notification);
       if (notification.method === "session.event" && notification.params.sessionId === sessionId) {
+        rootEvents.push(notification.params.event);
         const text = textOfAssistantEvent(notification.params.event);
         if (text !== undefined) {
           observedRootEvents.push(text);
@@ -66,6 +69,7 @@ export async function runLowLevelPrompt(
         notification.params.sessionId === sessionId &&
         notification.params.status === "idle"
       ) {
+        requireCompletedTurn(rootEvents);
         return { messageId, finalResponse, notifications, observedRootEvents };
       }
     }

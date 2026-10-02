@@ -15,15 +15,15 @@ Complete [Tutorial 05](05-low-level-client.md). The installed `deepseek-harness-
 ```sh
 uv run python 06_raw_jsonrpc.py \
   --session-id python-demo-06 \
-  --session-root /tmp/dsh-demo-06 \
+  --dsh-home /tmp/dsh-demo-06 \
   "Reply with exactly: PYTHON_DEMO_06_OK"
 ```
 
-The script prints the initialize result, prompt message ID, live text, and exits after a successful shutdown response.
+The script prints the prompt message ID and final root committed response, then exits after a successful shutdown response.
 
 ## How it works
 
-The script resolves the runtime carrier and default Cordis config from `deepseek_harness_runtime`, spawns the process with piped stdio, drains stdout and stderr concurrently, encodes one compact JSON-RPC object per line, correlates responses by ID, consumes notifications, and enforces the same durable-receipt-to-idle interval as the SDK.
+The script resolves the published runtime carrier and launches its public `dsh --profile sdk-minimal` entry, spawns the process with piped stdio, drains stdout and stderr concurrently, encodes one compact JSON-RPC object per line, correlates responses by ID, consumes notifications, and enforces the same durable-receipt-to-idle interval as the SDK.
 
 ```mermaid
 flowchart TD
@@ -38,11 +38,11 @@ flowchart TD
     Shutdown --> Reap[Close stdin and reap process]
 ```
 
-Compare this file with [`client.py`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/client.py): the SDK additionally owns concurrent request waiters, filtered subscriptions, descendant discovery, diagnostics, timeout behavior, transport closure errors, and reusable lifecycle management.
+Compare this file with [`client.py`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/client.py): the SDK additionally owns concurrent request waiters, filtered subscriptions, descendant discovery, diagnostics, timeout behavior, transport closure errors, and reusable lifecycle management.
 
 ## Verify it
 
-Confirm all three response IDs complete, streamed text is present, and no runtime process remains after exit. A failure should include recent stderr diagnostics without revealing credentials.
+Confirm the prompt ID and committed response, a clean shutdown, and no runtime descendants after exit. A total activity deadline and EOF error prevent indefinite waiting; stderr is drained without echoing possible credentials.
 
 ## Limitations
 

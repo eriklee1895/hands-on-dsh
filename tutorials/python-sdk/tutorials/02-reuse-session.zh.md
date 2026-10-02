@@ -8,14 +8,14 @@
 
 ## 前置要求
 
-完成[教程 01](01-hello.zh.md)。在同一个会话根目录下重复本教程时，请选择新的会话 ID，因为复用 ID 会恢复持久对话。
+完成[教程 01](01-hello.zh.md)。使用保留的 Harness home 重复本教程时，请选择新的会话 ID，因为复用 ID 会恢复持久对话。
 
 ## 运行
 
 ```sh
 uv run python 02_reuse_session.py \
   --session-id python-demo-02 \
-  --session-root /tmp/dsh-demo-02
+  --dsh-home /tmp/dsh-demo-02
 ```
 
 第一轮输出 `stored`，第二轮输出 `SAFFRON`。
@@ -38,12 +38,12 @@ sequenceDiagram
     Runtime-->>SDK: SAFFRON
 ```
 
-可复用实例与会话句柄位于 [`api.py`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/api.py)。会话历史来自 DSH 持久事件，而不是 Python 侧的消息数组。
+可复用实例与会话句柄位于 [`api.py`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/api.py)。会话历史来自 DSH 持久事件，而不是 Python 侧的消息数组。
 
 ## 验证
 
-检查两个精确答案并查看会话根目录。两个轮次必须属于同一个会话标识；运行时只有在第二轮之后才关闭。
+检查两个精确答案并查看所选 Harness home。两个轮次必须属于同一个会话标识；运行时只有在第二轮之后才关闭。
 
 ## 限制
 
-当前 SDK 不暴露会话列表、读取、fork、删除或显式恢复方法。在所配置的持久化实现支持时，复用 ID 可以恢复持久历史，但应用代码必须拥有自己的会话目录。继续阅读[教程 03](03-stream-events.zh.md)了解实时输出。
+当前 SDK 不暴露会话列表、读取、fork、删除或显式恢复方法。本脚本只证明同一运行进程内的复用。跨进程恢复取决于所选 profile、保留的 home 与会话持久化；这里没有验证。应用代码必须维护自己的会话目录。继续阅读[教程 03](03-stream-events.zh.md)了解已提交消息通知。

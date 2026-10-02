@@ -1,167 +1,70 @@
-# TypeScript SDK：从显式 runtime 到底层 receipt-to-idle
+# TypeScript SDK：从公开 profile 到底层 receipt-to-idle
 
-这是一组独立的中文 TypeScript 教程。目标不是再手写一套 JSON-RPC client，而是用 DSH 已发布的 TypeScript SDK 学会四件事：显式拉起 runtime、复用 session、投影通知、理解底层 receipt-to-idle 结算。
+本教程用四个独立示例学习 DSH TypeScript SDK：启动发布版 runtime、复用一个 session、读取通知并核对工具产物，以及直接使用底层 JSON-RPC client。先运行最小示例，再阅读相应源码。
 
-本教程锁定以下版本，不跟随 `latest` 漂移：
+## 版本与前置条件
 
-- DSH SDK/runtime：`0.1.1-rc.2`
-- upstream tag：`dsh-v0.1.1-rc.2`
-- upstream commit：`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`
-- Node：`^22.19.0 || >=24.0.0`
-- pnpm：`11.7.0`
-
-## 先理解运行边界
-
-TypeScript 包 `@deepseek-ai/dsh-sdk-client` 提供高层 `DeepSeekHarness` 和底层 `HarnessClient`，但不像 Python 包那样携带并自动解析一个 bundled runtime。本教程因此显式指向一份已经构建的 DSH upstream checkout：
-
-```text
-TypeScript example
-  -> @deepseek-ai/dsh-sdk-client
-  -> child process: node <upstream>/packages/examples/jsonrpc-demo/lib/bin.js
-  -> <upstream>/examples/jsonrpc-agent/minimal.cordis.yml
-  -> stdio JSONL / SDK JSON-RPC
-```
-
-`src/runtime-launch.ts` 是唯一的真实 runtime 启动解析器。它在创建任何运行状态前验证：源码绝对路径、两个 tracked-clean 检查、HEAD、tag、根 package 版本、built bin 和配置文件。Git 子进程使用清理后的环境和显式 `git -C <source>`，父进程的 `GIT_DIR`、`GIT_WORK_TREE` 或 `GIT_CONFIG*` 不能把检查重定向到另一个仓库。无关的 untracked 文件不会使检查失败。
-
-每次调用都会创建一个新的 `.runtime/<example>-<random>/`，其中包含独立的 workspace、session root、HOME 和 DSH_HOME。传给子进程的 `env` 是替换环境：只保留运行所需的 PATH、临时目录、locale、证书变量，再加入 DeepSeek 凭据和固定 DSH 配置。代理、云凭据、其他 secret、`DSH_CORDIS_CONFIG` 都不会继承。
-
-## 安全警告
-
-本教程使用 upstream 的 `minimal.cordis.yml`。该配置挂载持久 Bash 和编辑工具，并把 sandbox policy 固定为 `danger-full-access`。
-
-`.runtime/.../workspace` 是任务目标目录，不是安全隔离边界。示例 03 要求模型只写该目录，但 runtime 本身有能力访问目录外。真实模型运行只支持 macOS/Linux，并且必须在一次性 checkout、容器或你明确愿意让 Agent 操作的机器环境中执行。
-
-## 安装
-
-从本目录运行：
+- npm SDK/runtime：精确锁定 `0.1.7-rc.2`，上游 tag `dsh-v0.1.7-rc.2`，commit `477b4f420553e8a52c2fbccc464d7561b239c443`。
+- Node：`^22.19.0 || >=24.0.0`；pnpm：`12.3.4`。项目使用 strict ESM/NodeNext，`node --import tsx` 运行 TypeScript。
+- 需要可用的 `DEEPSEEK_API_KEY`。可选 `DEEPSEEK_BASE_URL` 必须兼容这个发行版的 Messages 请求。下面的命令从本目录执行，并通过仓库根目录被忽略的 `.env` 向父进程提供凭据。
 
 ```sh
-corepack pnpm install --frozen-lockfile
+cd tutorials/typescript-sdk
+pnpm install --frozen-lockfile
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm format:check
 ```
 
-项目使用 strict ESM/NodeNext。TypeScript 文件通过 `node --import tsx` 执行，不依赖 Node 内建 type stripping。`skipLibCheck` 只避开 rc.2 发布包的传递声明缺少可选 peer 类型的问题；本教程自己的 `src/`、`examples/` 和 `tests/` 仍在 `strict` 下检查。
+发布版 `@deepseek-ai/dsh-sdk-client` 的默认 resolver 从同版本 `@deepseek-ai/dsh` 包定位 CLI；`src/runtime-launch.ts` 只传公开 `profile: "sdk-minimal"`、独立的 `dshHome` 和 `processCwd`。每次示例创建自己的 `.runtime/<example>-<random>/workspace`，并用替换环境只传必要的路径、locale、证书和 DeepSeek 凭据。可用 `--patch <绝对路径>` 追加 profile patch。四个示例都有 `--help`、`--prompt`、`--session`、`--deadline-ms`；示例 02 另有 `--second-prompt` 和 `--nonce`；默认运行由同版本 resolver 定位发布版 CLI，profile 始终是 `sdk-minimal`。
 
-## 准备 upstream runtime
+`sdk-minimal` 配置允许 Agent 使用工具并具有 `danger-full-access` 执行策略。临时 workspace 和 home 用于确定示例产物的位置，并不限制进程读取或修改其他路径。真实模型运行应放在可丢弃的开发环境。
 
-使用一份可丢弃的 DSH checkout，并把它切到固定 tag。运行真实示例之前执行：
+## 1. 显式启动高层 SDK
 
 ```sh
-git rev-parse HEAD
-git rev-parse 'dsh-v0.1.1-rc.2^{commit}'
-git diff --quiet
-git diff --cached --quiet
-corepack pnpm install --frozen-lockfile
-corepack pnpm run build
-git diff --quiet
-git diff --cached --quiet
+node --env-file=../../.env --import tsx examples/01_explicit_launch.ts
 ```
 
-两个 revision 输出必须都是 `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`。构建后再次检查 tracked worktree 和 index，不能只根据 `lib/bin.js` 已存在就推断产物来自正确源码。
+`DeepSeekHarness` 懒启动同版本 runtime，完成 initialize 和一次 prompt。输出包含 session ID、最终文本及事件数。示例检查最后一个 `turn/end.reason.kind` 为 `completed`；只得到一个 resolved Run 不代表模型完成。
 
-根 `.env` 只由示例的父 Node 进程读取。runtime 子进程不会搜索本仓库根 `.env`，也不会继承整个父环境。运行形式如下：
+## 2. 复用 runtime 和 session
 
 ```sh
-DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness \
-  node --env-file=../../.env --import tsx examples/01_explicit_launch.ts
+node --env-file=../../.env --import tsx examples/02_reuse_session.ts
 ```
 
-也可以用 `--source-root <绝对路径>` 覆盖 `DSH_SOURCE_ROOT`。所有示例都有 `--help`，并支持 `--prompt`、`--session` 和 `--deadline-ms`；示例 02 另有 `--second-prompt`。
+同一个 `DeepSeekHarness` 和 `HarnessSession` 连续执行两个 turn。默认代号为 `amber`；`--nonce SAFFRON` 会把默认第一轮 prompt 改为记住 `SAFFRON`。第二轮回复经过首尾空白去除与 Unicode NFKC 规范化后，必须与所选代号完全相等；`chamber` 或 `memory: amber` 都不能证明回忆成功。每轮还必须以 `completed` 结束。自定义 `--prompt` 或 `--second-prompt` 改变代号时，应同时传入匹配的 `--nonce`，并让第二轮只回答代号原文。这个例子验证同一进程内复用，不演示关闭后重新启动并恢复 session。
 
-高级 plugin gate 可用 `--config <绝对路径>` 覆盖 minimal composition。launcher 只接受位于同一固定 upstream checkout 的 `tmp/` 下、真实存在且经该仓库 `git check-ignore` 确认 ignored 的文件；relative、checkout 外部或 tracked 配置都会在创建 runtime state 前拒绝。该能力用于独立 ignored composition，不修改 checked-in minimal config。
-
-## 四个渐进示例
-
-### 1. 显式启动高层 SDK
+## 3. 通知投影与外部产物
 
 ```sh
-DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness \
-  node --env-file=../../.env --import tsx examples/01_explicit_launch.ts
+node --env-file=../../.env --import tsx examples/03_notification_stream.ts
 ```
 
-观察 source revision、session ID、最终文本和事件数量。高层 `DeepSeekHarness.start()` 不返回 `serverInfo`；wire handshake 的固定 identity 会在示例 04 中看到。
+`onNotification` 接收 session tree 通知。`NotificationProjection` 只使用 root session 的已提交 `assistant/message`，把 `rootText` 更新为最后一条消息；child 和 foreign session 文本不会进入最终答案。它还计数 root 工具事件、subagent 及运行状态。本版 SDK server 不下发实时 `agent/assistant-stream`，因此这个示例不宣称逐 token 输出。
 
-### 2. 复用 runtime 和 session
+示例要求工具写入 `dsh-typescript-proof.txt`，随后由 Node 直接读取文件，与 `hands-on-dsh TypeScript SDK proof\n` 的 34 个 UTF-8 字节逐字节比较。模型说“已创建”不构成验证。关闭 runtime 成功后，示例删除自己创建的状态目录。
+
+## 4. 底层 HarnessClient
 
 ```sh
-DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness \
-  node --env-file=../../.env --import tsx examples/02_reuse_session.ts
+node --env-file=../../.env --import tsx examples/04_low_level_client.ts
 ```
 
-同一个 `DeepSeekHarness` 只拥有一个懒启动的 runtime 子进程；同一个 `HarnessSession` ID 让第二个 turn 读取第一轮 session 历史。进程复用和 session 记忆是两个不同事实。
+示例显式执行 `start → initialize → subscribeSessionTree → prompt → receipt → root idle → close`。`session/prompt` 返回 message ID，表示 inbox receipt；它本身不是完整 turn。底层循环忽略 matching receipt 之前的通知，只从 receipt 后收集 root `assistant/message`，且在下一次 root `idle` 前检查 `turn/end=completed`。child 和 foreign 消息不充当 root 最终回答；异常 EOF 会使订阅拒绝。
 
-### 3. 通知投影与外部产物
+四例都有包住整个活动的 deadline。单个 JSON-RPC request timeout 不覆盖 receipt-to-idle 的全部等待；到期时关闭拥有进程的 harness/client。清理只有在 SDK close 确认后执行，关闭失败时保留状态目录供排查。
 
-```sh
-DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness \
-  node --env-file=../../.env --import tsx examples/03_notification_stream.ts
-```
+## Keyless 测试与真实观察
 
-callback 收到 session tree 的通知。`NotificationProjection` 只把 root session 的 `assistant/chunk` 中 `text-delta` 增量加入 `rootText`，不再重复拼接随后提交的 `assistant/message`；child 文本也不会进入 root 输出。高层 `RunResult.finalResponse` 和示例 04 的底层结算仍从 committed `assistant/message` 取最终答案。投影同时统计 tool、subagent 和 running/idle 事件。示例独立读取 proof 文件并比较精确字节，不把模型回复当作工具成功的证明。关闭 runtime 并完成字节验证后才删除该次 `.runtime` 状态。
+`tests/fixtures/fake-runtime.mjs` 是显式传给公开 `dshBin` 选项的测试 CLI，要求规范的 `--profile sdk-minimal` 参数；应用示例使用默认同版本 resolver。测试验证 profile 选项、替换环境、ownership cleanup、两轮记忆、matching receipt 前后顺序、root/child/foreign 过滤、精确工具字节、EOF、协议错误、deadline 和强制回收。fixture 生成已提交的消息事件；它不模拟未下发的实时流。
 
-### 4. 底层 HarnessClient
+2026-09-28 在 Node 26.7.0、pnpm 12.3.4、macOS arm64 上，`pnpm test`、`pnpm typecheck`、`pnpm lint`、`pnpm format:check` 与四个真实入口分别执行。真实结果：示例 01 收到“TypeScript SDK 已连接。”；示例 02 的两轮回复包含 `amber`；示例 03 记录 1 次 tool call/result、精确 34 字节 proof；示例 04 收到 runtime identity 和 matching receipt，在 root idle 后得到最终回答。外部进程采样分别运行四例，捕获后代 PID 数量为 2、2、12、2；各父进程退出后对应 PID 均不存在，且示例 03 的 proof 验证成功。这些是正常关闭的观察，不扩展为任意异常情况下所有后代都会退出的保证。
 
-```sh
-DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness \
-  node --env-file=../../.env --import tsx examples/04_low_level_client.ts
-```
+## 源码与限制
 
-该示例显式执行 `start -> initialize -> subscribe -> session/prompt -> shutdown`。`session/prompt` 返回的 message ID 只是 inbox receipt identity，不是完整 Run。receipt 是 `next-turn` inbox 的插入事件；真正运行随后记录从 1 开始的 `turn/start`、删除该项的 claim splice、从 1 开始的 `step/start` 和 model-visible `user/message` surface。客户端忽略 matching receipt 之前的所有通知；看到 receipt 后，只在下一次 root `idle` 才结算。
+固定版本的[公开 launch resolver](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/client/src/launch.ts)、[高层 API](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/client/src/api.ts)、[底层 client](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/client/src/client.ts)和[server 通知转发](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/server/src/server.ts)是本教程的源码依据。旧版行为与日期分开的记录见[迁移审查](../../docs/reviews/2026-09-28-upstream-refresh.md)。
 
-四个示例都用外层 receipt-to-idle deadline。`requestTimeoutMs` 只限制单次 JSON-RPC 请求，不能替代完整 turn 的 deadline；SDK JSON-RPC rc.2 没有 cancel，所以 deadline 到期时必须关闭拥有 runtime 的 harness/client。
-
-## Keyless 验证
-
-测试使用 `tests/fixtures/fake-runtime.mjs`，不会读取真实 API key，也不会启动 DSH upstream 或真实模型。fake runtime 使用 rc.2 的 JSONL envelope，并在 `session/prompt` response 之前先排入 matching inbox receipt；请求并发处理，因此挂起的 prompt 不会阻塞 shutdown。它为每个 session 维护独立单调 seq，并生成本教程读取的完整 turn/step、chunk/message、tool call/result、surface 和 source-link 字段。
-
-```sh
-corepack pnpm install --frozen-lockfile
-corepack pnpm test
-corepack pnpm typecheck
-corepack pnpm lint
-corepack pnpm format:check
-```
-
-覆盖范围包括：精确依赖 pin、scrubbed Git/source gate、替换环境、安全回滚与 ownership cleanup、懒启动与复用、两轮记忆、完整 transcript、receipt 前过滤、root/foreign/descendant 过滤、工具产物、`-32603`、malformed result、request timeout、EOF、协作关闭、强制回收和幂等 close。四个 CLI 除了 `--help`，还分别通过 fake source/runtime 完成成功编排、产物验证、状态清理和凭据/本地路径脱敏。
-
-## 真实 rc.2 验收记录（2026-08-31）
-
-真实 gate 使用一份创建前确认不存在的 disposable DSH worktree。fresh `pnpm install --frozen-lockfile` 和完整 `pnpm run build` 成功；build 前后 `HEAD`、tag、package version、tracked worktree/index 和两个 runtime artifact 均满足本教程 gate。
-
-从本目录使用根 `.env` 逐个执行四个入口，命令形式保持一致：
-
-```sh
-DSH_SOURCE_ROOT=<disposable-rc2-worktree> \
-  node --env-file=../../.env --import tsx examples/<example>.ts \
-  --session <unique-session> --deadline-ms <bounded-ms>
-```
-
-| 示例 | 真实观察                                                                                                                                                                                  |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 01   | 高层调用报告精确 rc.2 revision/version，并得到 terminal 中文回复                                                                                                                          |
-| 02   | 同一 harness/runtime 的两轮 session 在第二轮逐字返回唯一 nonce，进程未替换                                                                                                                |
-| 03   | 运行前 proof 不存在；外部监视器在 cleanup 前核对 34 字节和 SHA-256 `aad7ecb3fafcc8aedefd175b87d6629d49f8afbe7e38b3563247fc059e1accab`；root 投影记录 2 次 tool call/result、0 个 subagent |
-| 04   | wire identity 为 `deepseek-harness-sdk-runtime@0.0.1`，返回非空 matching receipt、精确 root answer，并在下一次 root idle 后结算                                                           |
-
-每次启动都由外部进程表捕获 runtime 的 PID/PPID/PGID。示例 03 还观察到一个独立 PGID 的工具 descendant；正常退出后逐 PID 确认 runtime 和该 descendant 均消失。四次成功运行后 `.runtime` 都没有残留。输出检查未发现凭据或未脱敏的 source/runtime/个人绝对路径。
-
-这只证明这四次正常 shutdown。rc.2 client 直接拥有 runtime 子进程，但没有 detached process-group handle；不能据此声称异常关闭时能强制清理任意 descendant。
-
-## 源码对应
-
-这些结论对应固定 revision 中的入口：
-
-- 高层 API：`packages/sdk/client/src/api.ts`
-- 底层 client、notification subscription：`packages/sdk/client/src/client.ts`
-- 关闭与强制回收阶梯：`packages/sdk/client/src/dispose.ts`
-- wire 类型：`packages/sdk/protocol/src/types.ts`
-- JSON-RPC server：`packages/sdk/server/src/server.ts`
-- runtime bin：`packages/examples/jsonrpc-demo/src/bin.ts`
-
-## 限制
-
-- 这是学习用单进程 client，不是 runtime pool 或生产 supervisor。
-- rc.2 SDK JSON-RPC 没有 wire cancel/approval；不要虚构这些控制能力。
-- SDK 的 subprocess dispose 阶梯直接拥有并回收 runtime 进程。真实环境是否存在 runtime 自己留下的孙进程，仍要用进程表做外部验证。
-- fake runtime 证明 client 语义与故障处理，不证明 provider、模型或工具在真实 runtime 中可用。
-- 官方网站目前没有与 Python SDK quickstart 对等的 TypeScript quickstart；本教程以固定发行包类型和对应 tag 源码为真源。
+这是单进程学习示例，不提供多租户隔离、进程池、持久任务编排或 wire 级取消。生产应用需要把业务 Run/Task 的状态与 DSH Session/Turn 分开，并决定超时后的副作用核对与重试策略。下一步可读[Runtime Supervision 实验](../../labs/runtime-supervision/README.md)，再比较[Python 与 TypeScript SDK](../../docs/comparisons/python-vs-typescript-sdk.md)。

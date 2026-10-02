@@ -8,13 +8,13 @@
 
 ## 前置要求
 
-完成[示例索引](../README.zh.md)中的安装步骤。命令从环境读取 API 凭据，并把持久会话日志写入 `--session-root` 指定的目录。
+完成[示例索引](../README.zh.md)中的安装步骤。命令从环境读取 API 凭据，并把 profile 和会话数据保存在 `--dsh-home` 指定的目录。
 
 ## 运行
 
 ```sh
 uv run python 01_hello.py \
-  --session-root /tmp/dsh-demo-01 \
+  --dsh-home /tmp/dsh-demo-01 \
   "Reply with exactly: PYTHON_DEMO_01_OK"
 ```
 
@@ -28,7 +28,7 @@ uv run python 01_hello.py \
 sequenceDiagram
     participant App as 01_hello.py
     participant SDK as DeepSeekHarness
-    participant Runtime as dsh-jsonrpc-agent
+    participant Runtime as public dsh profile
     App->>SDK: enter context
     SDK->>Runtime: spawn and initialize
     App->>SDK: run(prompt)
@@ -40,11 +40,11 @@ sequenceDiagram
     SDK->>Runtime: shutdown
 ```
 
-高层生命周期由 [`DeepSeekHarness`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/api.py)实现，子进程传输由 [`HarnessClient`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/client.py)实现。
+高层生命周期由 [`DeepSeekHarness`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/api.py)实现，子进程传输由 [`HarnessClient`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/client.py)实现。
 
 ## 验证
 
-确认三个事实：进程以状态 0 退出、`finish_reason` 为 `completed`，且回复与提示词匹配。检查 `/tmp/dsh-demo-01`，确认系统创建了持久会话日志。
+确认三个事实：进程以状态 0 退出、`finish_reason` 为 `completed`，且回复与提示词匹配。所选 home 保存初始化后的 profile 与会话数据；运行时关闭后不再需要时可删除。
 
 ## 限制
 

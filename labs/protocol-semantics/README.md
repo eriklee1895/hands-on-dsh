@@ -1,70 +1,68 @@
-# DSH protocol semantics labs
+# SDK JSON-RPC 与 ACP：两个 stdio 协议的语义实验
 
-本项目通过可重复的 JSONL wire 实验学习 DSH SDK JSON-RPC 与 ACP 的协议语义。它包含共享 JSONL peer、两个确定性 fake server、显式 command 模式，以及固定 revision 的 source server 验证。选型结论见 [SDK JSON-RPC 与 ACP 对比](../../docs/comparisons/sdk-jsonrpc-vs-acp.md)。
+本 lab 用一个 Python stdlib JSONL peer 比较 DSH SDK JSON-RPC 和 ACP。学习目标是解释两种协议如何确认输入、交付已提交文本、结束一次工作，以及各自提供什么 session 控制。fake server 提供可重复的 keyless 顺序与故障；published package 模式运行本项目安装的公开 `dsh` CLI；command 模式可探测其他服务，但不产生固定版本验收结论。
 
-## 学习问题
+## 版本与准备
 
-- JSONL 如何处理分片、多帧、畸形帧、超大帧和 stderr 尾部？
-- 双向 JSON-RPC 如何让两个方向同时使用 ID `0`，又不混淆 pending response？
-- `session/prompt` 返回的 `messageId` 为什么只是 durable inbox receipt，而不是回答？
-- 为什么必须忽略匹配 receipt 之前的所有 root status/event，并在 receipt 之后等下一次 root `session.status=idle`，而不是把 `turn/end` 当作 prompt result？
-- raw `assistant/chunk` 与 committed `assistant/message` 有什么区别？
-- ACP 如何协商单一 protocol v1、报告真实 prompt capabilities，并区分 committed update、cancel 与 permission response？
+本目录的 `versions.json` 和 npm lock 固定 DSH `0.1.7-rc.2`（tag `dsh-v0.1.7-rc.2`，commit `477b4f420553e8a52c2fbccc464d7561b239c443`），ACP JavaScript SDK `1.4.0`，ACP protocol v1。SDK 的 `serverInfo.version` 和 ACP 的 `agentInfo.version` 都是 `0.0.1` 的 wire identity，不代表 DSH 发行版版本。
 
-## 版本和边界
+Python 需 3.10+，只用 stdlib、pytest、Ruff 和 3.10 所需的 `tomli`；没有 Python DSH SDK 运行依赖。npm 包只用于分发公开 runtime。POSIX process group 回收在 macOS/Linux 上验证；本实验不声明 Windows 支持。
 
-[`versions.json`](versions.json) 固定 DSH `0.1.1-rc.2`、tag `dsh-v0.1.1-rc.2`、commit `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`，以及 ACP SDK `0.25.1` / protocol v1。SDK `serverInfo.version=0.0.1` 与 ACP `agentInfo.version=0.0.1` 都是 wire identity，不是 DSH release version。
-
-本项目要求 Python 3.10+ 和 POSIX host（当前验证目标是 macOS/Linux），使用 stdlib asyncio/subprocess/JSON、pytest、Ruff 和条件依赖 tomli。`JsonlPeer` 的 process-group supervision 依赖 POSIX session/signal 语义，并在非 POSIX 平台 fail loud；本 lab 没有声明 Windows 实现。它没有 runtime dependency，也不通过 `deepseek-harness-sdk` 启动服务。
-
-## 运行 fake lab
+从本目录安装并运行：
 
 ```sh
 cd labs/protocol-semantics
 uv sync --group dev
+pnpm install --frozen-lockfile
 uv run python -m protocol_labs.sdk_jsonrpc --server fake
 uv run python -m protocol_labs.acp --server fake
 ```
 
-两条命令分别输出不含路径/凭据的 JSON evidence。SDK 输出包含 server identity、匹配 receipt、raw deltas、committed answer 与 receipt-to-idle settlement；ACP 输出包含 agent identity、实际 capabilities、committed updates、cancel 与 permission settlement。两者的 fixture transcript 都与 [`fixtures/committed-answer.jsonl`](fixtures/committed-answer.jsonl) 一致；SDK fake 的完整通知流另与 [`fixtures/sdk-jsonrpc-notifications.jsonl`](fixtures/sdk-jsonrpc-notifications.jsonl) 逐帧一致。
+fake 不读取 API key、不访问模型。两个 server 与 probe 都只用 `JsonlPeer` 的 JSONL 帧、请求 waiter、通知队列和有界进程组关闭；没有第三种传输或私有 SDK client。
 
-## 运行固定 source checkout
+## 发布包运行
 
-先在 DSH checkout 中核对 `versions.json` 对应的 commit/tag 和 tracked-clean 状态，再构建当前 revision：
-
-```sh
-git -C "$DSH_SOURCE_ROOT" status --porcelain --untracked-files=no
-git -C "$DSH_SOURCE_ROOT" rev-parse HEAD
-git -C "$DSH_SOURCE_ROOT" describe --tags --exact-match
-pnpm --dir "$DSH_SOURCE_ROOT" run build
-```
-
-在本 lab 目录运行两个真实 prompt。`../../.env` 由 uv 注入父进程；lab 不读取、打印或复制该文件：
+把 `DEEPSEEK_API_KEY` 放进环境，或在仓库根目录准备被忽略的 `.env`，从本目录运行：
 
 ```sh
-cd labs/protocol-semantics
-export DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness
-uv run --env-file ../../.env python -m protocol_labs.sdk_jsonrpc --server source
-uv run --env-file ../../.env python -m protocol_labs.acp --server source
+uv run --env-file ../../.env python -m protocol_labs.sdk_jsonrpc --server package
+uv run --env-file ../../.env python -m protocol_labs.acp --server package
 ```
 
-source mode 要求 `DSH_SOURCE_ROOT` 是绝对目录，且 HEAD、exact tag、root package version、root ACP dependency 和 lock resolution 全部精确匹配。它使用 absolute `node_modules/.bin/tsx`、absolute entry/config 和由 CLI 创建的临时 isolated cwd；resolver 不创建目录。因此 ACP bin 查找不到 source checkout 的 `.env`。child environment 只继承存在的 `PATH`、`TMPDIR`、`LANG`、`LC_ALL` 和证书变量，再加入父进程中的 `DEEPSEEK_API_KEY`、可选 `DEEPSEEK_BASE_URL` 以及固定 DSH 临时值。`HOME` 与 `DSH_HOME` 都指向 disposable directories；proxy、cloud、cookie、auth 和其他 service-specific 变量不传入，`DSH_SNAPSHOT` 明确缺席。
+`launch.py` 读取**本项目** `node_modules/@deepseek-ai/dsh/package.json`，核对包名、精确版本、公开 `bin.dsh` 及安装产物，然后使用 `node <bin> --profile sdk-minimal` 或 `node <bin> --profile acp`。它不查找 sibling 项目的模块，不从源码 demo bin 启动。输出的 `packageEvidence` 记录已安装版本和 profile；`versionEvidence` 是本项目的固定源码参照，wire identity 独立报告。
 
-> **SDK source 安全边界：** pinned SDK minimal config 把 sandbox policy 硬编码为 `danger-full-access`；`DSH_PERMISSION_MODE=workspace-write` 不会约束它。live prompt 明确要求不使用工具，workspace/HOME/session 都是 disposable，但 SDK source process 仍能访问 host 权限允许的路径。ACP composition 才使用 `DSH_PERMISSION_MODE=workspace-write`。
+每次 CLI 运行创建一次性 workspace、HOME 和 DSH_HOME。子进程只继承需要的 PATH、临时目录、locale、证书、DeepSeek key 和可选 API base URL；不把父进程所有凭据或代理变量传入。SDK `sdk-minimal` profile 固定 `danger-full-access`，因此临时 workspace 是产物位置，不是文件系统隔离保证。两个真实 prompt 都要求不使用工具。
 
-SDK live gate 要求 committed answer 非空、`messageId` 匹配 `agent/inbox/spliced`、此 receipt 之后下一次 root idle、`shutdown` response 成功、final returncode 0、未使用 SIGTERM/SIGKILL，且 owned group 消失。ACP live gate 要求至少一个非空 committed `agent_message_chunk`、prompt result `end_turn` 和 owned group 消失；它如实记录 EOF 后的 final returncode 与 SIGTERM/SIGKILL escalation，不把强制回收称为 clean exit。所有 post-close diagnostics 都进入 `closeOutcome`。
+SDK probe 完成 initialize、`session/prompt`、匹配 `agent/inbox/spliced` receipt、接收 root `assistant/message`、等待 receipt 后的下一次 root idle，再请求 `shutdown`。它检查最后一个 root turn 已完成。ACP probe 完成 initialize/authenticate、新建 session、选择服务端公布的 `deepseek-flash` model option、prompt、`session/close`、`session/list`；接着在**第二个公开 CLI 进程**中以相同 HOME、DSH_HOME、cwd 和 session ID 调用 `session/resume`，检查无历史 user/assistant/thought/tool update 回放（合法的配置 update 不计入），再让模型回忆第一轮随机代号。两条 nonce prompt 都明确要求不使用工具；probe 分别统计 `tool_call` 和 `tool_call_update`，只有两轮工具 update 都为 0 才认可回忆证据。每个 process group 分别关闭并核对消失。
 
-### 真实 source 验收记录（2026-08-31）
+2026-09-29 在 Node 26.7.0、pnpm 12.3.4、macOS arm64 上，published SDK probe 收到非空 `Protocol is live.`、matching receipt、`turn/end=completed`、root idle；`shutdown` 成功，returncode 0，无信号升级，group 已消失。published ACP probe 的第一轮回复 `remembered.`；关闭后 list 发现 inactive root，第二进程 resume 相同 ID 后未回放历史文本/工具 update，第二轮精确返回随机代号，两轮 `toolUpdates` 均为 0；两次 ACP 关闭均 returncode 0、无信号升级且 group 已消失。独立进程表采样再次运行 SDK 与 ACP CLI，分别捕获 2 个和 3 个后代 PID；各 CLI 退出后均无存活 PID。这些是当次真实运行观察，不扩大为任意失败场景的恢复保证。
 
-固定 rc.2 checkout 在 tracked-clean、已 build 状态下分别完成一次真实 prompt。SDK probe 收到非空 committed answer、matching inbox receipt 和其后的 root idle；`shutdown` response 成功，final returncode 为 0，未使用 TERM/KILL escalation，owned process group 最终消失。ACP probe 收到非空 committed `agent_message_chunk` 并以 `end_turn` settle；当次 stdin EOF 后 final returncode 为 0，未使用 TERM/KILL，owned process group 最终消失。
+## 两种结算方式
 
-这两次 live run 只验证普通 prompt 与 process lifecycle。cancel 和 permission 的精确 wire 语义由 keyless transcript tests 验证；本次真实模型没有为追求覆盖而人为制造审批或中断。
+```mermaid
+sequenceDiagram
+    participant C as JsonlPeer
+    participant S as DSH SDK profile
+    C->>S: initialize
+    C->>S: session/prompt
+    S-->>C: agent/inbox/spliced receipt
+    S-->>C: {messageId}
+    S-->>C: assistant/message committed
+    S-->>C: turn/end completed
+    S-->>C: root session.status idle
+    C->>S: shutdown
+    S-->>C: {}
+```
 
-若要研究其他 revision，可在任一 source 命令末尾加 `--allow-version-mismatch`。该模式仍要求 tracked-clean，记录实际 HEAD、可能缺失的 exact tag 和所有 version mismatch，并固定输出 `conforming:false`、非空 `mismatches` 与 `liveAcceptance:false`。它可以运行学习探针，但永远不能充当本页 live acceptance evidence。
+SDK `messageId` 是 inbox receipt identity，非最终答案。probe 忽略 matching receipt 前的 root status/event 和 child/foreign 活动；receipt 后才收集 root 已提交消息，以最后一条为答案。这个版本的 SDK server 转发 `session.event`、`session.status`、`subagent.started`、`subagent.finished`；它不会把实时 `agent/assistant-stream` 转发为逐 token 通知。fake fixture 不再制造旧的 `assistant/chunk`。SDK wire 没有 resume、cancel 或 session close RPC。
 
-## 使用显式 command
+ACP `session/prompt` 在结算后返回 `stopReason`，已提交文本经 `session/update` 的 `agent_message_chunk` 到达，当前发行版的 update 含 `messageId`。`end_turn` 不等于根 turn completed：固定版本也会用它表示 aborted/blocked；`max_tokens` 保留输出截断。ACP transcript 因此使用 `protocol_end` 标记，只有 SDK 的明确根 completed 才生成该 `turn_end` 标记。ACP 还提供 `session/cancel` 通知与 `session/request_permission` 双向 request；两个方向均可独立使用 ID `0`。fake 测试覆盖 literal allow/reject/cancel、未知 option fail closed、超时、异常 EOF、畸形帧和 bounded close。
 
-command mode 适合对其他兼容 server 做同一探针。变量必须是 JSON string array，不能写 shell command string；可选 cwd 必须是已存在的绝对目录。SDK command 使用 generic `deepseek-official` / `deepseek-v4-flash` initialize 和 no-tool prompt；ACP command 也只运行一个 generic prompt，不执行 fake-only cancel/permission choreography：
+ACP protocol v1 的 `session/list` 只列出 inactive、已持久化、可恢复的 root session；`session/resume` 拒绝 active session 和 cwd 不匹配，不回放历史消息或工具 update；`session/close` 保存可恢复状态。`session/set_config_option` 接受服务端 `configOptions` 已公布的 ID 和 opaque value，不需要调用方拼接 provider/model ID。`session/load`、delete、fork 和 transcript replay 未在当前 DSH ACP bridge 实现。fake 只验证同进程确定性生命周期；跨进程恢复由上述 published package 运行单独观察。
+
+## command 模式与故障触发器
+
+command 模式只执行通用 prompt，输出 `packageEvidence: {}` 和 `liveAcceptance: null`，不能用来证明目标是本项目固定发行包。参数是 JSON string array，不执行 shell；可选 cwd 必须是已存在的绝对目录：
 
 ```sh
 export DSH_SDK_SERVER_ARGV='["/absolute/path/to/server","--stdio"]'
@@ -76,97 +74,29 @@ export DSH_ACP_SERVER_CWD=/absolute/existing/directory
 uv run python -m protocol_labs.acp --server command
 ```
 
-```mermaid
-sequenceDiagram
-    participant C as JsonlPeer + SDK probe
-    participant S as SDK fake server
-    C->>S: initialize {cwd, provider, model, maxTokens?}
-    S-->>C: {serverInfo}
-    C->>S: session/prompt {sessionId, contentBlocks}
-    S-->>C: stale root idle + complete turn 1
-    S-->>C: unmatched full-UserMessage inbox receipt
-    S-->>C: matching agent/inbox/spliced receipt
-    S-->>C: {messageId}
-    S-->>C: running + complete turn 2 + subagent status
-    S-->>C: completed turn/end
-    S-->>C: root idle
-    C->>S: shutdown (params omitted)
-    S-->>C: {}
-    C-->>S: stdin EOF, bounded group cleanup
-```
+| Fake prompt | 行为 |
+| --- | --- |
+| `fixture prompt` | SDK receipt-before-response、root/child/foreign 顺序；ACP committed update 与 end_turn |
+| `lab:timeout` | 服务端保留工作；client 本地 waiter 超时不等于取消 |
+| `lab:internal-error` | JSON-RPC error `-32603` |
+| `lab:malformed` | 畸形帧 diagnostic 后正常继续 |
+| `lab:close` | pending request 收到带 partial context 的 EOF |
+| `lab:cancel`（ACP） | ready update 后发送 cancel，返回 cancelled |
+| `lab:permission`（ACP） | 双向 request ID 0，校验一次性选择 |
+| `lab:continuation-error`（SDK） | 后续任务错误被记录为 bounded stderr |
 
-## 确定性触发器
+共享 peer 对 malformed、non-object、oversize 和 unterminated stdout frame 记录 bounded diagnostic 并丢弃。stdout EOF 立即拒绝 pending；`close()` 完成 bounded 回收后才给出 final returncode、stderr 尾部、SIGTERM/SIGKILL 是否升级与 group 状态。lab 只在所有已启动 owner 的 close 返回且独立 group 检查确认消失后删除临时 workspace/HOME/DSH_HOME；启动失败、close 抛错或任一 group 状态未确认时保留带 `sdk-jsonrpc-live-` / `acp-live-` 前缀的临时目录供排查。手工清理前先确认没有相关进程。这是本 lab 的 client robustness policy，不代表 DSH server 的保证。
 
-| Prompt | Fake 行为 | Probe 观察 |
-| --- | --- | --- |
-| `fixture prompt` | receipt-before-response、running、raw/committed answer、turn/end、idle | 精确三行 transcript，receipt-to-root-idle |
-| `lab:timeout` | handler 保留请求，不返回 | 本地 timeout；server handler 未被请求超时取消 |
-| `lab:internal-error` | error response `-32603` | typed `JsonRpcError` |
-| `lab:malformed` | 先写畸形 JSONL，再继续正常 fixture | diagnostic 加成功 continuation |
-| `lab:close` | request pending 时输出受控 stderr 并退出 | pending request 立即收到 partial stdout-EOF context；close 后可读取最终 returncode/stderr |
-| `lab:continuation-error` | response 后 continuation task 抛错 | exception 被 tracker 消费并写入 bounded stderr diagnostic |
-
-Fake server 的 stdin reader 不等待 request handler；因此 held prompt 不会阻塞后续 `shutdown`。所有 stdout 写入共享一个 lock。
-
-ACP fake 的 `initialize` 接受包括 `0` 与 JSON number `1.0` 在内的任意 finite integral requested version，并固定返回当前唯一支持的 protocol v1；bool、fractional number 和其他畸形 schema 返回 `-32602`。Fake 没有 image、audio 或 embedded-context prompt 能力，因此三个 capability flag 都是 `false`；probe 要求三个字段都是 boolean 并保留服务端实际值，所以具备 image 能力的其他 agent 可以返回 `image: true`。本 lab 的 no-op authenticate 要求 `authMethods: []`。
-
-ACP `fixture prompt` 只收集 committed `agent_message_chunk` 并以 `end_turn` settle。`lab:cancel` 先提交固定 readiness chunk，再由客户端发送 `session/cancel` notification 并以 `cancelled` settle。`lab:permission` 让 server 与 client 同时使用 direction-local ID `0`；allow/reject/cancel 是字面 ACP outcome，未知 option ID 由 fake 映射为 rejected，request error 映射为 unavailable，二者都 fail closed。
-
-正常 fake fixture 的 root `session.event` 从 seq 0 连续到 17：stale inbox insert、完整 turn 1（含 inbox removal）、matching inbox insert、完整 turn 2（含 matching inbox removal）。`user/message` 与 `assistant/message` 是 surface append；assistant message 的 `sourceEventSeqs` 指向同 turn/step 的 chunk。Post-receipt child session 也有从 seq 0 到 5 的完整 turn/step/chunk/message/end stream，并由 child running/idle 与 `subagent.finished` 包围。另一个 synthetic transport test 验证即使 pre-receipt 出现 child start/event/finish，probe 也不会把它计入活动窗口。
-
-Settlement 仍只拥有 matching receipt → next root idle 区间，不把 `turn/end` 解释为 prompt result。测试用独立 synthetic server 证明缺少 turn/end 时仍可 settle；只有观察到 committed answer 加 completed turn 的 fixture 才生成三行规范化 transcript。
-
-## Launch resolver
-
-- `fake`：使用当前 Python 执行对应的 `protocol_labs.sdk_jsonrpc.fake_server` 或 `protocol_labs.acp.fake_server`。
-- `command`：只接受对应 `DSH_SDK_SERVER_ARGV` / `DSH_ACP_SERVER_ARGV` 的非空 JSON string array；`argv[0]` 必须非空，后续参数可以是空字符串；可选 cwd 必须是绝对且存在的目录。不会解析 shell string，只运行 generic prompt。
-- `source`：精确验证固定 source checkout，要求调用方提供绝对且已存在的隔离 cwd，使用绝对 `tsx`/entry/config，运行一个真实 committed prompt 并验证 process-group outcome。build 是调用前置条件，不在 Python CLI 中隐式执行；mismatch flag 只生成非 conforming 学习证据。
-
-## Wire 方法、通知与错误
-
-SDK client 只请求 `initialize`、`session/prompt`、`shutdown`；server 只通知 `session.event`、`session.status`、`subagent.started`、`subagent.finished`。`session/prompt` 返回 `{messageId}`，回答来自 committed `assistant/message`。Unknown method 与 handler failure 在当前 DSH server 都表现为 `-32603`；不要推断它有 ACP 的 schema `-32602` 语义。
-
-ACP client 请求 `initialize`、`authenticate`、`session/new`、`session/prompt`，并用 `session/cancel` notification 取消。Agent 用 committed `session/update` notification 输出文本，用 `session/request_permission` request 索取一次性选择。ACP unknown method 是 `-32601`，invalid schema/semantics 是 `-32602`，unexpected handler failure 是 `-32603`。
-
-共享 peer 对 malformed、non-object、oversize 或 unterminated stdout frame 只记录 bounded diagnostic 并丢弃；这是 lab client robustness policy，不代表 upstream policy。请求 timeout 只移除本地 waiter，不会取消 server work。stdout EOF 立即以 partial context 拒绝 pending；bounded close/reap 之后，typed `CloseOutcome` 才同时给出 final returncode、SDK shutdown request 是否成功、EOF 是否以 returncode 0 且无 escalation 退出、最终使用的 SIGTERM/SIGKILL、group 是否消失和 post-close diagnostics。
-
-## 验证
+## 验证与限制
 
 ```sh
-uv lock --project labs/protocol-semantics --check
-uv run --python 3.10 --project labs/protocol-semantics pytest labs/protocol-semantics/tests
-uv run --python 3.10 --project labs/protocol-semantics ruff check labs/protocol-semantics
-uv run --python 3.10 --project labs/protocol-semantics ruff format --check labs/protocol-semantics
+uv lock --check
+pnpm install --frozen-lockfile
+uv run --python 3.10 pytest tests
+uv run --python 3.10 ruff check .
+uv run --python 3.10 ruff format --check .
 ```
 
-固定 source revision 的 keyless conformance 使用以下精确命令：
+测试覆盖 package metadata 与 profile argv、Python 3.10、JSONL 分帧与双向 ID、SDK receipt-to-idle/EOF、ACP list/resume/cwd/config、cancel/permission。fake 和 published run 是不同证据。一次成功的模型回复不证明错误恢复、跨平台行为、多租户安全或业务任务状态；业务 Run/Task 仍应有自己的权威状态。协议选择参见[SDK JSON-RPC 与 ACP 对比](../../docs/comparisons/sdk-jsonrpc-vs-acp.md)，进程管理实验参见[Runtime Supervision](../runtime-supervision/README.md)。固定源码依据：[公开 CLI](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/apps/cli/src/bin.ts)、[SDK server](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/server/src/server.ts)、[ACP bridge](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/acp/acp/src/index.ts)。
 
-```sh
-pnpm --dir "$DSH_SOURCE_ROOT" exec vitest run \
-  packages/sdk/protocol/tests/transport.spec.ts \
-  packages/sdk/server/tests/server.spec.ts
-
-pnpm --dir "$DSH_SOURCE_ROOT" exec vitest run \
-  packages/acp/acp/tests/bridge.spec.ts \
-  packages/acp/acp/tests/turns.spec.ts \
-  packages/acp/acp/tests/approval.spec.ts \
-  packages/acp/acp/tests/edges.spec.ts
-
-DSH_E2E_MAX_WORKERS=1 pnpm --dir "$DSH_SOURCE_ROOT" exec vitest run \
-  --config vitest.e2e.config.ts \
-  examples/jsonrpc-agent/tests/keyless-smoke.e2e.ts \
-  packages/examples/acp-demo/tests/load-path.e2e.ts \
-  packages/examples/acp-demo/tests/built-bin.e2e.ts
-```
-
-测试覆盖 fragmentation、多帧、空/畸形/非对象/超大/未终止行、跨 JSON number 序列化的 integral ID、双向 ID `0`、handler nonblocking、timeout、stdout EOF 即时拒绝、partial/final process context、delayed stderr、stderr byte bound、process-group cleanup 和精确 source version validation。协议测试覆盖 SDK rc.2 完整 envelope/seq/turn/step/source 引用、全活动 receipt gate，以及 ACP negotiation、capabilities、committed update、cancel、permission、normalization、error 和 CLI 行为。
-
-stdout EOF 必须立刻拒绝 pending request，不能等待仍存活的 child process。此时 `PeerExitedError.context_final` 是 `false`，其中的 return code 与 stderr 只是当前 snapshot；不得把尚未产生的 delayed stderr 或最终 return code 写成已经可用。`close()` 完成 bounded reap 和 stderr drain 后返回 `CloseOutcome`；`eofExitedCleanly=true` 只表示 returncode 0 且未发送 escalation signal，不等于 SDK shutdown request 成功。
-
-## 限制
-
-当前 SDK surface 只有 `initialize`、`session/prompt`、`shutdown` 和四类通知：`session.event`、`session.status`、`subagent.started`、`subagent.finished`；它没有 negotiation、cancel、session close、prompt result 或 permission。ACP lab 只覆盖 initialize/authenticate、fresh session、prompt、cancel、committed text update 与一次性 permission decision。两者都不提供 list/resume/fork/history 或 authoritative business Task/Run state。
-
-本 lab 不实现 editor/Web client、session browser、resume/fork、history、业务 Task/Run、崩溃恢复或 production protocol abstraction。Python published SDK bundles rc.1 runtime，而本 lab 的 source facts 固定 rc.2；不要把两者混为同一个 artifact。rc.2 ACP demo 也不是 zero-config binary distribution。
-
-真实 prompt 只证明当次 source checkout、环境和模型调用满足上述 gate，不证明模型固定措辞、平台矩阵或生产可用性。清理验证覆盖 lab-owned wrapper/process group 与临时 state；调用方提供的 command mode server 若再启动脱离其进程组的 daemon，不在本 lab 所有权内。
+[第 7.7–7.8 课适配层](ADAPTERS.md)用共享场景比较 DSH 双入口，并为 Codex/Hermes CLI 增加独立终态适配；两款 CLI 的 nonce 与文件真实任务均通过，Hermes 固定启动警告和早期失败分别记录。

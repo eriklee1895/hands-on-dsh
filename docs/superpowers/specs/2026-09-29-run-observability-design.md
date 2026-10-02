@@ -1,0 +1,17 @@
+# Phase 7.5：Run 观测与用量估算
+
+基于固定 npm SDK/runtime0.1.7rc2新增独立lab，目标是让学习者区分业务Run、session/turn/step、已结算provider attempt与retry计划。它不改既有服务，不接SaaS，不生成供应商账单，不声称捕获所有辅助调用。
+
+观测入口把SDK根session事件投影为schema1的白名单记录。业务绑定为{sourceId,runId,sessionId,provider,model}，由服务端传入；sourceId表示一份session存储的稳定身份，不能每次重放换新ID。完整原始事件不写盘：省略prompt、文本、reasoning、tool参数/结果、error文本、rawstream、URL、token、toolname/callId。保留seq/time、有限事件kind、turn/step、有限终态kind、retry次数/delay及usage数字。未知事件映射other且不保留原类型文本。可信绑定字段须限制为短标识符。
+
+assistant/message优先data.usage，缺省才取stream最后usage；两者存在且矛盾拒绝，不重复累计embedded stream；assistant/attempt取stream中最后一个usage chunk。缺失usage为null，未知不置零。每个settlement只算一个observed attempt，不把retry计划或retry-started当作已完成请求。保留顶层interrupted和有限finish类别。request/header或message.source中的明确路由须与绑定匹配；缺失来源的attempt只能按绑定推断。compaction/summary与session/title-llm-request仅计入excluded辅助标记。TokenUsage.inputTokens不含cacheRead/cacheWrite，reasoningTokens不作为output之外额外加项。usage数字必须非负safe整数，缺失必需input/output或无效可选字段拒绝。
+
+ObservationLedger.ingest(binding,event)投影后按(sourceId,sessionId,seq)去重；相同projection重复返回false，不同projection或绑定不同run拒绝。丢弃payload变化不构成观测冲突，原始session完整性不由此日志验证。exportRecords返回深拷贝，fromRecords(unknown)严格验证schema/白名单/字段与拒绝多余字段，不能让读盘绕过脱敏。每个run绑定只能对应一个source/session/provider/model；同一session可绑定多个非重叠run区间。
+
+summary(runId,rates)输出按seq排序的timeline、根turn终态列表、observed settled attempts、missingUsage、reported input/output/cacheRead/cacheWrite/reasoning总计、未报告可选类别计数、retryScheduled/retryStarted。时间是记录时刻，不从settlement时间伪造provider延迟；seq/time逆序可标记时钟回退，但不能出现负duration。拒绝跨source/run碰撞；去重不能因乱序导入改变合计。
+
+费率为显式版本化教学值，每token的整数nanoUSD，配置包含provider/model匹配与rateId。knownUsageEstimateNanoUsd按报告input/output/cacheRead/cacheWrite计算，reasoning不重复加；BigInt防累计溢出，JSON输出十进制字符串。无匹配费率拒绝，不隐式默认价；总账单不可推断，输出isInvoice=false和observedOnly=true。missingUsage与缺失可选字段并列揭示不完整性。真实provider价格与账户折扣不纳入教学费率。
+
+保存为仅含规范化记录的JSON快照，独占临时文件写入后rename；checkpoint用于单进程教学重放，不提供数据库事务、跨进程锁、资金扣减。真实例同一Session连续两条prompt生成两个runId，证明seq连续而run归属不同；在memory/文件重载后重放同批事件，摘要完全一致，无模型重试。root completed和精确nonce回复分别校验。禁止工具，隔离home/workspace，SDK关闭后才删除临时目录。只输出白名单摘要。
+
+keyless例含失败attempt带usage、重试、成功message（顶层和stream重复usage）、usage缺失、缓存与reasoning、两个run共用session、乱序/重复/冲突、恶意payload标记以及BigInt计算。真实例只验证正常两次调用，不伪造真实retry覆盖。阶段保留容器/远程执行和更复杂历史session覆盖缺口。

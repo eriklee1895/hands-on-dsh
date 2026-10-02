@@ -33,14 +33,6 @@ function assistantText(event: unknown): string | undefined {
     .join("");
 }
 
-function assistantChunkText(event: unknown): string | undefined {
-  const envelope = record(event);
-  if (envelope?.type !== "assistant/chunk") return undefined;
-  const data = record(envelope.data);
-  const chunk = record(data?.chunk);
-  return chunk?.type === "text-delta" && typeof chunk.text === "string" ? chunk.text : undefined;
-}
-
 export class NotificationProjection {
   private rootText = "";
   private toolCalls = 0;
@@ -64,8 +56,8 @@ export class NotificationProjection {
     const event = record(params.event);
     if (event?.type === "tool/call") this.toolCalls += 1;
     if (event?.type === "tool/result") this.toolResults += 1;
-    const text = assistantChunkText(event);
-    if (text !== undefined) this.rootText += text;
+    const text = assistantText(event);
+    if (text !== undefined) this.rootText = text;
   }
 
   snapshot(): NotificationSnapshot {

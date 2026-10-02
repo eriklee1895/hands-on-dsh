@@ -2,6 +2,10 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 const mode = process.env.FAKE_DSH_MODE ?? "normal";
+if (process.argv[2] !== "--profile" || process.argv[3] !== "sdk-minimal") {
+  process.stderr.write("fake runtime expected canonical --profile sdk-minimal argv\n");
+  process.exit(64);
+}
 const state = process.env.FAKE_DSH_STATE ?? process.cwd();
 const requests = `${state}/requests.jsonl`;
 const memory = new Map();
@@ -43,18 +47,7 @@ function surfaceEvent(sessionId, type, data, sourceEventSeqs) {
   return seq;
 }
 
-function assistantStep(
-  sessionId,
-  turn,
-  step,
-  text,
-  content = [{ type: "text", text }],
-  extraChunks = [],
-) {
-  const chunks = [{ type: "text-delta", index: 0, text }, ...extraChunks];
-  const chunkSeqs = chunks.map((chunk) =>
-    event(sessionId, "assistant/chunk", { turn, step, chunk }),
-  );
+function assistantStep(sessionId, turn, step, text, content = [{ type: "text", text }]) {
   surfaceEvent(
     sessionId,
     "assistant/message",
@@ -68,7 +61,7 @@ function assistantStep(
         source: { kind: "model", provider: "fake", model: "fake" },
       },
     },
-    chunkSeqs,
+    [],
   );
 }
 
@@ -109,17 +102,10 @@ function toolTurn(sessionId, path, encoded, userMessage) {
   const turn = beginTurn(sessionId, userMessage, false);
   const callId = "fake-write-file-call";
   const args = JSON.stringify({ path, contentBase64: encoded });
-  assistantStep(
-    sessionId,
-    turn,
-    1,
-    "writing proof",
-    [
-      { type: "text", text: "writing proof" },
-      { type: "tool-call", id: callId, name: "write-file", arguments: args },
-    ],
-    [{ type: "tool-call-delta", index: 1, id: callId, name: "write-file", argumentsDelta: args }],
-  );
+  assistantStep(sessionId, turn, 1, "writing proof", [
+    { type: "text", text: "writing proof" },
+    { type: "tool-call", id: callId, name: "write-file", arguments: args },
+  ]);
   const callSeq = event(sessionId, "tool/call", {
     turn,
     step: 1,
@@ -227,6 +213,13 @@ function finishPrompt(id, params) {
         true,
       );
       answer = "post receipt root";
+    } else if (mode === "nonce" && input.startsWith("记住代号 ")) {
+      const match = /^记住代号 (.+?)，/.exec(input);
+      if (match === null) throw new Error("fake nonce prompt did not contain a codeword");
+      memory.set(sessionId, match[1]);
+      answer = "已记住";
+    } else if (mode === "nonce" && input.includes("刚才的代号是什么")) {
+      answer = memory.get(sessionId) ?? "未记住";
     } else if (input.startsWith("Remember ")) {
       const remembered = input.slice("Remember ".length).replace(/\.$/, "").toLowerCase();
       memory.set(sessionId, remembered);

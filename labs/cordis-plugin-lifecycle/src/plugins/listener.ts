@@ -183,9 +183,7 @@ export function apply(ctx: Context, config: Config): void {
     const allSessions = config.sessionMode === "all";
     if ((!allSessions && sessionId !== config.rootSessionId) || event.type !== "tool/result")
       return;
-    const block = event.data.message.content[0];
-    if (block?.type !== "tool-result") return;
-    const callId = String(block.toolCallId);
+    const callId = String(event.data.message.toolCallId);
     if (slots.get(sessionId) !== callId || completed.get(sessionId)?.has(callId) === true) {
       if (config.healthPath !== undefined)
         appendFileSync(

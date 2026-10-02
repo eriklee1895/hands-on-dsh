@@ -1,4 +1,7 @@
 allowBuilds:
+  "@deepseek-ai/dsh-subprocess-local": true
+  "@google/genai": false
   esbuild: true
-onlyBuiltDependencies:
-  - esbuild
+  koffi: true
+  node-pty: true
+  protobufjs: true

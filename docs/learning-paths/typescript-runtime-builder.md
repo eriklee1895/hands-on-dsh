@@ -1,62 +1,37 @@
 # TypeScript Runtime Builder
 
-目标：理解 DSH 的 wire 语义后，用已发布 TypeScript SDK 显式管理 runtime，再进入 Cordis/plugin 和 full-stack Agent 应用。
+目标：理解 wire 语义，用公开 SDK profile 管理 runtime，再进入 Cordis/preset、AG-UI 应用和内部机制。当前 SDK、protocol lab、Cordis 与 AG-UI 都固定 DSH `0.1.7-rc.2`；Python 的发行版本独立。前四批记录保持各自日期，本批结果见[第五批验收](../reviews/2026-09-29-plugin-agui-internals.md)。
 
 ## 1. 协议语义
 
-先完成 [`labs/protocol-semantics`](../../labs/protocol-semantics/README.md)：
-
-- SDK JSON-RPC 的 initialize、prompt、notification、receipt-to-idle 和 shutdown
-- ACP 的 initialize、session、cancel 与 permission
-- JSONL framing、request correlation、typed close outcome
-- 为什么 client adapter 不能增加 server 没有的语义
-
-不要在 TypeScript 阶段再实现第二套 raw transport；只保留一项与 Python lab 对齐的 parity smoke。
+完成 [protocol-semantics](../../labs/protocol-semantics/README.md)：SDK initialize/prompt/receipt-to-idle；ACP 持久 session list/resume/close、配置选项、cancel 与 permission。理解 JSONL 双向 request ID、committed 输出和 closeOutcome。Raw client 不能增加 server 缺失的方法。
 
 ## 2. TypeScript SDK
 
-完成 [`tutorials/typescript-sdk`](../../tutorials/typescript-sdk/README.md)：
+完成 [typescript-sdk](../../tutorials/typescript-sdk/README.md) 的四例：通过同版本 npm dsh 启动、复用 runtime/session、观察 root committed messages 与工具，以及底层 HarnessClient。使用公开 profile/home/patch；源码 checkout 和旧 demo bin 不再是运行前提。
 
-1. 显式验证并启动固定 rc.2 source runtime；
-2. 复用一个 harness/runtime 和稳定 session；
-3. 投影 root text delta、tool、subagent 与生命周期通知；
-4. 使用底层 `HarnessClient` 完成 receipt-to-idle。
+运行 frozen install、keyless tests、typecheck、lint、format，再逐例验证真实回复、代号回读、外部工具字节与进程回收。通知流不等于逐 token streaming；不要把固定版本没有下发的实时帧模拟成已支持。
 
-本阶段门槛是：pnpm frozen install、48 个 keyless 测试、typecheck、lint、format 全部通过；四个真实模型示例结束后 `.runtime` 为空，外部进程表确认正常关闭的 runtime 和当次观察到的 descendant 全部消失。
+## 3. Python 与 TypeScript
 
-## 3. Python 与 TypeScript 边界
+阅读[SDK 对照](../comparisons/python-vs-typescript-sdk.md)：Python 平台 runtime wheel 与 Node/npm CLI 不同；两侧 env 语义、可用发行版本与模型 endpoint 也不同。应用仍需拥有 home、workspace、配置、进程与业务状态。
 
-阅读 [Python SDK 与 TypeScript SDK](../comparisons/python-vs-typescript-sdk.md)，确认 npm client 已有高层 API，但不携带 Python 式 bundled-runtime resolver。应用必须显式锁定 DSH revision、built artifact、Cordis 配置和子进程环境。
+## 4. Cordis 与 preset
 
-## 4. Cordis 与 Plugin（已完成）
+完成 [cordis-plugin-lifecycle](../../labs/cordis-plugin-lifecycle/README.md)：Context、Service/inject、typed events/waterfall、effect teardown、HMR/PENDING、proof tool 与结果 listener。新版保留稳定 `./tool`、`./listener`，通过 packed consumer 和真实 profile 验证消费。
 
-先进入 Cordis/plugin，而不是直接堆叠 UI：
+Preset probe 验证声明的 proof-only 子插件 composition 可以解析且不泄漏全局工具。它不等于完整 Agent activation、热更新或 sandbox 验收。历史官方七章的运行只属于原版本，当前原创 package 的验证单独记录。
 
-- `Context`、`Service`、`inject` 与 effect disposer
-- typed events 与 waterfall `next()`
-- `cordis.yml`、reload/teardown 和 PENDING
-- 一个 model-callable tool plugin 与一个 session/tool observer plugin
+## 5. AG-UI Full-stack
 
-官方七章 Cordis 教程在 disposable upstream scratch 中运行；个人仓库只保留原创实验和验证记录。
+[ag-ui-dsh-runtime](../../projects/ag-ui-dsh-runtime/README.md) 使用 Fastify BFF、React/CopilotKit 和 SQLite。AG-UI SSE 显示消息/工具；独立 business cursor stream 负责断线回放。前端断开不等于后端运行取消，状态与 Artifact 仍以数据库为准。
 
-已完成 [`labs/cordis-plugin-lifecycle`](../../labs/cordis-plugin-lifecycle/README.md)：官方七章全部 keyless 实跑；原创 package 当前通过 25 个 keyless tests、packed plain-Node Loader consumer 和一次真实 model-callable tool gate。稳定复用入口是 package subpath `./tool` 与 `./listener`。
+公开 `sdk-minimal` profile 通过有序 patch 加载编译后的工具、listener 和 deployment adapter。Adapter 通过 persistence.stat 的 header 核对 canonical cwd，再调用 agents.resume；stock SDK 仍没有 resume RPC。切换 runtime generation 不旋转已知的 Session ID，关闭失败必须阻止替代进程。模型 max-tokens/error 不能因为存在工具产物就被记为业务成功。
 
-## 5. TypeScript Full-stack（已完成）
+验收覆盖两个 Conversation、精确工具产物、live/durable audit、跨 generation 代号回读、AG-UI detach 后 business terminal、游标重放、compiled build 与 foreign-cwd smoke，再进行 desktop/375px 浏览器和错误验证。实际命令、数量与边界见第五批记录。
 
-完成 plugin 阶段后构建 `projects/ag-ui-dsh-runtime`：TypeScript BFF 拥有 DSH runtime，React + CopilotKit/AG-UI 只消费稳定北向事件；业务 Conversation/Run/Artifact 和事件重放仍由应用层持有。
+## 6. 核心机制与工程化
 
-首版使用 SDK JSON-RPC adapter 保留详细工具/生命周期事件。ACP 继续作为独立 adapter/lab，不在首版混合两种 transport。
+进入 [how-dsh-works](../../how-dsh-works/README.md) 的七篇新版源码笔记。它们区分固定源码事实与已运行 probe：新库级 probes 覆盖 Inbox/live/embedded stream、V4 工具失败与 context snapshot；[compaction](../../labs/compaction-lifecycle/README.md)、[workflow/child](../../labs/workflow-child-lifecycle/README.md)、[官方Web Host](../../labs/web-host-lifecycle/README.md)与[附件](../../labs/attachment-input/README.md)已有独立新版运行证据，各章仍保留具体未覆盖范围。
 
-已完成 [`projects/ag-ui-dsh-runtime`](../../projects/ag-ui-dsh-runtime/README.md)：Fastify BFF 显式管理固定 rc.2 runtime；SQLite 持有 Conversation、Run、RunEvent 与 Artifact；React/CopilotKit 使用 bound `CopilotChatView` 和 AG-UI projector；business SSE 提供单调 cursor 重放。
-
-实现过程中真实 gate 发现 stock rc.2 SDK JSON-RPC server 在进程重启后固定 fresh-create，opaque session ID 相同但模型历史没有恢复。项目没有修改 upstream，而是增加 generation-local deployment adapter：复用官方 server，只把存在持久日志的 `agents.create` 映射为官方 `agents.resume`。keyless 双 Context/JSONL 测试证明 turn 1→2 与旧上下文进入第二次模型请求；真实 gate 进一步证明 runtime PID/generation 变化后同一 session 准确回忆 `ONYX-842`。
-
-本阶段最终门槛已通过：19 files / 117 keyless tests、三 compiler faces、Oxlint/Oxfmt、server+web build、foreign-cwd adapter smoke；四个真实 Run 均恰好一次 tool/result 与 exact Artifact；两 Conversation、AG-UI detach/business replay、desktop/375px zero-violation Axe、idle restart 和记忆、最终进程回收均有外部证据。
-
-## 版本与证据
-
-- DSH：`0.1.1-rc.2`
-- tag：`dsh-v0.1.1-rc.2`
-- commit：`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`
-- TypeScript SDK 与 Cordis/plugin 真实验证日期：2026-08-31
-- 安全边界：固定 minimal config 是 `danger-full-access`；disposable workspace 不是 sandbox
+[Session 格式实验](../../labs/session-format-migration/README.md)解释逻辑 read 与磁盘 write 的差别；[恢复对照](../comparisons/recovery-and-session-migration.md)区分业务恢复、会话恢复和格式升级。后续工程化专题继续按[路线](engineering.md)推进。

@@ -8,12 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from .events import encode_sse
+from .events import BrowserEvent, encode_sse
 from .models import ChatRequest, RunOutput
-from .runtime import RuntimeService
+from .runtime import AgentRunFailed, RuntimeService, ServiceClosedError
 
 STATIC_DIR = Path(__file__).with_name("static")
 
@@ -24,9 +24,11 @@ def create_app(runtime: Any | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        await service.start()
-        yield
-        await service.close()
+        try:
+            await service.start()
+            yield
+        finally:
+            await service.close()
 
     application = FastAPI(title="DSH FastAPI 101", lifespan=lifespan)
 
@@ -39,14 +41,47 @@ def create_app(runtime: Any | None = None) -> FastAPI:
         return {"session_ids": service.session_ids()}
 
     @application.post("/api/chat", response_model=RunOutput)
-    async def chat(request: ChatRequest) -> RunOutput:
-        return await service.run(request.prompt, request.session_id)
+    async def chat(request: ChatRequest) -> RunOutput | JSONResponse:
+        try:
+            return await service.run(request.prompt, request.session_id)
+        except ServiceClosedError:
+            return JSONResponse(
+                status_code=503,
+                content={"error": {"message": "Runtime is closing", "finish_reason": None}},
+            )
+        except AgentRunFailed as exc:
+            return JSONResponse(
+                status_code=502,
+                content={"error": {"message": str(exc), "finish_reason": exc.finish_reason}},
+            )
+        except Exception:
+            return JSONResponse(
+                status_code=502,
+                content={"error": {"message": "Agent runtime failed", "finish_reason": None}},
+            )
 
     @application.post("/api/chat/stream")
-    async def stream_chat(request: ChatRequest) -> StreamingResponse:
+    async def stream_chat(request: ChatRequest) -> Response:
+        try:
+            admitted_events = service.stream(request.prompt, request.session_id)
+        except ServiceClosedError:
+            return JSONResponse(
+                status_code=503,
+                content={"error": {"message": "Runtime is closing", "finish_reason": None}},
+            )
+
         async def frames() -> AsyncIterator[bytes]:
-            async for event in service.stream(request.prompt, request.session_id):
-                yield encode_sse(event)
+            try:
+                async for event in admitted_events:
+                    yield encode_sse(event)
+            except Exception:
+                yield encode_sse(
+                    BrowserEvent(
+                        type="error",
+                        session_id=request.session_id,
+                        data={"message": "Agent runtime failed", "finish_reason": None},
+                    )
+                )
 
         return StreamingResponse(
             frames(),

@@ -1,0 +1,92 @@
+{
+  "date": "2026-09-30",
+  "dshVersion": "0.1.7-rc.2",
+  "sourceRevision": "477b4f420553e8a52c2fbccc464d7561b239c443",
+  "platform": "macOS arm64",
+  "nodeVersion": "26.7.0",
+  "browserAutomation": "agent-browser 0.37.0",
+  "route": {
+    "provider": "deepseek-official",
+    "model": "deepseek-flash",
+    "reasoningEffort": "high",
+    "configuredMaxTokens": 256000
+  },
+  "modelDisplayName": "DeepSeek-V41-Flash",
+  "hostPids": [42342, 61209],
+  "hostExitCodes": [130, 130],
+  "unauthenticatedIndexStatus": 401,
+  "browserReloadPreservedSession": true,
+  "existingCookieWorkedAfterHostRestart": true,
+  "pageErrorsDuringObservedFlow": 0,
+  "uiAfterResume": "2 轮 4 步",
+  "checkpoint": {
+    "mode": "checkpoint",
+    "sessionId": "session-f33a993e-978f-4c94-9dec-d484cc60243c",
+    "version": 4,
+    "completedTurns": 1,
+    "events": 26,
+    "artifactBytes": 36,
+    "artifactSha256": "608c8dededc37d375c8fb25735d8e60497c5349901660266721017bbfc82826a",
+    "publicBackendReopened": true
+  },
+  "final": {
+    "mode": "final",
+    "sessionId": "session-f33a993e-978f-4c94-9dec-d484cc60243c",
+    "version": 4,
+    "completedTurns": 2,
+    "beforeEvents": 26,
+    "events": 43,
+    "artifactBytes": 36,
+    "artifactSha256": "608c8dededc37d375c8fb25735d8e60497c5349901660266721017bbfc82826a",
+    "publicBackendReopened": true
+  },
+  "browser": {
+    "streamGroups": [
+      {
+        "deltaFrames": 4,
+        "firstDeltaAt": 1790760504630,
+        "lastDeltaAt": 1790760504641,
+        "commitAt": 1790760504660,
+        "allBeforeCommit": true
+      },
+      {
+        "deltaFrames": 4,
+        "firstDeltaAt": 1790760754887,
+        "lastDeltaAt": 1790760754891,
+        "commitAt": 1790760754906,
+        "allBeforeCommit": true
+      }
+    ],
+    "observedPaths": [
+      "/api/agentPresets/list",
+      "/api/commands/list",
+      "/api/credentials/describe",
+      "/api/directoryPicker/list",
+      "/api/dynamicCordisRunner/inventory",
+      "/api/dynamicCordisRunner/syncInspectManifest",
+      "/api/llm/listConfigurableProviders",
+      "/api/llm/listProviders",
+      "/api/permissionPresets/catalog",
+      "/api/remote.mux",
+      "/api/session/create",
+      "/api/session/list",
+      "/api/session/modelCatalog",
+      "/api/session/prompt",
+      "/api/settings/describe",
+      "/api/skills/list",
+      "/api/workspace/create"
+    ],
+    "websocketPath": "/api/remote.mux"
+  },
+  "beforeStopProcessSnapshots": [
+    {
+      "snapshotPids": [42340, 42341, 42342],
+      "remainingAfterStop": []
+    },
+    {
+      "snapshotPids": [61208, 61209],
+      "remainingAfterStop": []
+    }
+  ],
+  "experimentDirectoryRemovedAfterVerification": true
+}

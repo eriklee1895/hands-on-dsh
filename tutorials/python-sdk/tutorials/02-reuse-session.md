@@ -8,14 +8,14 @@ Run two turns through [`02_reuse_session.py`](../02_reuse_session.py). The secon
 
 ## Prerequisites
 
-Complete [Tutorial 01](01-hello.md). Choose a new session ID when repeating this tutorial against the same session root, because a reused ID resumes the durable conversation.
+Complete [Tutorial 01](01-hello.md). Choose a new session ID when repeating this tutorial with a retained Harness home, because a reused ID resumes the durable conversation.
 
 ## Run it
 
 ```sh
 uv run python 02_reuse_session.py \
   --session-id python-demo-02 \
-  --session-root /tmp/dsh-demo-02
+  --dsh-home /tmp/dsh-demo-02
 ```
 
 The first turn prints `stored`; the second prints `SAFFRON`.
@@ -38,12 +38,12 @@ sequenceDiagram
     Runtime-->>SDK: SAFFRON
 ```
 
-The reusable instance and session handle live in [`api.py`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/api.py). Session history comes from DSH durable events, not from a Python-side message array.
+The reusable instance and session handle live in [`api.py`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/api.py). Session history comes from DSH durable events, not from a Python-side message array.
 
 ## Verify it
 
-Check the two exact answers and inspect the session root. Both turns must appear under the same session identity; the runtime closes only after the second turn.
+Check the two exact answers and inspect the selected Harness home. Both turns must appear under the same session identity; the runtime closes only after the second turn.
 
 ## Limitations
 
-The current SDK does not expose session list, read, fork, delete, or explicit resume methods. Reusing an ID can resume durable history when the configured persistence supports it, but application code must own its session catalog. Continue with [Tutorial 03](03-stream-events.md) for live output.
+The current SDK does not expose session list, read, fork, delete, or explicit resume methods. This script proves reuse within one live process. Cross-process resume depends on the selected profile, retained home, and session persistence; it is not demonstrated here. Application code must own its session catalog. Continue with [Tutorial 03](03-stream-events.md) for committed-message notifications.

@@ -1,4 +1,4 @@
-"""Project DSH session notifications into a live terminal stream."""
+"""Project committed DSH assistant messages from session notifications."""
 
 from __future__ import annotations
 
@@ -10,13 +10,15 @@ from typing import Any
 
 from deepseek_harness import DeepSeekHarness, Notification
 
+from demo_resources import DemoResources
 
-def text_delta_from(
+
+def committed_text_from(
     notification: Notification | Mapping[str, Any],
     *,
     session_id: str | None = None,
 ) -> str | None:
-    """Return committed assistant text from one DSH notification, if present."""
+    """Return root assistant text after its message is committed, if present."""
     if isinstance(notification, Notification):
         method = notification.method
         payload: Mapping[str, Any] = notification.payload
@@ -29,19 +31,26 @@ def text_delta_from(
     if session_id is not None and payload.get("sessionId") != session_id:
         return None
     event = payload.get("event")
-    if not isinstance(event, Mapping) or event.get("type") != "assistant/chunk":
+    if not isinstance(event, Mapping) or event.get("type") != "assistant/message":
         return None
     data = event.get("data")
-    chunk = data.get("chunk") if isinstance(data, Mapping) else None
-    if not isinstance(chunk, Mapping) or chunk.get("type") != "text-delta":
+    message = data.get("message") if isinstance(data, Mapping) else None
+    content_owner = message if isinstance(message, Mapping) else data
+    content = content_owner.get("content") if isinstance(content_owner, Mapping) else None
+    if not isinstance(content, list):
         return None
-    text = chunk.get("text")
-    return text if isinstance(text, str) else None
+    return "".join(
+        str(block.get("text") or "")
+        for block in content
+        if isinstance(block, Mapping) and block.get("type") == "text"
+    )
 
 
 def main() -> None:
-    """Print assistant text deltas while one high-level run is active."""
-    parser = argparse.ArgumentParser(description="Stream assistant text from DSH notifications.")
+    """Print each committed root assistant message during one run."""
+    parser = argparse.ArgumentParser(
+        description="Project committed assistant messages from DSH notifications."
+    )
     parser.add_argument(
         "prompt",
         nargs="?",
@@ -50,28 +59,45 @@ def main() -> None:
     parser.add_argument("--provider", default="deepseek-official")
     parser.add_argument("--model", default=os.environ.get("DSH_MODEL", "deepseek-v4-flash"))
     parser.add_argument("--session-id", default="python-demo-stream")
-    parser.add_argument("--session-root", type=Path, default=Path(".dsh-python-demo-sessions"))
+    parser.add_argument("--dsh-home", type=Path)
+    parser.add_argument("--workspace", type=Path)
+    parser.add_argument("--profile", default="sdk-minimal")
+    parser.add_argument("--patch", type=Path, action="append", default=[])
     args = parser.parse_args()
 
-    streamed = False
+    projected: list[str] = []
 
     def on_notification(notification: Notification) -> None:
-        nonlocal streamed
-        delta = text_delta_from(notification, session_id=args.session_id)
-        if delta is not None:
-            streamed = True
-            print(delta, end="", flush=True)
+        text = committed_text_from(notification, session_id=args.session_id)
+        if text is not None:
+            projected.append(text)
+            print(f"committed_message: {text}", flush=True)
 
-    print("stream:")
-    with DeepSeekHarness(
-        provider=args.provider,
-        model=args.model,
-        session_root=str(args.session_root.resolve()),
-    ) as harness:
-        session = harness.start_session(args.session_id)
-        result = session.run(args.prompt, on_notification=on_notification)
-    if streamed:
-        print()
+    with DemoResources("dsh-python-notifications") as resources:
+        root = resources.root
+        workspace = (args.workspace or root / "workspace").resolve()
+        workspace.mkdir(parents=True, exist_ok=True)
+        home = (args.dsh_home or root / "home").resolve()
+        with resources.own(
+            DeepSeekHarness(
+                provider=args.provider,
+                model=args.model,
+                cwd=str(workspace),
+                dsh_home=str(home),
+                profile=args.profile,
+                patches=tuple(str(patch.resolve()) for patch in args.patch),
+            )
+        ) as harness:
+            session = harness.start_session(args.session_id)
+            result = session.run(args.prompt, on_notification=on_notification)
+    if (
+        result.finish_reason != "completed"
+        or not projected
+        or projected[-1] != result.final_response
+    ):
+        raise RuntimeError("notification projection did not match a completed root response")
+    print(f"final_response: {result.final_response}")
+    print(f"committed_message_count: {len(projected)}")
     print(f"finish_reason: {result.finish_reason}")
     print(f"notification_count: {len(result.notifications)}")
 

@@ -10,7 +10,7 @@ const chapters = {
     title: "把同步回调桥接成 SSE",
     description: "DSH 在工作线程执行，浏览器在同一 HTTP 响应中持续接收命名事件。",
     transport: "POST + SSE",
-    button: "流式运行第二章示例",
+    button: "运行第二章事件示例",
     tutorial: "/static/tutorials/02-sse-stream.md",
   },
   3: {
@@ -77,6 +77,7 @@ function setBusy(busy, label) {
 
 function resetOutput() {
   responseBox.textContent = "";
+  responseBox.removeAttribute("role");
   timeline.replaceChildren();
   eventsSeen = 0;
   eventCount.textContent = "0 events";
@@ -101,14 +102,15 @@ function addTimelineEvent(event) {
 
 function handleEvent(event) {
   addTimelineEvent(event);
-  if (event.type === "text_delta") {
-    responseBox.textContent += event.data.text || "";
+  if (event.type === "assistant_message") {
+    responseBox.textContent = event.data.text || "";
   } else if (event.type === "final") {
-    if (!responseBox.textContent) responseBox.textContent = event.data.response || "";
+    responseBox.textContent = event.data.response || "";
     finishReason.textContent = event.data.finish_reason || "完成";
   } else if (event.type === "error") {
     finishReason.textContent = "错误";
     responseBox.textContent = event.data.message || "运行失败";
+    responseBox.setAttribute("role", "alert");
   }
 }
 
@@ -119,7 +121,7 @@ async function runBlocking(payload) {
     body: JSON.stringify(payload),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(JSON.stringify(data));
+  if (!response.ok) throw new Error(data.error?.message || "运行失败");
   responseBox.textContent = data.response;
   finishReason.textContent = data.finish_reason || "完成";
 }
@@ -134,6 +136,7 @@ async function runStreaming(payload) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let terminal = null;
   while (true) {
     const { value, done } = await reader.read();
     buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
@@ -141,10 +144,16 @@ async function runStreaming(payload) {
     buffer = frames.pop() || "";
     for (const frame of frames) {
       const dataLine = frame.split("\n").find((line) => line.startsWith("data: "));
-      if (dataLine) handleEvent(JSON.parse(dataLine.slice(6)));
+      if (dataLine) {
+        const event = JSON.parse(dataLine.slice(6));
+        handleEvent(event);
+        if (event.type === "final" || event.type === "error") terminal = event;
+      }
     }
     if (done) break;
   }
+  if (!terminal) throw new Error("事件流在运行结束前中断");
+  if (terminal.type === "error") throw new Error(terminal.data.message || "运行失败");
 }
 
 async function refreshSessions() {
@@ -198,6 +207,7 @@ form.addEventListener("submit", async (event) => {
   } catch (error) {
     finishReason.textContent = "错误";
     responseBox.textContent = error instanceof Error ? error.message : String(error);
+    responseBox.setAttribute("role", "alert");
     requestStatus.textContent = "运行失败";
   } finally {
     setBusy(false, requestStatus.textContent);

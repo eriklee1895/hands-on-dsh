@@ -153,8 +153,8 @@ def test_callback_backpressure_preserves_projection_order_off_the_event_loop(
             payload={
                 "sessionId": "root",
                 "event": {
-                    "type": "assistant/chunk",
-                    "data": {"chunk": {"type": "text-delta", "text": "one"}},
+                    "type": "assistant/message",
+                    "data": {"message": {"content": [{"type": "text", "text": "one"}]}},
                 },
             },
         ),
@@ -164,8 +164,8 @@ def test_callback_backpressure_preserves_projection_order_off_the_event_loop(
             payload={
                 "sessionId": "root",
                 "event": {
-                    "type": "assistant/chunk",
-                    "data": {"chunk": {"type": "text-delta", "text": "two"}},
+                    "type": "assistant/message",
+                    "data": {"message": {"content": [{"type": "text", "text": "two"}]}},
                 },
             },
         ),
@@ -459,5 +459,272 @@ def test_close_waits_for_an_in_progress_start(tmp_path: Path) -> None:
         assert (await running).finish_reason == "completed"
         await closing
         assert harness.closed == 1
+
+    asyncio.run(scenario())
+
+
+def test_adapter_uses_public_profile_and_explicit_home(tmp_path: Path) -> None:
+    runtime = load_runtime()
+    captured: dict[str, object] = {}
+
+    def factory(**kwargs):
+        captured.update(kwargs)
+        return FakeHarness()
+
+    async def scenario() -> None:
+        adapter = runtime.DSHRuntimeAdapter(
+            tmp_path / "workspace", tmp_path / "home", harness_factory=factory
+        )
+        await adapter.run("root", "prompt", lambda _event: asyncio.sleep(0))
+        await adapter.close()
+
+    asyncio.run(scenario())
+    assert captured["dsh_home"] == str((tmp_path / "home").resolve())
+    assert captured["profile"] == "sdk-minimal"
+    assert "session_root" not in captured
+
+
+def test_cancelled_harness_construction_closes_created_owner_before_reuse(tmp_path: Path) -> None:
+    runtime = load_runtime()
+    entered = threading.Event()
+    release = threading.Event()
+    first = FakeHarness()
+    second = FakeHarness()
+    calls = 0
+
+    def factory(**_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            entered.set()
+            assert release.wait(timeout=3)
+            return first
+        return second
+
+    async def scenario() -> None:
+        adapter = runtime.DSHRuntimeAdapter(
+            tmp_path / "workspace", tmp_path / "home", harness_factory=factory
+        )
+        constructing = asyncio.create_task(
+            adapter.run("root", "prompt", lambda _event: asyncio.sleep(0))
+        )
+        assert await asyncio.to_thread(entered.wait, 2)
+        constructing.cancel()
+        try:
+            await asyncio.sleep(0)
+            assert not constructing.done()
+        finally:
+            release.set()
+        with pytest.raises(runtime.RuntimeUnavailableError):
+            await constructing
+        assert first.closed == 1
+        assert first.run_calls == []
+        assert (
+            await adapter.run("fresh", "prompt", lambda _event: asyncio.sleep(0))
+        ).finish_reason == "completed"
+        await adapter.close()
+        assert second.closed == 1
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_start_waits_for_thread_and_closes_owner(tmp_path: Path) -> None:
+    runtime = load_runtime()
+    entered = threading.Event()
+    release = threading.Event()
+    first = FakeHarness(start_entered=entered, start_release=release)
+    second = FakeHarness()
+    harnesses = iter([first, second])
+
+    async def scenario() -> None:
+        adapter = runtime.DSHRuntimeAdapter(
+            tmp_path / "workspace",
+            tmp_path / "home",
+            harness_factory=lambda **_kwargs: next(harnesses),
+        )
+        starting = asyncio.create_task(
+            adapter.run("root", "prompt", lambda _event: asyncio.sleep(0))
+        )
+        assert await asyncio.to_thread(entered.wait, 2)
+        starting.cancel()
+        try:
+            await asyncio.sleep(0)
+            assert not starting.done()
+        finally:
+            release.set()
+        with pytest.raises(runtime.RuntimeUnavailableError):
+            await starting
+        assert first.closed == 1
+        assert first.run_calls == []
+        assert (
+            await adapter.run("fresh", "prompt", lambda _event: asyncio.sleep(0))
+        ).finish_reason == "completed"
+        await adapter.close()
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_session_run_is_uncertain_and_never_reuses_owner(tmp_path: Path) -> None:
+    runtime = load_runtime()
+    entered = threading.Event()
+    release = threading.Event()
+    first = FakeHarness(run_entered=entered, run_release=release)
+    second = FakeHarness()
+    harnesses = iter([first, second])
+
+    async def scenario() -> None:
+        adapter = runtime.DSHRuntimeAdapter(
+            tmp_path / "workspace",
+            tmp_path / "home",
+            harness_factory=lambda **_kwargs: next(harnesses),
+        )
+        running = asyncio.create_task(
+            adapter.run("root", "prompt", lambda _event: asyncio.sleep(0))
+        )
+        assert await asyncio.to_thread(entered.wait, 2)
+        running.cancel()
+        later = asyncio.create_task(adapter.run("fresh", "next", lambda _event: asyncio.sleep(0)))
+        try:
+            await asyncio.sleep(0)
+            assert first.run_calls == [("root", "prompt")]
+            assert not later.done()
+        finally:
+            release.set()
+        with pytest.raises(runtime.ExecutionUncertainError):
+            await running
+        assert (await later).finish_reason == "completed"
+        assert first.closed == 1
+        assert first.run_calls == [("root", "prompt")]
+        assert second.run_calls == [("fresh", "next")]
+        await adapter.close()
+
+    asyncio.run(scenario())
+
+
+def test_repeated_close_cancellation_waits_for_owned_thread_and_blocks_reuse(
+    tmp_path: Path,
+) -> None:
+    runtime = load_runtime()
+    entered = threading.Event()
+    release = threading.Event()
+
+    class GatedClose(FakeHarness):
+        def close(self) -> None:
+            self.closed += 1
+            if self.closed == 1:
+                entered.set()
+                assert release.wait(timeout=3)
+
+    async def scenario() -> None:
+        harness = GatedClose()
+        adapter = runtime.DSHRuntimeAdapter(
+            tmp_path / "workspace",
+            tmp_path / "home",
+            harness_factory=lambda **_kwargs: harness,
+        )
+        await adapter.run("root", "prompt", lambda _event: asyncio.sleep(0))
+        closing = asyncio.create_task(adapter.close())
+        assert await asyncio.to_thread(entered.wait, 2)
+        try:
+            closing.cancel()
+            await asyncio.sleep(0)
+            closing.cancel()
+            await asyncio.sleep(0)
+            assert not closing.done()
+            later = asyncio.create_task(
+                adapter.run("later", "must not reuse", lambda _event: asyncio.sleep(0))
+            )
+            await asyncio.sleep(0)
+            assert not later.done()
+        finally:
+            release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await closing
+        with pytest.raises(runtime.RuntimeUnavailableError):
+            await later
+        await adapter.close()
+        assert harness.closed == 2
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_start_session_preserves_known_pre_prompt_failure(tmp_path: Path) -> None:
+    runtime = load_runtime()
+    entered = threading.Event()
+    release = threading.Event()
+
+    class GatedStartSession(FakeHarness):
+        def start_session(self, session_id: str):
+            entered.set()
+            assert release.wait(timeout=3)
+            raise OSError("session was never created")
+
+    async def scenario() -> None:
+        harness = GatedStartSession()
+        adapter = runtime.DSHRuntimeAdapter(
+            tmp_path / "workspace",
+            tmp_path / "home",
+            harness_factory=lambda **_kwargs: harness,
+        )
+        running = asyncio.create_task(
+            adapter.run("root", "prompt", lambda _event: asyncio.sleep(0))
+        )
+        assert await asyncio.to_thread(entered.wait, 2)
+        running.cancel()
+        release.set()
+        with pytest.raises(runtime.RuntimeUnavailableError, match="session was never created"):
+            await running
+        assert harness.closed == 1
+        assert harness.run_calls == []
+        await adapter.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure_stage", ["startup", "run"])
+def test_cancelled_cleanup_preserves_original_failure_classification(
+    tmp_path: Path, failure_stage: str
+) -> None:
+    runtime = load_runtime()
+    entered = threading.Event()
+    release = threading.Event()
+
+    class GatedClose(FakeHarness):
+        def close(self) -> None:
+            entered.set()
+            assert release.wait(timeout=3)
+            super().close()
+
+    async def scenario() -> None:
+        first = GatedClose(
+            start_error=OSError("startup unavailable") if failure_stage == "startup" else None,
+            run_error=ValueError("execution uncertain") if failure_stage == "run" else None,
+        )
+        second = FakeHarness()
+        harnesses = iter([first, second])
+        adapter = runtime.DSHRuntimeAdapter(
+            tmp_path / "workspace",
+            tmp_path / "home",
+            harness_factory=lambda **_kwargs: next(harnesses),
+        )
+        running = asyncio.create_task(
+            adapter.run("root", "prompt", lambda _event: asyncio.sleep(0))
+        )
+        assert await asyncio.to_thread(entered.wait, 2)
+        running.cancel()
+        release.set()
+        expected = (
+            runtime.RuntimeUnavailableError
+            if failure_stage == "startup"
+            else runtime.ExecutionUncertainError
+        )
+        with pytest.raises(expected):
+            await running
+        assert first.closed == 1
+        assert (
+            await adapter.run("fresh", "next", lambda _event: asyncio.sleep(0))
+        ).finish_reason == "completed"
+        await adapter.close()
+        assert second.closed == 1
 
     asyncio.run(scenario())

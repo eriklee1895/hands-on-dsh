@@ -9,7 +9,7 @@ description = "A recoverable DeepSeek Harness service learning project"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "deepseek-harness-sdk==0.1.1rc1",
+    "deepseek-harness-sdk==0.1.5rc1",
     "fastapi>=0.116,<1",
     "uvicorn[standard]>=0.35,<1",
 ]

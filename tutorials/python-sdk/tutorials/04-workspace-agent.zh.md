@@ -17,11 +17,11 @@ uv run python 04_workspace_agent.py \
   --workspace /tmp/dsh-demo-04
 ```
 
-脚本会创建 `input.txt`，要求 agent 把排序结果写入 `output.txt`，然后自行读取 `output.txt`。
+脚本会创建 `input.txt`，要求 agent 把排序结果写入 `output.txt`，然后把输出文件与精确字节 `blue\ngreen\nred\n` 比较。
 
 ## 工作原理
 
-`cwd` 选择 agent workspace，`session_root` 把日志保存在它旁边。模型会看到内置 Cordis 组装注册的工具，选择必要的调用，并可能在轮次结束前执行多个模型步骤。Python 调用方仍然负责在运行之后检查外部状态。
+`cwd` 选择 agent workspace；`dsh_home` 独立保存 profile 与会话数据。模型会看到内置 Cordis 组装注册的工具，选择必要的调用，并可能在轮次结束前执行多个模型步骤。Python 调用方仍然负责在运行之后检查外部状态。
 
 ```mermaid
 sequenceDiagram
@@ -38,11 +38,11 @@ sequenceDiagram
     App->>Disk: read output.txt directly
 ```
 
-[`DeepSeekHarness.__init__`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/api.py)负责构造 `cwd` 和环境映射。实际工具集属于运行时 Cordis 配置，而不属于 Python SDK。
+[`DeepSeekHarness.__init__`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/api.py)负责构造 `cwd` 和环境映射。实际工具集属于运行时 Cordis 配置，而不属于 Python SDK。
 
 ## 验证
 
-确认 `output.txt` 存在，并依次包含 `blue`、`green` 和 `red`。文件内容是比 assistant 回复更强的证据。检查 `.dsh-sessions` 中的持久工具调用与工具结果事件。
+只有运行完成且 `output.txt` 恰好包含 `b"blue\ngreen\nred\n"` 时脚本才成功。需要查看会话事件时可保留 `--dsh-home`。默认临时 home 与 workspace 在运行时关闭后才删除。
 
 ## 限制
 

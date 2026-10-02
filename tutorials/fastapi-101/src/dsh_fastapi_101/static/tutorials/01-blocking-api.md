@@ -6,7 +6,7 @@
 
 ## 前置条件
 
-在项目根目录完成 `uv sync --group dev`，并在环境中设置 `DEEPSEEK_API_KEY`。服务只监听 `127.0.0.1`，workspace 与会话日志默认分别写入 `workspace/` 和 `.sessions/`。
+在项目根目录完成 `uv sync --group dev`，并在环境中设置 `DEEPSEEK_API_KEY`。服务只监听 `127.0.0.1`，workspace 与 Harness home 默认分别写入 `workspace/` 和 `.dsh-fastapi-home/`。
 
 ## 运行
 
@@ -50,9 +50,9 @@ sequenceDiagram
 ## 验证
 
 1. `/api/health` 返回 `runtime_started: true`。
-2. `/api/chat` 返回 HTTP 200，`finish_reason` 通常为 `completed`。
-3. `.sessions/` 下出现对应 DSH session 日志。
-4. 服务停止后不再残留 `dsh-jsonrpc-agent` 子进程。
+2. `/api/chat` 返回 HTTP 200，`finish_reason` 为 `completed`；`error` 与 `max-tokens` 返回 HTTP 502 JSON 错误。
+3. `.dsh-fastapi-home/` 下出现 profile 和持久会话数据。
+4. 服务停止后不再残留 公开 `dsh` runtime 子进程。
 
 ## 限制
 

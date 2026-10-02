@@ -7,6 +7,7 @@ import json
 import math
 import os
 import sys
+from pathlib import Path
 
 from protocol_labs.jsonl_peer import JsonRpcError, is_valid_jsonrpc_id
 
@@ -23,6 +24,7 @@ class FakeAcpServer:
         self._authenticated = False
         self._session_counter = 0
         self._sessions: set[str] = set()
+        self._persisted: dict[str, str] = {}
         self._active_prompts: dict[str, asyncio.Event] = {}
         self._pending_client_requests: dict[int, asyncio.Future[object]] = {}
         self._held = asyncio.Event()
@@ -106,7 +108,9 @@ class FakeAcpServer:
                         "image": False,
                         "audio": False,
                         "embeddedContext": False,
-                    }
+                    },
+                    "sessionCapabilities": {"close": {}, "list": {}, "resume": {}},
+                    "mcpCapabilities": {"http": True},
                 },
                 "authMethods": [],
             }
@@ -121,7 +125,49 @@ class FakeAcpServer:
             self._session_counter += 1
             session_id = f"acp-session-{self._session_counter}"
             self._sessions.add(session_id)
-            return {"sessionId": session_id}
+            self._persisted[session_id] = params["cwd"]
+            return {"sessionId": session_id, "configOptions": self._config_options()}
+        if method == "session/list":
+            if not self._authenticated or not isinstance(params, dict):
+                raise JsonRpcError(-32602, "invalid session/list params")
+            cwd = params.get("cwd")
+            if cwd is not None and (not isinstance(cwd, str) or not os.path.isabs(cwd)):
+                raise JsonRpcError(-32602, "session/list cwd must be absolute")
+            return {
+                "sessions": [
+                    {"sessionId": session_id, "cwd": session_cwd}
+                    for session_id, session_cwd in self._persisted.items()
+                    if session_id not in self._sessions
+                    and (cwd is None or Path(cwd).resolve() == Path(session_cwd).resolve())
+                ]
+            }
+        if method == "session/close":
+            session_id = params.get("sessionId") if isinstance(params, dict) else None
+            if session_id not in self._sessions:
+                raise JsonRpcError(-32602, "unknown active session")
+            self._sessions.remove(session_id)
+            return {}
+        if method == "session/resume":
+            if not isinstance(params, dict) or not isinstance(params.get("cwd"), str):
+                raise JsonRpcError(-32602, "invalid session/resume params")
+            session_id = params.get("sessionId")
+            expected_cwd = self._persisted.get(session_id)
+            if expected_cwd is None or session_id in self._sessions:
+                raise JsonRpcError(-32602, "session is not resumable")
+            if Path(params["cwd"]).resolve() != Path(expected_cwd).resolve():
+                raise JsonRpcError(-32602, "session cwd does not match")
+            self._sessions.add(session_id)
+            return {"configOptions": self._config_options()}
+        if method == "session/set_config_option":
+            if not isinstance(params, dict) or params.get("sessionId") not in self._sessions:
+                raise JsonRpcError(-32602, "unknown active session")
+            model = self._config_options()[0]
+            if (
+                params.get("configId") != model["id"]
+                or params.get("value") != model["currentValue"]
+            ):
+                raise JsonRpcError(-32602, "unknown config option")
+            return {"configOptions": self._config_options()}
         if method == "session/prompt":
             session_id, prompt = self._validate_prompt(params)
             if session_id not in self._sessions:
@@ -154,6 +200,18 @@ class FakeAcpServer:
                     for text in chunks:
                         await self._update(session_id, text)
                     return {"stopReason": "end_turn"}
+                if prompt == "lab:tool":
+                    for update_type in ("tool_call", "tool_call_update"):
+                        await self._notify(
+                            "session/update",
+                            {
+                                "sessionId": session_id,
+                                "update": {
+                                    "sessionUpdate": update_type,
+                                    "toolCallId": "fake-call-1",
+                                },
+                            },
+                        )
                 if prompt == "lab:malformed":
                     await self._notify(
                         "session/update",
@@ -168,6 +226,26 @@ class FakeAcpServer:
             finally:
                 self._active_prompts.pop(session_id, None)
         raise JsonRpcError(-32601, f"unknown method: {method}")
+
+    @staticmethod
+    def _config_options() -> list[dict[str, object]]:
+        value = json.dumps(["deepseek-official", "deepseek-flash"], separators=(",", ":"))
+        return [
+            {
+                "id": "model",
+                "name": "Model",
+                "category": "model",
+                "type": "select",
+                "currentValue": value,
+                "options": [
+                    {
+                        "group": "deepseek-official",
+                        "name": "DeepSeek",
+                        "options": [{"value": value, "name": "DeepSeek Flash"}],
+                    }
+                ],
+            }
+        ]
 
     async def _request_permission(self, session_id: str) -> str:
         request_id = 0
@@ -263,6 +341,7 @@ class FakeAcpServer:
                 "sessionId": session_id,
                 "update": {
                     "sessionUpdate": "agent_message_chunk",
+                    "messageId": "fake-assistant-1",
                     "content": {"type": "text", "text": text},
                 },
             },

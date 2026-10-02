@@ -22,24 +22,26 @@ wheels = [
 
 [[package]]
 name = "deepseek-harness-runtime-bin"
-version = "0.1.1rc1"
+version = "0.1.5rc1"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/b7/6b05d20cba520ab378cf9909adc0adee01e15099b0d896d68cfdc4a034b7/deepseek_harness_runtime_bin-0.1.1rc1-py3-none-macosx_14_0_arm64.whl", hash = "sha256:2707cd666ba49ee0963228873abf7850ca7ec5e782cca61e3603793bace0d1cf", size = 55190958, upload-time = "2026-08-21T07:15:12.868Z" },
-    { url = "https://files.pythonhosted.org/packages/bb/b5/7c840b4859fbec5de4b84a3794a06695f9da1100391a251cafbc37bf6ab2/deepseek_harness_runtime_bin-0.1.1rc1-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:e73987c6c08d8322bce2b8b2ce75db6a139ecf546417b6015ce7a8de5e5f19b5", size = 59810637, upload-time = "2026-08-21T07:15:16.051Z" },
-    { url = "https://files.pythonhosted.org/packages/38/26/0f1b453134a45841624e3791c4b2ed98484b75fc7e35ccd137cff16e2eda/deepseek_harness_runtime_bin-0.1.1rc1-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:8eb31e3ab2bc3ff45474fe419eb389e32553391f1a40789ea2cc3dc8d6de137b", size = 60358575, upload-time = "2026-08-21T07:15:19.021Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/2d/04d1871e2e3dc8d4d04a3439e5286d55ae64e31a514ae12e95f3f4c9dfa2/deepseek_harness_runtime_bin-0.1.5rc1-py3-none-macosx_14_0_arm64.whl", hash = "sha256:65f20c541a499f08c36ac3bfdafce350ca8c7cc23488c1faf4d9b9524b547156", size = 75545685, upload-time = "2026-09-10T05:54:22.141Z" },
+    { url = "https://files.pythonhosted.org/packages/51/f3/624219faa56a6a4883cc8dcdeece5f32c5ee3e4cd3cc65c8b3ccefeb57a0/deepseek_harness_runtime_bin-0.1.5rc1-py3-none-macosx_14_0_x86_64.whl", hash = "sha256:c94e6b7f6339a79fea47cba2d841976d87faabab1fb35e7bb9609d8cde9238d5", size = 79345519, upload-time = "2026-09-10T05:54:25.711Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/33/9bb2ad17dc0a48d3641c7dd0bfdb8742333577739b31c70f46356847706a/deepseek_harness_runtime_bin-0.1.5rc1-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:32b7bb7887ea89f12462274d1b21acfafb00d38d94e11a5d7122492f185e4f85", size = 80243585, upload-time = "2026-09-10T05:54:29.446Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/ff/632fddc738effdbc8752f02641aba6eaeb96f820367b8cee68397501948d/deepseek_harness_runtime_bin-0.1.5rc1-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:ad877237382baff4628969a9ebdbfe38486d971b7987c032d0e29775759b5229", size = 80720547, upload-time = "2026-09-10T05:54:33.233Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/0e/4b52e5792a7accb09c70831ad3182efa253e15118c683a49dc66f3cbd83a/deepseek_harness_runtime_bin-0.1.5rc1-py3-none-win_amd64.whl", hash = "sha256:d031a5ab4919c572fd7e48c7ef19ec8b1896e93d93c44b0937bb958c528f8acf", size = 72045733, upload-time = "2026-09-10T05:54:36.863Z" },
 ]
 
 [[package]]
 name = "deepseek-harness-sdk"
-version = "0.1.1rc1"
+version = "0.1.5rc1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "deepseek-harness-runtime-bin" },
     { name = "pydantic" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/95/2cb97bcac85a3787b4b3a7f497a559e3a161c167bbe97e38c66464cd823b/deepseek_harness_sdk-0.1.1rc1-py3-none-any.whl", hash = "sha256:2113aec229039da435bc44b275b487216d2b1c308d850521b88cea6ce3c1b762", size = 12878, upload-time = "2026-08-21T07:16:01.653Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/fa/9b3e2a449f876211fdcbd8082edcf70f0ead08617aa4e064a9bb14372291/deepseek_harness_sdk-0.1.5rc1-py3-none-any.whl", hash = "sha256:8d9897e97e8a95fd738cb2c3e2c563951d824e43847ec6f3b0fb172c0729b4d8", size = 13694, upload-time = "2026-09-10T05:55:48.883Z" },
 ]
 
 [[package]]
@@ -47,7 +49,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -70,7 +72,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "deepseek-harness-sdk", specifier = ">=0.1.1rc1,<0.2" }]
+requires-dist = [{ name = "deepseek-harness-sdk", specifier = "==0.1.5rc1" }]
 
 [package.metadata.requires-dev]
 dev = [

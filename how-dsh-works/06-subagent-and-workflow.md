@@ -1,145 +1,72 @@
-# Subagent 与 Workflow 如何分工
+# Subagent、父会话 catalog 与 PTC Workflow
 
-> 固定版本：`dsh-v0.1.1-rc.2`
-> 固定 revision：`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`
-> 验证日期：2026-08-31
+> 固定版本：`dsh-v0.1.7-rc.2`；revision：`477b4f420553e8a52c2fbccc464d7561b239c443`；源码审查：2026-09-29；运行补证：2026-09-30。
 
-## 要回答的问题
-
-DSH 的 subagent 是“如何建立并管理一个 child Agent”的 capability seam；workflow 是“如何执行一段编排脚本，并让脚本通过 subagent seam 并发调用多个 child”的更高层 capability。两者共享 child run，却不共享同一个生命周期对象：one-shot subagent 有 `SubagentRun`，continuable child 有 durable Session + Activation，workflow 另有 holder-owned `WorkflowRun`。
-
-```mermaid
-flowchart LR
-    Parent[Parent Agent] --> Subagents[ctx.subagents]
-    Subagents --> Provider[Named SubagentProvider]
-    Provider --> OneShot[One-shot SubagentRun]
-    OneShot --> Result[Provider-owned terminal result]
-    OneShot -.->|localAgent only for in-process provider| Child[Local child Agent and durable Session]
-    Provider --> Prepared[Continuable create spec]
-    Prepared --> Manager[Continuation manager]
-    Manager -->|create or resume| Child
-
-    Tool[Model-facing workflow tool] --> Engine[ctx.workflowEngine]
-    Engine --> Worker[Fresh worker thread]
-    Worker -->|agent RPC| HostRun[Host WorkerRun]
-    HostRun --> Subagents
-    Child -->|result| HostRun
-    HostRun -->|workflow result| Tool
-```
-
-## 入口与源码路由
-
-| 主题 | 固定 revision 入口 |
-| --- | --- |
-| Subagent Service Definition、provider registry 与 public API | [`packages/subagent/subagent/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/subagent/subagent/src/index.ts)、[`types.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/subagent/subagent/src/types.ts) |
-| lifecycle edge projection | [`packages/subagent/subagent/src/lifecycle.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/subagent/subagent/src/lifecycle.ts) |
-| durable descriptor 与 child composition | [`packages/subagent/subagent/src/descriptor.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/subagent/subagent/src/descriptor.ts)、[`child-agent.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/subagent/subagent/src/child-agent.ts) |
-| continuable Activation 与 cold resume | [`packages/subagent/subagent/src/continuation.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/subagent/subagent/src/continuation.ts) |
-| local one-shot driver | [`packages/subagent/subagent-in-process-driver/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/subagent/subagent-in-process-driver/src/index.ts) |
-| fork provider 的 completed-turn seed | [`packages/subagent/subagent-fork-in-process/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/subagent/subagent-fork-in-process/src/index.ts) |
-| Workflow Service Definition | [`packages/workflow/workflow/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/workflow/workflow/src/index.ts)、[`runtime-types.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/workflow/workflow/src/runtime-types.ts) |
-| worker-thread provider 与 host bridge | [`packages/workflow/workflow-worker-thread/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/workflow/workflow-worker-thread/src/index.ts)、[`host.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/workflow/workflow-worker-thread/src/host.ts)、[`session.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/workflow/workflow-worker-thread/src/session.ts) |
-| model-facing workflow Consumer | [`packages/workflow/tool-workflow/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/workflow/tool-workflow/src/index.ts) |
+Subagent 管理 child delegation；workflow 执行编排脚本并调用同一个 subagent service。新版 workflow 使用 Node PTC 进程，不再是旧 worker-thread provider。
 
 ## Verified from source
 
-### 1. `ctx.subagents` 是 provider registry，不是一种固定子进程实现
+| 入口 | 职责 |
+| --- | --- |
+| [Subagent service](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/subagent/subagent/src/index.ts)、[types](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/subagent/subagent/src/types.ts) | provider capabilities、one-shot 与 continuable API |
+| [Continuation](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/subagent/subagent/src/continuation.ts)、[activation](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/subagent/subagent/src/continuation-activation.ts) | admission、冷恢复、resident child 与回收 |
+| [Catalog](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/subagent/subagent/src/catalog.ts)、[list children](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/subagent/subagent/src/list-children.ts) | parent-owned durable child 目录与无 Agent 激活的发现 |
+| [Workflow types](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/workflow/workflow/src/runtime-types.ts) | run/result/cancel/dispose |
+| [PTC engine](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/workflow/workflow-ptc/src/index.ts)、[host](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/workflow/workflow-ptc/src/host.ts) | 复用 PTC 执行、host child ownership 和结算 |
+| [Workflow tool](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/workflow/tool-workflow/src/index.ts) | calling parent 的 durable run 记录 |
 
-`SubagentRuntime.registerProvider()` 按名字注册 effect-scoped `SubagentProvider`；重复名字失败，provider removal 只阻止新的 start，不撤销已经交给 holder 的 run。`start(name, request)` 先解析 descriptor、depth、options 与 provider capabilities，再调用并等待 `provider.start()` 发布真实 child，最后用 `observeRun()` 投影配对的 `subagent/start` / `subagent/end`。
+### One-shot 与 continuable
 
-Provider 可以是同进程 spawn/fork，也可以通过 ACP、Codex、Claude Code 或 DSH SDK 驱动外部 Agent。`inheritsParentContext` 只描述 child 是否拿到父 Session 的 completed history，不表示继承了所有工具、服务或权限。`fork` provider 只复制到最后一个 `turn/end` 的连续前缀；当前未闭合的 tool-call turn 不进入 seed。
+provider 通过 effect 注册。one-shot `start()` 成功代表真实 child 已发布，caller 得到 `{ id, result, dispose, localAgent? }`；发布前 provider rollback，发布后 holder 必须在所有路径 dispose。provider removal 阻止新 start，不撤销已经接纳的 run。本地 fork 使用 completed-turn prefix，不包含父当前开放 turn。
 
-### 2. One-shot run 的 publication 是 ownership transfer
+continuable child 有 durable Session ID，进程内最多一个 Activation。初始 inbox admission 返回 child/message identity，不等模型完成。已 resident 的消息复用 Activation；缺席的 direct child 可以基于 descriptor 和 parent authority 冷恢复。公共 `sendMessage()` 验证 exact live sender 与直接父子邻接关系，模型消息使用 Steer；浏览器内部 adapter 可选择 Queue/Steer。不能再把旧 followup/reportFrom 组合描述为当前公共 messaging API。
 
-`SubagentRun` 表示一次 foreground delegation：
+`maxActiveSubagents` 限制相连 continuable 树中的 resident capacity，等待中的父、pending inbox、正在停止的 Activation 仍占用 slot。容量在创建/冷恢复时保留，handle dispose 后归还；one-shot 和外部 provider 不计入这个限制。达到容量拒绝而非排队，避免父占着 slot 等 child 的死锁。它不是总 token 或累计 Session 配额。
 
-```text
-SubagentRuntime.start
-→ provider.start
-→ child publication
-→ SubagentRun { id, result, dispose, localAgent? }
-→ await result
-→ always dispose
+### Child discovery 读父 catalog
+
+成功本地 child 创建在父 Session 记录 `subagent/catalog`；`subagentCatalog` projection 排除 fork 继承的事实，保持父事件顺序。直接 discovery 观察父 Session，不必扫描每个 child log；递归 discovery 才逐层读取 child catalog，不加载或 resume Agent。不可读分支返回诊断。
+
+descriptor 记录可重建的 child 配置；catalog 记录“父创建了谁”。两者不能互代。迁移中的 v1 catalog 允许 mode unknown，只说明发现该 child，不能推断可 continuation；正常创建仍可使用已知 mode 的 v0 payload。
+
+### Workflow 转为 PTC 进程
+
+```mermaid
+flowchart LR
+    T["workflow tool"] --> E["ctx.workflowEngine / workflow-ptc"]
+    E --> P["Node PTC managed process"]
+    P --> G["guest VM + workflow helpers"]
+    G -->|"host bindings"| H["workflow host"]
+    H --> S["ctx.subagents.start"]
+    S --> C["holder-owned child run"]
+    C --> H
+    H --> R["workflow result + disposal"]
 ```
 
-publication 之前的失败由 provider rollback，调用者拿不到 id；publication 之后，child-level failure 通过 `result.stopReason` 表达，调用者在所有路径调用 idempotent `dispose()`。`result` 只应在 seam 无法表达的基础设施故障时 reject；`dispose()` 等待剩余 work 与资源 quiescence，并把独立 teardown fault 留在 disposal channel。
+Workflow engine 拥有脚本编排；Node PTC provider 拥有进程启动、OS confinement、framed transport 与 managed cleanup。脚本的 agent() 通过 host bindings 调用 subagents，guest 不直接取得 Context。meta/args 是验证过的 JSON data；跨 guest 的结果要求 lossless JSON。当前 engine 拒绝非 TypeScript PTC provider，不能直接用 Python PTC 替代。
 
-本地 driver 通过 `parent.ctx.agents.create()` 建立 child Agent/Session，在 unpublished setup 中应用父 preset composition、child persona/tool restriction 和 delegation policy，并安装一个 scoped `agent/pre-step` listener；该 listener 在 child 的 initial turn 内追加版本化 `subagent/descriptor`。随后 driver 投递 prompt。child Session header 保存 `parentSession`、`delegationDepth`、workspace 与 preset；descriptor 保存 provider、`one-shot`/`continuable` mode 及可重建 composition 所需字段。
+engine 为本次 PTC 执行解析调用 Session 的 standing file policy 与 cwd，程序可见环境为空；VM 本身不是 security boundary，文件策略不限制网络。不能从“在进程/VM 中执行”推出任意恶意脚本已安全隔离。
 
-Delegated policy 不继承“可以继续询问人类”的假设：若 approval capability 存在，child policy 固定为 `never`；显式 sandbox override 以 `source: 'delegation'` 写入 child 自己的日志。子 Agent 的模型上下文也会说明权限范围固定，超出范围时报告限制而不是反复升级。
+`WorkflowRun.result` 用 completed/cancelled/error 表达结算，不因脚本失败 reject。初始同步 slice 有 syncTimeoutMs，但 engine 给 PTC 的 timeoutMs 是 null，没有总 elapsed deadline；外部 abort/工具 deadline 仍有效。取消立即 abort PTC 及 pending/active children，dispose 等待进程与 child cleanup；**没有独立 workflow cleanup timer**。PTC 停止不等价于 host child ownership 已回收。
 
-### 3. Continuable child 没有 `SubagentRun`
+top-level workflow tool 将 run-start、member start/end 和 run-end 写入 parent Session；nested transport 不重复写。run-end 要在结果已知且 disposal 完成后记录。缺失尾部结束事件是中断证据，不应伪造成成功。observe-only workflow events 不授予 cancel/dispose 权限。
 
-`startContinuable()` 先让 provider 只返回 detached create spec，随后 continuation manager 负责 session id reservation、`ctx.agents.create()`、descriptor/composition、初始 prompt admission 和 rollback。API 在 child Inbox 接受初始消息后返回 `{ childId, messageId }`，不等待 turn 开始或完成。
+## 证据与最小核对
 
-每个 durable continuable Session 在一个进程里最多有一个 Activation。Activation 是 residency epoch，不是 request、result 或 Task：
+[Workflow/child lifecycle Lab](../labs/workflow-child-lifecycle/README.md)已补上当前发行包的执行证据：无 Key 案例运行真实 Node PTC、AgentLoop、JSONL，并验证脚本失败、非父拒绝和取消后的 late-start disposal；真实模型案例通过两个顺序启动的 `sdk-minimal` runtime，完成两个一次性 child 的文件任务及一个 continuable child 的冷恢复。第二次输入不带随机口令，恢复后文件字节准确，child 持久历史 `14 → 31` 且原前缀不变。详见[执行记录](../docs/reviews/2026-09-30-workflow-child.md)。
 
-- `followup()` 对 resident child 调用 `Agent.followup()`，按 FIFO 开启 later turn；Activation 不在时从 persistence 检查 descriptor/parent authority，再走 `ctx.agents.resume()` cold-resume。
-- `interrupt()` 只对 live continuable turn 发 `Agent.cancel(..., { keepInbox: true })`，不删除 pending Inbox、Activation 或 descendants；它不是 teardown。
-- manager 从 Agent quiescence 与 owned children 推导 running/waiting/settled；settled 时先向 durable direct parent 投递 runtime-authored settlement notice，再 child-first dispose handle。
-- `reportFrom()` 只能由 exact live child 向其 durable direct parent 发送选定内容；source 字段不能充当 authority。
+实验由 profile 中的课程 plugin 调用公开 service，父 pre-step 被拒绝以抑制 settlement 通知触发额外模型调用。它验证正常关闭后的同一 child 恢复，不是原生 SDK resume 或崩溃恢复。冷恢复需要 Session Query；continuable descriptor 不保存 `maxTokens`，恢复时使用模型路由默认预算。
 
-因此 continuable child 的业务标识是 durable child Session id，消息边界是 Inbox receipt；不能拿 one-shot 的 `SubagentRun.result` 心智模型套在它上面。
-
-### 4. Workflow 在 subagent seam 上增加脚本执行层
-
-`WorkflowEngine.start()` 接收 plain-JS body、validated `meta`、JSON `args`、parent Agent、可选 provider/cap 和 cancel signal，返回 holder-owned `WorkflowRun`。run 的 `result` 永不 reject，`cancel()` 触发整次编排取消，调用者必须 `dispose()` 等待有界清理。`workflow/start|phase|log|agent-start|agent-end|end` 是 observe-only lifecycle events，不提供 run control。
-
-默认 worker-thread provider 的调用路径是：
-
-```text
-WorkerThreadWorkflowEngine.start
-→ validate meta + host-side parse + provider/cap
-→ create WorkerRun and fresh Worker
-→ worker Ready / host Go handshake
-→ WorkflowExecution.drive
-→ script agent() posts ChildStart RPC
-→ host WorkerRun calls ctx.subagents.start
-→ published SubagentRun result crosses back as JSON projection
-→ script returns JSON value
-→ workflow result settles, children are reaped, holder disposes
-```
-
-每个 run 使用 fresh worker thread；worker 环境删除 ambient credentials 与 loader flags，host/worker payload 走 structured clone。thread 阻止同步脚本阻塞 host event loop，也允许 grace 后强制 terminate，但源码明确称它是 containment，不是 security boundary：脚本运行在可逃逸的 `node:vm` context，不能把它当成执行不可信代码的 sandbox。
-
-host 拥有 child provider calls，因为 worker 不持有 Agent/Context capability。每个 `agent()` 通过 RPC 到 host，host 再调用同一个 `ctx.subagents` registry。cancel 会同时通知 worker、abort 所有 pending/published child starts，并启动 `disposeGraceMs`；超时会补齐缺失的 `workflow/agent-end`、settle cancelled、terminate worker。worker death 也由 host 关闭 admission、配对 lifecycle 并回收 children。
-
-### 5. Model-facing `workflow` tool 还增加了 durable parent record
-
-`tool-workflow` 只在存在 `exec.agent` 时启动 run，把 parent step signal 同时传给 engine 并桥接到 `run.cancel()`。top-level tool execution 会把 `tool-workflow/run-start`、每个 member start/end 和 `run-end` 写入 calling parent Session；nested transport execution 不重复记录。工具只在 clean completion 返回 `{ runId, agentsStarted, result }`，非 completed outcome 变成 `isError`，并在 `finally` 中等待 `run.dispose()` 后才关闭 durable record。
-
-## Observed at runtime
-
-在固定 rc.2 checkout 运行了两组 keyless focused probes：
+以下命令在带该 tag 的 upstream checkout 只读执行：
 
 ```sh
-corepack pnpm exec vitest run \
-  packages/subagent/subagent-fork-in-process/tests/subagent-fork-in-process.spec.ts \
-  packages/subagent/subagent/tests/run-settlement.spec.ts
-# 2 files / 20 tests passed
-
-corepack pnpm exec vitest run \
-  packages/workflow/workflow-worker-thread/tests/integration.spec.ts \
-  packages/workflow/tool-workflow/tests/tool-workflow.spec.ts
-# 2 files / 26 tests passed
+git show dsh-v0.1.7-rc.2:packages/subagent/subagent/src/list-children.ts
+git show dsh-v0.1.7-rc.2:packages/workflow/workflow-ptc/src/host.ts
+git show dsh-v0.1.7-rc.2:packages/workflow/workflow-ptc/README.md
 ```
 
-第一组实际覆盖 fork seed/child composition/one-shot settlement-dispose 映射。第二组让真实 worker-thread engine 经结构化与普通 subagent 运行两阶段 workflow，并覆盖 model-facing tool 的 durable record、cancel、error、quiescent disposal 与 HMR cleanup。这里的 child LLM/provider 是确定性测试实现，没有消耗 API key。
+这些源码命令用于核对具体实现；上述 Lab 才提供 runtime probes。[2026-08-31 的 46 项测试](historical-2026-08-31.md)含旧 worker-thread engine，不构成 PTC 的当前证据；其他 lab 的 SDK 或存储成功也不补足这项缺口。
 
-## Inference
+## Inference、Proposal 与未确认
 
-- 一两个明确 delegation 直接使用 subagent 更容易理解生命周期；大规模 fan-out、phase、parallel/pipeline 和结构化汇总才值得引入 workflow script。
-- workflow run id、subagent child Session id 与业务 Run id 是三个不同标识。业务服务应维护显式映射，不能把其中任何一个当成全部状态的权威来源。
-- UI 的 `subagent/start/end` 与 `workflow/*` 适合做实时轨迹；可恢复页面仍应从 durable child descriptors、parent Session records 与业务 RunEvent 重建，而不是只缓存 live notifications。
-- worker thread 没有替代 tool sandbox。若允许业务用户提交任意 workflow body，需要独立的安全执行方案；环境 scrub 只是减少偶然泄露面。
-
-## Proposal
-
-在后续 full-stack 实验里，把 runtime adapter 能力拆为 `oneShotSubagent`、`continuableSubagent`、`workflow`、`interrupt` 与 `durableChildDiscovery`，并为每个 accepted message/run 保存 stable business correlation。先增加一个两 child 的 keyless workflow fixture，再用真实模型验证外部产物；不要以模型最终总结文本代替每个 child 的外部状态验收。
-
-## Unconfirmed / version boundary
-
-- 结论只适用于固定 rc.2；continuable Activation、descriptor version、worker protocol 与 tool event vocabulary 都可能变化。
-- 本篇没有真实调用 ACP/Codex/Claude Code/DSH SDK subagent providers，也没有比较它们各自的 process teardown 与 diagnostic 语义。
-- focused probes 没有覆盖完整 continuation cold-resume forest、所有 worker-death race 或平台矩阵；这些分支在上游有更广的 package tests，但不在本篇运行证据内。
-- workflow worker 的 scrubbed environment 和 fresh thread 不能证明恶意脚本隔离；生产安全结论仍未建立。
+Inference：workflow run、child Session、业务 Run 应有显式映射；catalog/投影不是业务任务状态。Proposal：后续分别补 PTC process failure、continuable capacity、catalog migration、复杂并行/retry、冷恢复森林和外部 provider teardown。本次没有完成恶意脚本隔离审计，也没有覆盖 tool-workflow 的 durable UI 记录。

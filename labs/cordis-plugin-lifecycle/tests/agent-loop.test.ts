@@ -5,7 +5,7 @@ import { Context } from "@deepseek-ai/cordis";
 import AgentRegistry from "@deepseek-ai/dsh-agent";
 import AgentLoop from "@deepseek-ai/dsh-agent-loop";
 import {
-  CallId,
+  ToolCallId,
   LlmAdapter,
   createUserMessage,
   type GenerateOptions,
@@ -13,6 +13,7 @@ import {
 } from "@deepseek-ai/dsh-llm";
 import LlmRuntime from "@deepseek-ai/dsh-llm";
 import SessionStore, { SessionId } from "@deepseek-ai/dsh-session";
+import SessionProjections from "@deepseek-ai/dsh-session-projection";
 import SystemPrompt from "@deepseek-ai/dsh-system-prompt";
 import ToolRuntime from "@deepseek-ai/dsh-tools";
 import { afterEach, describe, expect, test } from "vitest";
@@ -31,7 +32,7 @@ function textResponse(text: string): StreamChunk[] {
 }
 
 function toolResponse(content: string): StreamChunk[] {
-  const id = CallId("stage4-call-1");
+  const id = ToolCallId("stage4-call-1");
   const args = JSON.stringify({ content });
   return [
     { type: "block-start", index: 0, blockType: "tool-call" },
@@ -78,6 +79,7 @@ describe("scripted real AgentLoop", () => {
     const ctx = new Context();
     await ctx.plugin(LlmRuntime);
     await ctx.plugin(SessionStore);
+    await ctx.plugin(SessionProjections);
     await ctx.plugin(SystemPrompt);
     await ctx.plugin(ToolRuntime);
     await ctx.plugin(AgentRegistry);
@@ -94,11 +96,12 @@ describe("scripted real AgentLoop", () => {
     });
     await listenerFiber;
 
-    const agent = ctx.agentLoop.create(
-      SessionId("stage4-root"),
-      { provider: "scripted", model: "scripted-model" },
-      { cwd: root },
-    );
+    const handle = await ctx.agents.create({
+      sessionId: SessionId("stage4-root"),
+      agentOptions: { provider: "scripted", model: "scripted-model" },
+      meta: { cwd: root },
+    });
+    const agent = handle.agent;
     const prompt = createUserMessage({
       content: [{ type: "text", text: "write proof" }],
       source: { kind: "user" },
@@ -130,10 +133,8 @@ describe("scripted real AgentLoop", () => {
     expect(JSON.stringify(schema)).not.toMatch(/path|command/i);
     expect(await readFile(join(root, "stage4-proof.txt"), "utf8")).toBe(content);
     expect((await stat(join(root, "stage4-proof.txt"))).mode & 0o777).toBe(0o600);
-    const result = agent.session.events.find((event) => event.type === "tool/result");
-    expect(result?.type === "tool/result" && result.data.message.content[0]?.toolCallId).toBe(
-      "stage4-call-1",
-    );
+    const result = agent.session.snapshotEvents().find((event) => event.type === "tool/result");
+    expect(result?.type === "tool/result" && result.data.message.toolCallId).toBe("stage4-call-1");
     expect(agent.session.deriveMessages().at(-1)?.content).toEqual([
       { type: "text", text: "stage4 complete" },
     ]);
@@ -159,6 +160,7 @@ describe("scripted real AgentLoop", () => {
     await listenerFiber.dispose();
     await toolFiber.dispose();
     expect(ctx.tools.get("write_stage4_proof")).toBeUndefined();
+    await handle.dispose();
     await ctx.fiber.dispose();
   });
 });

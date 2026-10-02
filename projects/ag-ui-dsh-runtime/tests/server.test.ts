@@ -16,11 +16,7 @@ import {
 } from "../src/server/runtime.ts";
 import { AuthoritativeStore } from "../src/server/store.ts";
 import { PersistedSubscriptions } from "../src/server/subscriptions.ts";
-import {
-  SourceRuntimeManager,
-  type HarnessFactory,
-  type SourceEvidence,
-} from "../src/server/source-runtime.ts";
+import { PackageRuntimeManager, type HarnessFactory } from "../src/server/package-runtime.ts";
 
 const roots: string[] = [];
 const coordinators = new WeakMap<AuthoritativeStore, RunCoordinator>();
@@ -293,15 +289,19 @@ describe("coordinator", () => {
                 turn: 1,
                 step: 1,
                 message: {
-                  content: [
-                    { type: "tool-result", toolCallId: callId, content: [], isError: false },
-                  ],
+                  role: "tool",
+                  toolCallId: callId,
+                  content: [],
+                  isError: false,
                 },
               },
               input.sessionId,
             ),
           );
           input.onNotification(notification("step/end", { turn: 1, step: 1 }, input.sessionId));
+          input.onNotification(
+            notification("turn/end", { turn: 1, reason: { kind: "completed" } }, input.sessionId),
+          );
           return { finalResponse: "safe" };
         } finally {
           this.activeRuns -= 1;
@@ -347,29 +347,20 @@ describe("coordinator", () => {
   test("integrates failed startup ownership with shared-loss queue pause and restart", async () => {
     const root = await mkdtemp(join(tmpdir(), "agui-startup-integration-"));
     roots.push(root);
-    const source = join(root, "source");
     const plugin = join(root, "plugin");
-    await mkdir(join(source, "packages/examples/jsonrpc-demo/lib"), { recursive: true });
-    await mkdir(join(source, "node_modules/.pnpm/node_modules"), { recursive: true });
     await mkdir(join(plugin, "dist/plugins"), { recursive: true });
-    await writeFile(join(source, "packages/examples/jsonrpc-demo/lib/bin.js"), "// built\n");
     await writeFile(join(plugin, "dist/plugins/tool.js"), "export const name='tool'\n");
     await writeFile(join(plugin, "dist/plugins/listener.js"), "export const name='listener'\n");
     const adapterPath = join(root, "sdk-resume-adapter.js");
     await writeFile(adapterPath, "export const name='fixture-resume-adapter'\n");
     await writeFile(
       join(plugin, "package.json"),
-      JSON.stringify({ name: "fixture", type: "module" }),
+      JSON.stringify({
+        name: "@hands-on-dsh/cordis-plugin-lifecycle",
+        version: "0.1.0",
+        type: "module",
+      }),
     );
-    const evidence: SourceEvidence = {
-      root: source,
-      revision: "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
-      binPath: join(source, "packages/examples/jsonrpc-demo/lib/bin.js"),
-      hostNodeModules: join(source, "node_modules/.pnpm/node_modules"),
-      async revalidate() {},
-      testOnlyAllowPluginRoot: true,
-      testOnlyAdapterPath: adapterPath,
-    };
     let factories = 0;
     let allowClose = false;
     const factory: HarnessFactory = (options) => {
@@ -377,10 +368,7 @@ describe("coordinator", () => {
       const index = factories;
       return {
         async start() {
-          await writeFile(
-            options.launch.env!.STAGE5_VISIBLE_TOOLS_PATH!,
-            '["write_stage4_proof"]\n',
-          );
+          await writeFile(options.env!.STAGE5_VISIBLE_TOOLS_PATH!, '["write_stage4_proof"]\n');
           if (index === 1) throw new Error("handshake failed");
         },
         async run(prompt, runOptions) {
@@ -412,17 +400,21 @@ describe("coordinator", () => {
           const digest = createHash("sha256")
             .update(`stage5-proof-v1\0${runOptions.sessionId}\0${callId}`)
             .digest("hex");
-          const partition = join(options.launch.env!.DSH_CWD!, digest);
+          const partition = join(options.cwd!, digest);
           await mkdir(partition, { mode: 0o700 });
           await writeFile(join(partition, "stage4-proof.txt"), prompt, { mode: 0o600 });
           emit("tool/result", {
             turn: 1,
             step: 1,
             message: {
-              content: [{ type: "tool-result", toolCallId: callId, content: [], isError: false }],
+              role: "tool",
+              toolCallId: callId,
+              content: [],
+              isError: false,
             },
           });
           emit("step/end", { turn: 1, step: 1 });
+          emit("turn/end", { turn: 1, reason: { kind: "completed" } });
           return { finalResponse: "recovered" };
         },
         async close() {
@@ -430,13 +422,11 @@ describe("coordinator", () => {
         },
       };
     };
-    const manager = await SourceRuntimeManager.create({
-      sourceRoot: source,
+    const manager = await PackageRuntimeManager.create({
       appStateRoot: join(root, "app-state"),
       generationParent: join(root, "generations"),
-      pluginRoot: plugin,
-      allowExternalGenerationParentForTests: true,
-      testOnlySourceProbe: async () => evidence,
+      testOnlyPluginRoot: plugin,
+      testOnlyAdapterPath: adapterPath,
       testOnlyHarnessFactory: factory,
     });
     const store = new AuthoritativeStore(join(root, "app.db"));
@@ -572,9 +562,10 @@ describe("coordinator", () => {
                 turn: 1,
                 step: 1,
                 message: {
-                  content: [
-                    { type: "tool-result", toolCallId: callId, content: [], isError: false },
-                  ],
+                  role: "tool",
+                  toolCallId: callId,
+                  content: [],
+                  isError: false,
                 },
               },
               input.sessionId,
@@ -651,7 +642,10 @@ describe("coordinator", () => {
               turn: 1,
               step: 1,
               message: {
-                content: [{ type: "tool-result", toolCallId: callId, content: [], isError: false }],
+                role: "tool",
+                toolCallId: callId,
+                content: [],
+                isError: false,
               },
             },
             input.sessionId,
@@ -1201,5 +1195,30 @@ test("app close aborts more-than-concurrency SSE sockets while pending Runs stay
   expect(store.getRun("socket-r2")?.status).toBe("execution_unknown");
   expect(store.getRun("socket-r3")?.status).toBe("queued");
   expect(store.getRun("socket-r4")?.status).toBe("queued");
+  store.close();
+});
+
+test("a max-tokens root turn after a valid proof fails business Run but retains exact artifact", async () => {
+  class MaxTokensRuntime extends FakeDshRuntime {
+    override async run(input: RuntimeRunInput): Promise<RuntimeRunResult> {
+      const result = await super.run(input);
+      input.onNotification(
+        notification("turn/end", { turn: 1, reason: { kind: "max-tokens" } }, input.sessionId),
+      );
+      return result;
+    }
+  }
+  const workspace = await uniqueWorkspace("agui-max-tokens-");
+  roots.push(workspace);
+  const runtime = new MaxTokensRuntime(workspace);
+  const { store, coordinator } = await fixture(runtime);
+  store.createConversation({ id: "max-c", title: "Max", dshSessionRef: "max-session" });
+  coordinator.admit({ runId: "max-r", conversationId: "max-c", prompt: "exact proof" });
+  expect((await terminal(store, "max-r")).status).toBe("failed");
+  await coordinator.whenIdle();
+  const artifacts = store.listArtifacts("max-r");
+  expect(artifacts).toHaveLength(1);
+  expect(store.getArtifact(artifacts[0]!.id)?.bytes.toString()).toBe("exact proof");
+  await coordinator.close();
   store.close();
 });

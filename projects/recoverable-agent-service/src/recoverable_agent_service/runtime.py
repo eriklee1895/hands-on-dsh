@@ -70,14 +70,14 @@ class DSHRuntimeAdapter:
     def __init__(
         self,
         workspace: str | Path,
-        session_root: str | Path,
+        dsh_home: str | Path,
         *,
         provider: str | None = None,
         model: str | None = None,
         harness_factory: Callable[..., Any] = DeepSeekHarness,
     ) -> None:
         self._workspace = Path(workspace)
-        self._session_root = Path(session_root)
+        self._dsh_home = Path(dsh_home)
         self._harness_factory = harness_factory
         self._provider = provider
         self._model = model
@@ -85,6 +85,7 @@ class DSHRuntimeAdapter:
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="dsh-sdk")
         self._lifecycle_lock = asyncio.Lock()
         self._state = "new"
+        self._close_requested = False
 
     async def run(
         self,
@@ -102,7 +103,7 @@ class DSHRuntimeAdapter:
                 if self._state == "new":
                     await self._run_owned(harness.start)
                     self._state = "ready"
-            except Exception as error:
+            except (Exception, asyncio.CancelledError) as error:
                 if self._harness is not None:
                     self._state = "broken"
                     await self._reset_after_failure()
@@ -130,9 +131,16 @@ class DSHRuntimeAdapter:
                 self._state = "broken"
                 await self._reset_after_failure()
                 raise ExecutionUncertainError(str(error)) from error.cause
+            except asyncio.CancelledError as error:
+                self._state = "broken"
+                await self._reset_after_failure()
+                raise ExecutionUncertainError(
+                    "session run waiter cancelled after invocation"
+                ) from error
 
     async def close(self) -> None:
         """Close terminally, retaining a failed harness so callers can retry cleanup."""
+        self._close_requested = True
         async with self._lifecycle_lock:
             if self._state == "closed":
                 return
@@ -149,22 +157,25 @@ class DSHRuntimeAdapter:
 
     def _prepare_paths(self) -> None:
         self._workspace.mkdir(parents=True, exist_ok=True)
-        self._session_root.mkdir(parents=True, exist_ok=True)
+        self._dsh_home.mkdir(parents=True, exist_ok=True)
 
     async def _get_or_create_harness(self) -> Any:
         if self._harness is None:
             configuration = {
                 "cwd": str(self._workspace.resolve()),
-                "session_root": str(self._session_root.resolve()),
+                "dsh_home": str(self._dsh_home.resolve()),
+                "profile": "sdk-minimal",
             }
             if self._provider is not None:
                 configuration["provider"] = self._provider
             if self._model is not None:
                 configuration["model"] = self._model
-            self._harness = await self._run_owned(
-                self._harness_factory,
-                **configuration,
-            )
+
+            def construct() -> Any:
+                self._harness = self._harness_factory(**configuration)
+                return self._harness
+
+            await self._run_owned(construct)
         return self._harness
 
     @staticmethod
@@ -194,6 +205,9 @@ class DSHRuntimeAdapter:
             return
         try:
             await self._run_owned(harness.close)
+        except asyncio.CancelledError:
+            # The owned thread completed close before reporting waiter cancellation.
+            pass
         except Exception:
             # The original runtime failure stays authoritative; explicit close can retry cleanup.
             return
@@ -202,10 +216,26 @@ class DSHRuntimeAdapter:
 
     async def _run_owned(self, function: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(self._executor, partial(function, *args, **kwargs))
+        submitted = self._executor.submit(partial(function, *args, **kwargs))
+        completed = asyncio.wrap_future(submitted, loop=loop)
+        cancelled = False
+        while not completed.done():
+            try:
+                await asyncio.wait({completed})
+            except asyncio.CancelledError:
+                cancelled = True
+        if cancelled:
+            if not completed.cancelled():
+                error = completed.exception()
+                if error is not None:
+                    raise error
+            raise asyncio.CancelledError()
+        return completed.result()
 
     def _require_runnable(self) -> None:
         if self._state == "closed":
             raise RuntimeUnavailableError("runtime adapter is closed")
         if self._state == "broken":
             raise RuntimeUnavailableError("runtime adapter cleanup must succeed before reuse")
+        if self._close_requested:
+            raise RuntimeUnavailableError("runtime adapter is closing")

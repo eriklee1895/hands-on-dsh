@@ -1,0 +1,41 @@
+# 工程化学习路线
+
+目标是把“能调用 Agent”推进到“能解释并验证失败后的行为”。先读[2026-09-28 上游审查](../reviews/2026-09-28-upstream-refresh.md)，按各章实际 pin 运行。Phase 1–6 的历史完成状态不等于新版迁移完成。
+
+## 课程与验收
+
+| 单元 | 前置 | 作品 | 必须观察到的结果 | 状态 |
+| --- | --- | --- | --- | --- |
+| 7.1 单 runtime 的所有权与超时 | 新版 profile/home、receipt-to-idle | [runtime-supervision lab](../../labs/runtime-supervision/README.md) | 只接纳一个调用；失败不重放；close 成功才重建；close 失败隔离 | 已完成，证据见执行记录 |
+| 7.2 进程池与容量控制 | 7.1、业务 Run | [有界 runtime 池](../../labs/runtime-supervision/POOL.md) | 有界 FIFO、独占 lease、排队取消、故障回收与隔离；不自动重跑不确定任务 | 已完成，[32 项测试与真实双进程验收](../reviews/2026-09-29-runtime-pool.md) |
+| 7.3 身份认证与租户 | 业务状态、7.2 | [租户认证入口](../../projects/recoverable-agent-service/TENANCY.md) | 伪造身份字段被拒绝；跨租户读写/事件/产物不可访问；认证 token 不进入业务存储和服务日志 | 已完成，[171 项测试与双租户 HTTP/模型验收](../reviews/2026-09-29-tenant-auth.md) |
+| 7.4 Workspace 与执行隔离 | 7.3 | [sandbox isolation lab](../../labs/sandbox-isolation/README.md) | 真实 provider/模型工具验证写入限制；读取、网络、进程与清理逐项观察 | 本机课程已完成，[验收记录](../reviews/2026-09-29-sandbox-isolation.md)；[Linux容器/SSH执行](../../labs/sandbox-isolation/CONTAINERS.md)与[验收](../reviews/2026-10-01-container-executor.md)已补齐 |
+| 7.5 可观测性与成本 | V4 事件迁移、7.1 | [Run 观测 lab](../../labs/run-observability/README.md) | 区分 Run/turn/attempt；重放不重复计数；白名单元数据与明确缺失项 | 已完成，[16 项测试与双 Run 验收](../reviews/2026-09-29-run-observability.md)；非供应商账单 |
+| 7.6 Eval 与可重放回归 | 事件投影、7.5 | [可恢复服务 Eval](../../projects/recoverable-agent-service/EVAL.md) | 成功、工具错误、已结算 aborted、执行不确定和业务恢复；游标重放及负对照 | 已完成，[五受控案例/251 项测试与独立真实成功验证](../reviews/2026-09-30-eval-regression.md)；不提供 cancel/SDK 冷恢复 |
+| 7.7 跨 runtime 适配 | 协议课、7.6 | [DSH双协议与Codex/Hermes CLI适配](../../labs/protocol-semantics/ADAPTERS.md) | 保留原生终态、显式能力、共享关闭与共同场景 | 已完成，[DSH双profile验收](../reviews/2026-09-30-runtime-adapters.md)与[137项测试、Codex/Hermes真实验收](../reviews/2026-10-02-cross-engine.md)；各入口保留原生能力差异 |
+
+## 与旧课程升级的关系
+
+7.1 只依赖公开的 run/close，先独立完成。旧 Python/TS 入门随后迁移，事件与持久化升级排在 AG-UI 前；7.2 组合 supervisor 并把业务幂等留给调用方，7.3–7.7 再依次扩展。每课包含：问题、固定版本、可执行示例、故障实验、观察记录、边界与下一步。
+
+新版迁移清单：
+
+- [x] Python：入门已迁移到 `0.1.5rc1`，公开 profile/home 启动并重新实跑六例；验收见 [SDK 迁移记录](../reviews/2026-09-28-sdk-migration.md)。
+- [x] TypeScript：入门已迁移到 `0.1.7-rc.2`，公开 profile/home/patch 启动、committed-message 投影与四例验证；同上记录。
+- [x] 协议与 FastAPI：公开 profiles、SSE 已提交消息投影与 ACP 持久会话控制，见[第三批验收](../reviews/2026-09-29-web-protocol-migration.md)。
+- [x] 真正的实时token transport：采用[官方Web Remote链路](../../labs/web-host-lifecycle/README.md)，已观察独立live帧早于持久消息；[SSE/WS比较](../comparisons/sse-vs-websocket.md)说明与自有AG-UI的区别。此结论不扩展为stock SDK/ACP支持live token。
+- [x] Session V4 基础实验：synthetic plaintext V1/V3 副本的只读迁移、写入 successor 与不可变 generation，见[第四批验收](../reviews/2026-09-29-recovery-storage.md)。
+- [x] 复杂历史数据：[压缩非空V1/V3与发布版V4附件样本](../../labs/session-format-migration/RICH-HISTORY.md)、[三节点历史catalog与独立进程forest恢复](../../labs/workflow-child-lifecycle/RECOVERY.md)已验证；对应[存储记录](../reviews/2026-10-01-rich-history.md)与[workflow记录](../reviews/2026-10-02-workflow-recovery.md)。
+- [x] 可恢复服务升级：Python `0.1.5rc1`、旧事件原样重放、reconciliation/恢复确认和产物/幂等兼容，与 Session 格式分开验收。
+- [x] Cordis/preset：固定新版公开 profile patch、packed plugin、effect teardown 和 preset composition probe。
+- [x] AG-UI：重新审计 SDK deployment resume adapter、V4 committed projector、公开 package runtime、跨 generation 与浏览器 hydration。
+- [x] 核心机制正文：七篇按固定新版源码更新，3 个新公开库 probe 和相关 lab 证据，旧结果独立归档。
+- [x] Compaction基础运行验证：[实际服务端overflow](../../labs/compaction-lifecycle/PROVIDER-OVERFLOW.md)核对真实拒绝与持久终态；[确定性engine与真实pressure实验](../../labs/compaction-lifecycle/README.md)，包含后续产物和持久surface重放；[事务/并发维护](../../labs/compaction-lifecycle/TRANSACTIONS.md)补commit/flush失败与admission序列；[溢出/取消课](../../labs/compaction-lifecycle/RECOVERY.md)补受控错误、重试预算与迟到摘要的独立进程证据；[裁剪/offload课](../../labs/compaction-lifecycle/REDUCTION.md)补原始日志、消息 projection、图片文件与已提交缩减的证据。
+- [x] Workflow/PTC 与 child 冷恢复基础：[运行 Lab](../../labs/workflow-child-lifecycle/README.md)，包含受控取消清理、真实文件和正常关闭后的双进程恢复；[进阶课](../../labs/workflow-child-lifecycle/RECOVERY.md)补真实PTC进程崩溃、受控并行/重试、post-flush SIGKILL森林恢复与历史catalog。
+- [x] 官方 Web Host 基础：[浏览器 Lab](../../labs/web-host-lifecycle/README.md)，包含认证、实时帧、历史加载、正常重启后同会话续写与文件验证；[控制案例](../../labs/web-host-lifecycle/CONTROLS.md)补上拒绝/单次允许、foreground 取消、浏览器离线后历史恢复。
+- [x] 生产附件基础：[附件输入 Lab](../../labs/attachment-input/README.md)，35项本地测试、随机图真实 Files 传输与存储重读，以及[整请求inline fallback](../../labs/attachment-input/FALLBACK.md)，以及[真实provider本地预算/offload](../../labs/attachment-input/BUDGET.md)与[已删除Files引用恢复](../../labs/attachment-input/STALE.md)；[基础验收](../reviews/2026-10-01-attachment-input.md)、[fallback验收](../reviews/2026-10-01-attachment-fallback.md)。
+- [x] Web恢复边界：[进阶课](../../labs/web-host-lifecycle/RECOVERY.md)与[验收](../reviews/2026-10-02-web-recovery.md)覆盖admission断线、审批取消/同事件迟到回答、串行/并发重复投递与Host crash；真实负面结果保留，不把HTTP成功当作用已生效。
+
+先读[业务恢复、会话恢复与格式迁移](../comparisons/recovery-and-session-migration.md)，避免把底层可读或 resume 成功当成业务执行成功。
+
+每次只把实际验收的单元标为完成。[全章验收索引](../reviews/2026-10-01-chapter-audit.md)汇总当前完成状态；旧执行记录保留其日期范围。

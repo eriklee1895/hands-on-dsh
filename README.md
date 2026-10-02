@@ -6,7 +6,11 @@
 
 > Learn DSH by building agent applications, exploring protocols, and understanding its internals.
 
+从[全章导航](docs/learning-paths/chapters.md)开始按顺序学习；验收状态见[全章节索引](docs/reviews/2026-10-01-chapter-audit.md)。
+
 ## 当前进度
+
+当前已升级的 Python SDK、FastAPI 与可恢复服务固定 `0.1.5rc1`；TypeScript SDK、协议和存储实验固定 npm `0.1.7-rc.2`。Cordis 与 AG-UI 已迁移到同一 npm 版本，七篇机制笔记也按该 tag 审查；文章中没有重跑的执行链单独标明。先读[上游审查](docs/reviews/2026-09-28-upstream-refresh.md)与[工程化路线](docs/learning-paths/engineering.md)；各章状态见[全章节验收索引](docs/reviews/2026-10-01-chapter-audit.md)，逐批记录保留各自日期与证据范围。
 
 ### ✅ Python SDK：由浅入深
 
@@ -14,12 +18,12 @@
 
 1. `DeepSeekHarness.run()` 最小调用
 2. runtime 进程与多轮 session 复用
-3. `assistant/chunk` 流式文本输出
+3. 通知流中的 root 已提交消息投影（非逐 token streaming）
 4. workspace 文件与工具调用
 5. 底层 `HarnessClient` 生命周期
 6. 手写 stdio JSON-RPC
 
-每个示例都有独立教程、源码说明和 Mermaid 流程图。示例已经使用真实 DeepSeek API 验证。
+每个示例都有独立教程和固定版本的源码说明。新版采用公开 profile、独立 home 与 workspace；工具结果由外部文件字节验证。逐例真实模型与 keyless 验收见 SDK 迁移记录。
 
 ### ✅ FastAPI 101：从零构建 Web Agent
 
@@ -27,46 +31,57 @@
 
 - FastAPI lifespan 管理一个长期运行的 DSH runtime
 - 同步 JSON API
-- POST + SSE 流式事件
+- POST + SSE 状态、工具与已提交消息事件（非逐 token 输出）
 - 浏览器多轮 session
 - 工具调用、工具结果与 Agent 轨迹
 - 同 session 串行、跨 session 并发
 - runtime shutdown 与子进程回收
 - 原生 HTML/CSS/JavaScript 前端
 
-项目提交 keyless 单元测试、Mermaid 图和架构插图；新近完成的手动真实模型与浏览器验证记录在 [阶段 0 验收记录](docs/learning-paths/python-app-builder.md#阶段-0-验收记录-2026-08-31)。
+项目已迁移到 Python `0.1.5rc1` 的公开 profile/home 启动。真实 API、浏览器及 keyless 验收见[第三批记录](docs/reviews/2026-09-29-web-protocol-migration.md)；8 月记录保留为历史证据。
 
 ### ✅ Recoverable Agent Service：业务状态与断线恢复
 
-[`projects/recoverable-agent-service/`](projects/recoverable-agent-service/README.md) 是一个没有浏览器 UI 的完整 FastAPI 服务：SQLite 持有 Conversation、Run、RunEvent 和 Artifact 权威状态；单 worker 驱动 DSH；命名 SSE 支持持久游标重放；执行不确定性需要显式确认并旋转 session；产物通过不可变 SQLite BLOB 下载。项目提供 Python 3.10 keyless 测试和显式真实 DSH E2E。
+[`projects/recoverable-agent-service/`](projects/recoverable-agent-service/README.md) 是一个没有浏览器 UI 的完整 FastAPI 服务：SQLite 持有 Conversation、Run、RunEvent 和 Artifact 权威状态；单 worker 驱动 DSH；命名 SSE 支持持久游标重放；执行不确定性需要显式确认并旋转 session；产物通过不可变 SQLite BLOB 下载。项目已升级到 Python `0.1.5rc1` 的公开 profile/home，新增正文使用已提交消息，旧 SQLite 事件原样重放；提供 Python 3.10 keyless 测试和显式真实 DSH E2E。
 
 ### ✅ SDK JSON-RPC 与 ACP 协议语义
 
-[`labs/protocol-semantics/`](labs/protocol-semantics/README.md) 提供两个独立 wire lab：共享 JSONL peer、确定性 fake servers、SDK receipt-to-idle、ACP committed output/cancel/permission、错误与 typed close outcome。实验固定 DSH `0.1.1-rc.2` source revision，已通过 upstream keyless suites 和 review 后各一次真实 source prompt；SDK shutdown/exit 无 escalation，ACP 当次 EOF exit 0，两个 owned process group 均消失。选型见 [SDK JSON-RPC 与 ACP 对比](docs/comparisons/sdk-jsonrpc-vs-acp.md)。
+[`labs/protocol-semantics/`](labs/protocol-semantics/README.md) 使用 npm `0.1.7-rc.2` 的公开 SDK/ACP profiles 与独立 Python JSONL peer，保留 keyless fake 和 exploratory command 模式。新版 ACP 提供 list/resume/close、模型配置、cancel 与 permission；SDK 仍以 committed SessionEvent 和 receipt-to-idle 为核心。真实 ACP 跨进程恢复、wire identity 与 release 的区分，以及关闭结果见[第三批验收](docs/reviews/2026-09-29-web-protocol-migration.md)。选型见[SDK JSON-RPC 与 ACP 对比](docs/comparisons/sdk-jsonrpc-vs-acp.md)。
 
-### ✅ TypeScript SDK：显式管理 source runtime
+### ✅ TypeScript SDK：通过公开 profile 管理 runtime
 
-[`tutorials/typescript-sdk/`](tutorials/typescript-sdk/README.md) 提供四个已实现并实测的示例：显式启动固定 rc.2 runtime、高层 session 两轮复用、root notification/tool 投影，以及底层 `HarnessClient` receipt-to-idle。项目锁定 Node/pnpm/TypeScript/Vitest/Oxlint/Oxfmt，提交 48 个 keyless 测试，并完成四个真实模型 gate。tool 示例的 34 字节产物由外部监视器在 cleanup 前核对；每次正常退出后匹配的 runtime 和观察到的 descendant 均从进程表消失。
+[`tutorials/typescript-sdk/`](tutorials/typescript-sdk/README.md) 提供四个渐进示例：启动同版本 npm dsh、高层 session 两轮复用、root committed-message/tool 投影，以及底层 `HarnessClient` receipt-to-idle。新版采用公开 `profile` / `dshHome` / `patches`，不再要求构建旧 source runtime；工具示例核对 34 字节产物。当前测试和真实运行结果见 [SDK 迁移记录](docs/reviews/2026-09-28-sdk-migration.md)。
 
 Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/python-vs-typescript-sdk.md)。
 
 ### ✅ Cordis 与 DSH Plugin：原创生命周期与工具实验
 
-[`labs/cordis-plugin-lifecycle/`](labs/cordis-plugin-lifecycle/README.md) 完整实跑官方七章但不复制其源码，并实现原创 proof journal package：Service/inject/reactivation、typed events/waterfall、ordered effect cleanup、stable-ID HMR/PENDING、`write_stage4_proof` tool 和 live/durable listener。package 暴露稳定 `./tool`、`./listener` subpath，当前 25 个 keyless tests、plain-Node packed consumer 和 authoritative 真实 DeepSeek tool call 均已通过；root tool call、独立 live observer 和 durable result 均恰好一次且 call ID/content 一致，外部核对 27 字节 artifact、audit、idle 与正常进程退出。
+[`labs/cordis-plugin-lifecycle/`](labs/cordis-plugin-lifecycle/README.md) 的原创 package 已升级到 `0.1.7-rc.2` / Cordis `4.0.4`：Service/inject、typed events/waterfall、effect cleanup、HMR/PENDING、proof tool 和 live/durable listener 保持可运行，新增 preset composition probe。稳定 `./tool`、`./listener` subpath 继续供毕业项目消费；26 个 keyless tests、packed consumer 与真实 27 字节 proof/audit 验证通过。
 
 ### ✅ AG-UI / CopilotKit Full-stack：业务权威状态与 Runtime 恢复
 
-[`projects/ag-ui-dsh-runtime/`](projects/ag-ui-dsh-runtime/README.md) 是 TypeScript full-stack 毕业项目：Fastify 显式拥有 DSH source runtime，SQLite 持有 Conversation / Run / RunEvent / Artifact，React + CopilotKit 通过 AG-UI 显示对话、工具和持久 Run Inspector。项目提交 117 个 keyless tests，并通过 production build、foreign-cwd adapter smoke、桌面/375px 浏览器与 Axe 零违规验收。
+[`projects/ag-ui-dsh-runtime/`](projects/ag-ui-dsh-runtime/README.md) 通过公开 npm dsh profile/patch 启动 runtime，SQLite 持有业务 Conversation / Run / RunEvent / Artifact，React/CopilotKit 显示已提交消息、工具和持久 Run Inspector。V4 tool/result、package 模式和 generation lifecycle 已迁移。
 
-真实 rc.2 gate 发现 stock SDK JSON-RPC server 不会跨进程 resume 已有 JSONL session。项目保留 upstream clean，以 generation-local deployment adapter 复用官方 server 并把持久 identity 路由到官方 `agents.resume()`。最终两个 Conversation、四个真实 Run 均得到恰好一次 tool/result 与 exact Artifact；runtime generation 1→2 后同一 DSH session 的 JSONL turn 连续为 `[1,2,3]`，模型准确回忆 `ONYX-842`；AG-UI fetch 分离后 business cursor 仍到达 terminal，最终 server/runtime 与 generation 目录全部回收。
+跨 generation 恢复仍由项目的 deployment adapter 调用官方 `agents.resume()`，不是 stock SDK 的新增 RPC。当前两 Conversation、工具/产物、重启回读、detach/business cursor、桌面/375px UI 和 review 结果见[第五批验收](docs/reviews/2026-09-29-plugin-agui-internals.md)。
 
 ### ✅ How DSH Works：固定 revision 的核心机制追踪
 
-[`how-dsh-works/`](how-dsh-works/README.md) 提供 7 篇按调用链排列的中文机制笔记：plugin tree/runtime 组装、Agent Inbox/AgentLoop、Turn/Step/tool pipeline、SessionEvent persistence/projection、compaction/context assembly、subagent/workflow，以及 SDK JSON-RPC/ACP/Web Host。全部固定到 `dsh-v0.1.1-rc.2` 的完整 commit，区分源码事实、运行观察、推断、建议和未确认边界；每篇包含一个经过 Mermaid parser 验证的图与实际运行的 keyless focused probe，交付前 combined regression 覆盖 21 个 upstream test files / 603 tests。
+[`how-dsh-works/`](how-dsh-works/README.md) 的七篇中文机制笔记已按 `0.1.7-rc.2` 完整 SHA 逐条审查，覆盖 profile/preset、Agent/loop、V4 tool/session、context/compaction、subagent/workflow-ptc 和 SDK/ACP/Web Host。3 个发布包 keyless probes 与以下新版 Lab 分别提供运行证据：
+
+- Compaction：[真实 pressure、产物与持久重读](labs/compaction-lifecycle/README.md)、[受控溢出/取消](labs/compaction-lifecycle/RECOVERY.md)、[真实服务端overflow](labs/compaction-lifecycle/PROVIDER-OVERFLOW.md)、[事务/并发失败](labs/compaction-lifecycle/TRANSACTIONS.md)、[裁剪/offload 及图片 projection](labs/compaction-lifecycle/REDUCTION.md)。
+- [附件输入](labs/attachment-input/README.md)：生产附件接纳/归一化、真实 Files 图片请求、历史复用与关闭后独立重读；[整请求fallback](labs/attachment-input/FALLBACK.md)验证受控Files失败后的真实inline传输。
+- [Workflow/child](labs/workflow-child-lifecycle/README.md)：PTC 产物与正常关闭后的 child 冷恢复。
+- 官方 Web：[实时帧、历史和重启续写](labs/web-host-lifecycle/README.md)、[审批、取消与离线控制](labs/web-host-lifecycle/CONTROLS.md)、[断线/重复投递/迟到回答/崩溃](labs/web-host-lifecycle/RECOVERY.md)。
+
+并行/retry、存储与崩溃恢复已有各自范围的[进阶验收](docs/reviews/2026-10-01-chapter-audit.md)；真实负面结果与生产限制保留在各章。旧版603 tests 保存在独立历史页，不归入新版结果。
+
+### ✅ Session V1 / V3 → V4：存储迁移实验
+
+[`labs/session-format-migration/`](labs/session-format-migration/README.md) 通过真实发布版 persistence backend 与 worker，在 synthetic fixture 副本上验证只读逻辑迁移、写入 V4 successor、旧 generation 字节/hash 不变、重新打开稳定及 future/corrupt 拒绝。[复杂历史课](labs/session-format-migration/RICH-HISTORY.md)补充非空压缩V1/V3迁移和发布版写出的V4附件样本；[catalog/forest课](labs/workflow-child-lifecycle/RECOVERY.md)补齐三节点目录、旧格式关联与第二进程恢复。它不读取个人会话，也不等同于业务 Run 恢复。
 
 ## 学习路线图
 
-路线按“先调用 runtime，再拥有业务恢复语义，随后理解协议、plugin、full-stack 与内部机制”的顺序推进：Python 集成 → recoverable service → SDK JSON-RPC / ACP → TypeScript SDK → Cordis/DSH plugin → AG-UI full-stack → fixed-revision internals。Phase 1–6 已有可运行产物和验收记录；Phase 7 保持未完成，只表示下一阶段的工程化学习方向。
+路线按“先调用 runtime，再拥有业务恢复语义，随后理解协议、plugin、full-stack 与内部机制”的顺序推进：Python 集成 → recoverable service → SDK JSON-RPC / ACP → TypeScript SDK → Cordis/DSH plugin → AG-UI full-stack → fixed-revision internals。Phase 1–7与列明的容器、跨引擎及恢复扩展均有可运行产物和验收记录；具体版本、证据与限制见工程化路线。
 
 ### Phase 1 — Python 集成基础
 
@@ -74,7 +89,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] 使用 Ruff 统一 lint 与格式检查
 - [x] 安装 Python SDK 与匹配的 runtime wheel
 - [x] 高层单轮与多轮调用
-- [x] 流式通知和事件过滤
+- [x] 通知投影与 root/child 事件过滤
 - [x] workspace 工具任务
 - [x] 底层 `HarnessClient`
 - [x] 裸 JSON-RPC 对照实验
@@ -84,6 +99,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 ### Phase 2 — ACP
 
 - [x] 理解 ACP 初始化、session、prompt、cancel 与 permission 语义
+- [x] 新版 ACP 持久 session list/resume/close 与配置选择实验
 - [x] 启动并手动驱动 DSH ACP server
 - [x] 编写最小 ACP 客户端
 - [x] 对比 SDK JSON-RPC 与 ACP 的能力和事件模型
@@ -92,7 +108,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 ### Phase 3 — TypeScript 调用 DSH
 
 - [x] 安装并体验 `@deepseek-ai/dsh-sdk-client`
-- [x] 管理 TypeScript 侧 runtime 命令与子进程生命周期
+- [x] 管理 TypeScript 侧 profile/home/patch 与子进程生命周期
 - [x] 使用高层 `DeepSeekHarness` 与底层 `HarnessClient`
 - [x] 处理 notification stream、session 与 subagent 事件
 - [x] 用一个协议 parity smoke 对齐 Python JSON-RPC lab，不重复实现 raw transport
@@ -105,7 +121,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] 从最小 `apply(ctx)` plugin 开始，验证安装、配置、reload 与 teardown
 - [x] 通过 `cordis.yml` 组合 plugin，理解 profile、bundle 与运行时配置
 - [x] 扩展一个 DSH tool 和 result/session listener，并正确清理注册资源
-- [x] 阅读并实跑官方七章及目标 subsystem reference
+- [x] 历史官方七章学习；新版原创 lifecycle/preset 与 tool/listener 验证
 - [x] 完成自定义 DSH plugin 的 keyless、packed consumer 与真实模型端到端实验
 
 ### Phase 5 — TypeScript full-stack Agent 应用
@@ -118,7 +134,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] 断线恢复、背压、错误、execution-unknown 与优雅关闭
 - [x] 记录 loopback、danger-full-access、认证和多租户边界
 - [x] 通过 tracked `file:` dependency 消费 Cordis lab 的 `./tool` 与 `./listener`
-- [x] 固定 rc.2 进程重启后通过项目 adapter 恢复持久 DSH session
+- [x] 固定 `0.1.7-rc.2` 的公开 profile 与项目 adapter 跨 generation 恢复
 
 ### Phase 6 — DSH 内部机制与源码学习
 
@@ -126,6 +142,7 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 - [x] `Agent`、inbox 与 agent loop
 - [x] turn / step / tool 执行流水线
 - [x] durable session event log、持久化与 projection
+- [x] synthetic V1/V3 → V4 的只读/写入与不可变 predecessor 实验
 - [x] compaction 与 context assembly
 - [x] one-shot/continuable subagent 与 workflow
 - [x] SDK JSON-RPC server/client 源码追踪
@@ -134,12 +151,17 @@ Python/TypeScript 选型见 [Python SDK 与 TypeScript SDK](docs/comparisons/pyt
 
 ### Phase 7 — 工程化专题
 
-- [ ] runtime supervisor 与进程池
-- [ ] 认证与多租户隔离
-- [ ] sandbox、容器化 workspace 与远程执行隔离
-- [ ] 可观测性、token 用量与审计
-- [ ] eval、回放与 keyless 测试
-- [ ] 协议适配层：DSH / ACP / Codex / Hermes
+[详细顺序与验收条件](docs/learning-paths/engineering.md)；第一课见 [runtime-supervision](labs/runtime-supervision/README.md)。
+
+- [x] 单 runtime supervisor：新版 profile、超时回收、关闭失败隔离与显式重建
+- [x] [有界进程池](labs/runtime-supervision/POOL.md)：FIFO、排队取消、故障注入与真实双 runtime 验证
+- [x] [身份认证与租户 API 数据访问](projects/recoverable-agent-service/TENANCY.md)：Bearer 验证、独立业务存储与跨租户拒绝
+- [x] [本机 sandbox 探针](labs/sandbox-isolation/README.md)：真实文件写入、网络/进程观察与平台差异
+- [x] [容器workspace与SSH执行](labs/sandbox-isolation/CONTAINERS.md)：真实Linux容器、固定版文件/子进程provider、外部字节与失败清理
+- [x] [Run 观测与用量估算](labs/run-observability/README.md)：白名单元数据、重放去重与显式教学费率
+- [x] [Eval 与可重放回归](projects/recoverable-agent-service/EVAL.md)：五类业务场景、负对照、独立真实成功路径
+- [x] [DSH 双协议适配基础](labs/protocol-semantics/ADAPTERS.md)：显式能力、原生终态与共同场景
+- [x] [Codex/Hermes CLI适配与真实验收](labs/protocol-semantics/ADAPTERS.md)：独立状态、原生终态、严格nonce与文件字节验证
 
 ## 仓库结构
 
@@ -201,9 +223,8 @@ uv run python -m protocol_labs.acp --server fake
 
 ```sh
 cd tutorials/typescript-sdk
-corepack pnpm install --frozen-lockfile
-DSH_SOURCE_ROOT=/absolute/path/to/disposable-deepseek-harness \
-  node --env-file=../../.env --import tsx examples/01_explicit_launch.ts
+pnpm install --frozen-lockfile
+pnpm exec node --env-file=../../.env --import tsx examples/01_explicit_launch.ts
 ```
 
 ### Cordis Plugin Lifecycle
@@ -227,8 +248,8 @@ corepack pnpm build
 corepack pnpm server:fake
 corepack pnpm dev:web
 
-# 真实 source runtime 先对 disposable rc.2 checkout 生成 attestation，
-# 再通过显式 --runtime source / --source-root 启动；详见项目 README。
+# 真实发布包模式需要本地 .env 与独立 state root，详见项目 README。
+# 具体 node --env-file 启动命令见项目 README。
 ```
 
 ## 验证
@@ -279,6 +300,6 @@ corepack pnpm smoke:server
 
 ## 安全说明
 
-DSH 工具和 plugin 可能使用本地文件与进程权限。文件与命令示例只应针对可丢弃 workspace、容器或明确配置的 DSH sandbox 运行。TypeScript 教程固定使用的 minimal composition 是 `danger-full-access`；Cordis 真实 gate 即使移除 Bash/editor，custom plugin 与 runtime 仍拥有 host authority。disposable workspace 是任务目标目录，不是安全隔离边界。AG-UI 项目是无认证、单用户、loopback-only 的开发集成；其 resume adapter 是固定 rc.2 的项目部署补丁，不代表 stock DSH SDK JSON-RPC 已支持跨进程恢复。
+DSH 工具和 plugin 可能使用本地文件与进程权限。文件与命令示例只应针对可丢弃 workspace、容器或明确配置的 DSH sandbox 运行。TypeScript 教程固定使用的 minimal composition 是 `danger-full-access`；Cordis 真实 gate 即使移除 Bash/editor，custom plugin 与 runtime 仍拥有 host authority。disposable workspace 是任务目标目录，不是安全隔离边界。AG-UI 项目是无认证、单用户、loopback-only 的开发集成；其 resume adapter 是固定 `0.1.7-rc.2` 的项目部署适配器，不代表 stock DSH SDK JSON-RPC 已支持跨进程恢复。
 
-本仓库不复制 DSH 核心源码。Python 教程使用已发布 SDK 与 bundled runtime；TypeScript 教程和 full-stack 项目使用已发布客户端/package，并显式启动固定 revision 的 source runtime。机制学习通过固定 commit 链接到 [DeepSeek Harness 官方仓库](https://github.com/deepseek-ai/deepseek-harness)。
+本仓库不复制 DSH 核心源码。Python 教程使用已发布 SDK 与 bundled runtime；TypeScript 入门使用同版本 npm dsh 的公开 profile。full-stack 项目通过同版本公开 profile/patch 加载编译后的项目插件。机制学习通过固定 commit 链接到 [DeepSeek Harness 官方仓库](https://github.com/deepseek-ai/deepseek-harness)。

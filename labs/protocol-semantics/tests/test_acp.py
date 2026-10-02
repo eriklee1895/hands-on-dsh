@@ -13,11 +13,157 @@ from protocol_labs.launch import resolve_launch
 PROJECT_ROOT = Path(__file__).parents[1]
 
 
+def test_fake_acp_lists_only_closed_roots_then_resumes_without_replay(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        launch = resolve_launch("fake", protocol="acp", env={})
+        peer = await JsonlPeer.start(launch.argv)
+        try:
+            await peer.request("initialize", {"protocolVersion": 1, "clientCapabilities": {}})
+            await peer.request("authenticate", {"methodId": "unused"})
+            created = await peer.request("session/new", {"cwd": str(tmp_path), "mcpServers": []})
+            session_id = created["sessionId"]
+            assert await peer.request("session/list", {}) == {"sessions": []}
+            assert await peer.request("session/close", {"sessionId": session_id}) == {}
+            assert await peer.request("session/list", {}) == {
+                "sessions": [{"sessionId": session_id, "cwd": str(tmp_path)}]
+            }
+            with pytest.raises(JsonRpcError):
+                await peer.request(
+                    "session/resume", {"sessionId": session_id, "cwd": "/wrong", "mcpServers": []}
+                )
+            resumed = await peer.request(
+                "session/resume", {"sessionId": session_id, "cwd": str(tmp_path), "mcpServers": []}
+            )
+            assert isinstance(resumed["configOptions"], list)
+            assert peer.queued_notification_count == 0
+            model = resumed["configOptions"][0]
+            selected = await peer.request(
+                "session/set_config_option",
+                {
+                    "sessionId": session_id,
+                    "configId": model["id"],
+                    "value": model["currentValue"],
+                },
+            )
+            assert selected["configOptions"][0]["currentValue"] == model["currentValue"]
+            with pytest.raises(JsonRpcError) as unknown_option:
+                await peer.request(
+                    "session/set_config_option",
+                    {"sessionId": session_id, "configId": model["id"], "value": "unknown"},
+                )
+            assert unknown_option.value.code == -32602
+            with pytest.raises(JsonRpcError) as unsupported_load:
+                await peer.request("session/load", {"sessionId": session_id, "cwd": str(tmp_path)})
+            assert unsupported_load.value.code == -32601
+        finally:
+            await peer.close()
+
+    asyncio.run(scenario())
+
+
+def test_probe_accepts_committed_text_with_published_message_id(tmp_path: Path) -> None:
+    from protocol_labs.acp.probe import AcpProbe
+
+    async def scenario() -> None:
+        probe = await AcpProbe.start(resolve_launch("fake", protocol="acp", env={}), cwd=tmp_path)
+        try:
+            diagnostics: list[dict[str, object]] = []
+            text = probe._committed_text(
+                {
+                    "method": "session/update",
+                    "params": {
+                        "sessionId": probe.session_id,
+                        "update": {
+                            "sessionUpdate": "agent_message_chunk",
+                            "messageId": "assistant-1",
+                            "content": {"type": "text", "text": "committed"},
+                        },
+                    },
+                },
+                diagnostics,
+            )
+            assert text == "committed"
+            assert diagnostics == []
+        finally:
+            await probe.close()
+
+    asyncio.run(scenario())
+
+
+def test_probe_counts_tool_updates_in_a_prompt(tmp_path: Path) -> None:
+    from protocol_labs.acp.probe import AcpProbe
+
+    async def scenario() -> None:
+        probe = await AcpProbe.start(resolve_launch("fake", protocol="acp", env={}), cwd=tmp_path)
+        try:
+            evidence = await probe.prompt([{"type": "text", "text": "lab:tool"}])
+            assert evidence["toolUpdates"] == 2
+        finally:
+            await probe.close()
+
+    asyncio.run(scenario())
+
+
+def test_resume_replay_gate_counts_root_user_text_but_not_config_or_foreign_updates(
+    tmp_path: Path,
+) -> None:
+    from protocol_labs.acp.probe import AcpProbe
+
+    async def scenario() -> None:
+        probe = await AcpProbe.start(resolve_launch("fake", protocol="acp", env={}), cwd=tmp_path)
+        try:
+            for session_id, update_type in (
+                (probe.session_id, "config_option_update"),
+                ("foreign", "user_message_chunk"),
+                (probe.session_id, "user_message_chunk"),
+            ):
+                probe._peer._notifications.put_nowait(
+                    {
+                        "method": "session/update",
+                        "params": {
+                            "sessionId": session_id,
+                            "update": {"sessionUpdate": update_type},
+                        },
+                    }
+                )
+            assert await probe.historical_replay_count() == 1
+        finally:
+            await probe.close()
+
+    asyncio.run(scenario())
+
+
 def _fixture_transcript() -> list[dict[str, object]]:
     return [
         json.loads(line)
-        for line in (PROJECT_ROOT / "fixtures" / "committed-answer.jsonl").read_text().splitlines()
+        for line in (PROJECT_ROOT / "fixtures" / "acp-committed-answer.jsonl")
+        .read_text()
+        .splitlines()
     ]
+
+
+def test_acp_probe_preserves_max_tokens_as_incomplete_native_settlement(tmp_path: Path) -> None:
+    from protocol_labs.acp.probe import AcpProbe
+
+    async def scenario() -> None:
+        probe = await AcpProbe.start(resolve_launch("fake", protocol="acp", env={}), cwd=tmp_path)
+        original_request = probe._peer.request
+
+        async def shortened_request(method: str, *args: object, **kwargs: object) -> object:
+            if method == "session/prompt":
+                return {"stopReason": "max_tokens"}
+            return await original_request(method, *args, **kwargs)
+
+        probe._peer.request = shortened_request
+        try:
+            evidence = await probe.prompt([{"type": "text", "text": "fixture prompt"}])
+        finally:
+            await probe.close()
+        assert evidence["stopReason"] == "max_tokens"
+        assert evidence["settlement"] == "committed-to-max-tokens"
+        assert evidence["transcript"] is None
+
+    asyncio.run(scenario())
 
 
 def test_acp_probe_performs_exact_handshake_and_normalizes_committed_chunks(
@@ -41,7 +187,9 @@ def test_acp_probe_performs_exact_handshake_and_normalizes_committed_chunks(
                 "image": False,
                 "audio": False,
                 "embeddedContext": False,
-            }
+            },
+            "sessionCapabilities": {"close": {}, "list": {}, "resume": {}},
+            "mcpCapabilities": {"http": True},
         }
         assert probe.auth_methods == []
         assert probe.session_id == "acp-session-1"
@@ -49,6 +197,7 @@ def test_acp_probe_performs_exact_handshake_and_normalizes_committed_chunks(
             "sessionId": "acp-session-1",
             "committedChunks": ["fixture ", "answer"],
             "committedAnswer": "fixture answer",
+            "toolUpdates": 0,
             "stopReason": "end_turn",
             "settlement": "committed-to-end-turn",
             "transcript": _fixture_transcript(),
@@ -161,6 +310,7 @@ def test_acp_fake_allows_one_inflight_prompt_and_unknown_session_cancel_is_noop(
                     "sessionId": session_id,
                     "update": {
                         "sessionUpdate": "agent_message_chunk",
+                        "messageId": "fake-assistant-1",
                         "content": {"type": "text", "text": "ready to cancel"},
                     },
                 },
@@ -282,7 +432,7 @@ def test_acp_permission_maps_literal_outcomes_and_fail_closed(
                     "kind": "assistant_message",
                     "content": [{"type": "text", "text": "fixture answer"}],
                 },
-                {"kind": "turn_end", "reason": {"kind": "completed"}},
+                {"kind": "protocol_end", "protocol": "acp", "stop_reason": "end_turn"},
             ]
 
     asyncio.run(scenario())

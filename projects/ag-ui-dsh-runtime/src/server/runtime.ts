@@ -74,11 +74,6 @@ export class FakeDshRuntime implements DshRuntimePort {
       const turn = memory.length + 1;
       const callId = `fake-${input.sessionId}-${this.generation}-${turn}`;
       emit("step/start", { turn, step: 1 });
-      emit("assistant/chunk", {
-        turn,
-        step: 1,
-        chunk: { type: "text-delta", index: 0, text: "done" },
-      });
       emit("assistant/message", {
         turn,
         step: 1,
@@ -114,25 +109,22 @@ export class FakeDshRuntime implements DshRuntimePort {
         turn,
         step: 1,
         message: {
+          role: "tool",
+          toolCallId: callId,
+          isError: false,
           content: [
             {
-              type: "tool-result",
-              toolCallId: callId,
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    path: "stage4-proof.txt",
-                    bytes: Buffer.byteLength(input.prompt),
-                  }),
-                },
-              ],
-              isError: false,
+              type: "text",
+              text: JSON.stringify({
+                path: "stage4-proof.txt",
+                bytes: Buffer.byteLength(input.prompt),
+              }),
             },
           ],
         },
       });
       emit("step/end", { turn, step: 1 });
+      emit("turn/end", { turn, reason: { kind: "completed" } });
       memory.push(input.prompt);
       this.memories.set(input.sessionId, memory);
       return {

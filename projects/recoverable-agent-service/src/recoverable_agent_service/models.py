@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .domain import Artifact, Conversation, Run, normalize_artifact_names, validate_prompt
 
@@ -15,6 +15,8 @@ MAX_ARTIFACTS_PER_RUN = 32
 
 class ConversationCreate(BaseModel):
     """Optional display metadata for a new Conversation."""
+
+    model_config = ConfigDict(extra="forbid")
 
     title: str | None = Field(default=None, max_length=MAX_TITLE_CHARACTERS)
 
@@ -32,6 +34,8 @@ class ConversationCreate(BaseModel):
 
 class RunCreate(BaseModel):
     """Validated user prompt and bounded service-owned artifact declarations."""
+
+    model_config = ConfigDict(extra="forbid")
 
     prompt: str = Field(max_length=MAX_PROMPT_CHARACTERS)
     artifacts: list[str] = Field(default_factory=list, max_length=MAX_ARTIFACTS_PER_RUN)

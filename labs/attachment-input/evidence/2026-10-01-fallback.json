@@ -1,0 +1,190 @@
+{
+  "date": "2026-10-01",
+  "baselineCommit": "3e82f05",
+  "upstreamRevision": "477b4f420553e8a52c2fbccc464d7561b239c443",
+  "environment": {
+    "platform": "macOS arm64",
+    "node": "26.7.0",
+    "pnpm": "12.3.4",
+    "sharp": "0.35.5"
+  },
+  "model": "deepseek-flash",
+  "reasoningEffort": "off",
+  "maxTokens": 512,
+  "filesFailures": "locally injected HTTP 501 before forwarding",
+  "externalModelResponses": 4,
+  "independentVisionSamples": 2,
+  "runs": [
+    {
+      "filesPolicy": "reject-all",
+      "exitCode": 0,
+      "localTemporaryDirectoryRemoved": true,
+      "result": {
+        "dshVersion": "0.1.7-rc.2",
+        "filesPolicy": "reject-all",
+        "sessionId": "images-67b401c2-4cd1-4849-bf99-8909106bf5c0",
+        "firstVisionAnswerMatched": true,
+        "historyAnswerMatched": true,
+        "wireImagesMatch": true,
+        "completedTurns": 2,
+        "toolCalls": 0,
+        "eventCount": 22,
+        "persistedV4": true,
+        "fullEventsEqual": true,
+        "sourceImageCount": 2,
+        "stored": [
+          {
+            "sourceBytes": 5557,
+            "sourceSha256": "96e5fbf0e97875d8f592539b49e9ccf1193b04f985fd91a2bbab8effa2f67a25",
+            "normalizedBytes": 1307,
+            "normalizedSha256": "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881",
+            "normalizedDimensions": [256, 256],
+            "requestVariantId": "sha256:5916b765d2b71109ea6aff296927c59570567bcb8cf19ec1e322a695f3ecf964",
+            "requestVariantBytes": 1307,
+            "requestDimensions": [256, 256],
+            "requestSha256": "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881"
+          },
+          {
+            "sourceBytes": 5803,
+            "sourceSha256": "d667db2faca720d6160d1a206a04a15e28f59d269be7281e020c2cd6fd5c58db",
+            "normalizedBytes": 1320,
+            "normalizedSha256": "8a2dfddecbbf596abc921d105fda4c6f029c0ae7a23e7eb2ca6149981860817e",
+            "normalizedDimensions": [256, 256],
+            "requestVariantId": "sha256:689375b9bc8975985f434cab72305589456ba5a034858740ce1573fd405a776e",
+            "requestVariantBytes": 1320,
+            "requestDimensions": [256, 256],
+            "requestSha256": "8a2dfddecbbf596abc921d105fda4c6f029c0ae7a23e7eb2ca6149981860817e"
+          }
+        ],
+        "transport": {
+          "injectedRejections": [
+            {
+              "status": 501,
+              "bytes": 1307,
+              "sha256": "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881"
+            },
+            {
+              "status": 501,
+              "bytes": 1307,
+              "sha256": "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881"
+            }
+          ],
+          "uploads": [],
+          "messages": [
+            {
+              "status": 200,
+              "fileImages": 0,
+              "inlineImages": 2,
+              "inlineHashes": [
+                "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881",
+                "8a2dfddecbbf596abc921d105fda4c6f029c0ae7a23e7eb2ca6149981860817e"
+              ],
+              "fileHashes": []
+            },
+            {
+              "status": 200,
+              "fileImages": 0,
+              "inlineImages": 2,
+              "inlineHashes": [
+                "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881",
+                "8a2dfddecbbf596abc921d105fda4c6f029c0ae7a23e7eb2ca6149981860817e"
+              ],
+              "fileHashes": []
+            }
+          ],
+          "blockedRequests": 0,
+          "deletedUploads": 0
+        }
+      }
+    },
+    {
+      "filesPolicy": "reject-after-first",
+      "exitCode": 0,
+      "localTemporaryDirectoryRemoved": true,
+      "result": {
+        "dshVersion": "0.1.7-rc.2",
+        "filesPolicy": "reject-after-first",
+        "sessionId": "images-10c1d799-3fa5-43b3-9e83-6d5e41974f08",
+        "firstVisionAnswerMatched": true,
+        "historyAnswerMatched": true,
+        "wireImagesMatch": true,
+        "completedTurns": 2,
+        "toolCalls": 0,
+        "eventCount": 22,
+        "persistedV4": true,
+        "fullEventsEqual": true,
+        "sourceImageCount": 2,
+        "stored": [
+          {
+            "sourceBytes": 5557,
+            "sourceSha256": "96e5fbf0e97875d8f592539b49e9ccf1193b04f985fd91a2bbab8effa2f67a25",
+            "normalizedBytes": 1307,
+            "normalizedSha256": "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881",
+            "normalizedDimensions": [256, 256],
+            "requestVariantId": "sha256:5916b765d2b71109ea6aff296927c59570567bcb8cf19ec1e322a695f3ecf964",
+            "requestVariantBytes": 1307,
+            "requestDimensions": [256, 256],
+            "requestSha256": "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881"
+          },
+          {
+            "sourceBytes": 5832,
+            "sourceSha256": "fbc16c7ccedc961cdc2c176a3034243d29af992c784a525d1e08b4b8b2290a11",
+            "normalizedBytes": 1320,
+            "normalizedSha256": "0e1092a1e36285664516212943cd373e7499b87380d05ff47be15f61af687fec",
+            "normalizedDimensions": [256, 256],
+            "requestVariantId": "sha256:9a8f0f421e0c906f97a217cbcdb49d74487d38baad63591dd45aee10d742c1b3",
+            "requestVariantBytes": 1320,
+            "requestDimensions": [256, 256],
+            "requestSha256": "0e1092a1e36285664516212943cd373e7499b87380d05ff47be15f61af687fec"
+          }
+        ],
+        "transport": {
+          "injectedRejections": [
+            {
+              "status": 501,
+              "bytes": 1320,
+              "sha256": "0e1092a1e36285664516212943cd373e7499b87380d05ff47be15f61af687fec"
+            },
+            {
+              "status": 501,
+              "bytes": 1320,
+              "sha256": "0e1092a1e36285664516212943cd373e7499b87380d05ff47be15f61af687fec"
+            }
+          ],
+          "uploads": [
+            {
+              "status": 200,
+              "bytes": 1307,
+              "sha256": "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881",
+              "acknowledged": true
+            }
+          ],
+          "messages": [
+            {
+              "status": 200,
+              "fileImages": 0,
+              "inlineImages": 2,
+              "inlineHashes": [
+                "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881",
+                "0e1092a1e36285664516212943cd373e7499b87380d05ff47be15f61af687fec"
+              ],
+              "fileHashes": []
+            },
+            {
+              "status": 200,
+              "fileImages": 0,
+              "inlineImages": 2,
+              "inlineHashes": [
+                "fe777207b1895a028e925a4f4aa7404c75eed75ed16586fb14f48cd62c83c881",
+                "0e1092a1e36285664516212943cd373e7499b87380d05ff47be15f61af687fec"
+              ],
+              "fileHashes": []
+            }
+          ],
+          "blockedRequests": 0,
+          "deletedUploads": 1
+        }
+      }
+    }
+  ]
+}

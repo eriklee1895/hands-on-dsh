@@ -1,1 +1,3 @@
 .data/
+# Profile and session data created by the service's default Harness home.
+.dsh-recoverable-home/

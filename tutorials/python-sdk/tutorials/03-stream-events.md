@@ -1,49 +1,48 @@
-# Tutorial 03: Stream committed assistant text
+# Tutorial 03: Observe committed assistant messages
 
 English | [中文](03-stream-events.zh.md)
 
 ## Outcome
 
-Use [`03_stream_events.py`](../03_stream_events.py) to print text while the agent is still running. Learn the distinction between notification streaming and the synchronous `RunResult` returned at idle.
+Use [`03_stream_events.py`](../03_stream_events.py) to print a root assistant message when DSH commits it, then compare it with the synchronous `RunResult` returned at idle. The filename is retained for links; this release does not expose token-level assistant chunks.
 
 ## Prerequisites
 
-Complete [Tutorial 02](02-reuse-session.md). Use a fresh session ID so earlier queued or persisted work cannot join this activity interval.
+Complete [Tutorial 02](02-reuse-session.md) and install the locked `0.1.5rc1` SDK from the [index](../README.md). The script creates a fresh temporary home and workspace unless you select them explicitly.
 
 ## Run it
 
 ```sh
 uv run python 03_stream_events.py \
   --session-id python-demo-03 \
-  --session-root /tmp/dsh-demo-03 \
+  --dsh-home /tmp/dsh-demo-03 \
   "Explain agent runtimes in three short bullets."
 ```
 
-Text appears after `stream:` before the script prints `finish_reason` and `notification_count`.
+`committed_message` appears when its event arrives; `final_response`, `finish_reason`, and counts follow after idle. The two texts must match for this single-message example.
 
 ## How it works
 
-`Session.run()` calls `on_notification` on its worker thread for every notification belonging to the root session tree. `text_delta_from()` accepts only root-session `session.event` notifications whose event is `assistant/chunk` and whose chunk is `text-delta`. It intentionally excludes reasoning, tool-call deltas, usage, finish chunks, and descendant text.
+`Session.run()` calls `on_notification` with notifications from the root session and known descendants. `committed_text_from()` accepts only root `session.event` notifications containing `assistant/message`, then joins their text content blocks. It ignores tool events and child messages. Notification delivery can precede the final `RunResult`, but it is not model token streaming.
 
 ```mermaid
 flowchart LR
     N[Notification] --> M{session.event?}
-    M -->|No| Ignore[Ignore]
+    M -->|No| I[Ignore]
     M -->|Yes| S{Root sessionId?}
-    S -->|No| Ignore
-    S -->|Yes| E{assistant/chunk?}
-    E -->|No| Ignore
-    E -->|Yes| C{text-delta?}
-    C -->|No| Ignore
-    C -->|Yes| Print[Print text immediately]
+    S -->|No| I
+    S -->|Yes| E{assistant/message?}
+    E -->|No| I
+    E -->|Yes| P[Join committed text blocks]
+    P --> O[Print committed message]
 ```
 
-The callback dispatch and activity-interval collection are in [`Session.run()`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/api.py); transport subscriptions and the reader thread are in [`client.py`](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk/src/deepseek_harness/client.py).
+The release implementation is [`Session.run()`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/api.py); the callback and transport subscription run through [`client.py`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/client.py).
 
 ## Verify it
 
-Run with a response long enough to split into several deltas. Confirm text is visible before the final metadata and that `notification_count` is greater than zero. Redirecting stdout to a file is a simple way to inspect ordering.
+Check exit status 0, at least one committed message, `finish_reason: completed`, and equality between the last projected text and `final_response`. The script fails if these conditions are not met.
 
 ## Limitations
 
-The SDK has no async iterator API. A GUI or ASGI server must bridge this synchronous callback into its event loop without blocking it. The FastAPI tutorials use a thread-safe callback plus `asyncio.Queue`. Continue with [Tutorial 04](04-workspace-agent.md) for tools and external-state verification.
+There is no token iterator in this release. ASGI callers must bridge the synchronous callback off their event loop. This example validates only one live process; it does not demonstrate cross-process resume. Continue with [Tutorial 04](04-workspace-agent.md) for external-state verification.

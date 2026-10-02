@@ -24,7 +24,7 @@ def test_real_dsh_http_lifecycle_artifact_and_terminal_sse(tmp_path: Path) -> No
     app = create_app(
         database_path=root / "service.db",
         workspace=root / "workspace",
-        session_root=root / "sessions",
+        dsh_home=root / "home",
     )
 
     with TestClient(app) as client:
@@ -43,6 +43,19 @@ def test_real_dsh_http_lifecycle_artifact_and_terminal_sse(tmp_path: Path) -> No
         )
         assert run.status_code == 202
         run_id = run.json()["id"]
+        repeated = client.post(
+            f"/api/conversations/{conversation.json()['id']}/runs",
+            headers={"Idempotency-Key": "real-e2e-v1"},
+            json={
+                "prompt": (
+                    "Write exactly these ASCII bytes with no trailing newline to the required "
+                    f"artifact path: {PROOF.decode()}"
+                ),
+                "artifacts": ["proof.txt"],
+            },
+        )
+        assert repeated.status_code == 200
+        assert repeated.json()["id"] == run_id
 
         deadline = time.monotonic() + 180
         while time.monotonic() < deadline:
@@ -61,10 +74,34 @@ def test_real_dsh_http_lifecycle_artifact_and_terminal_sse(tmp_path: Path) -> No
         downloaded = client.get(artifact["download_url"])
         assert downloaded.content == PROOF
         assert artifact["sha256"] == hashlib.sha256(PROOF).hexdigest()
+        assert artifact["byte_size"] == len(PROOF)
 
         events = client.get(body["events_url"])
         assert events.status_code == 200
         assert "event: run.succeeded\n" in events.text
         assert events.text.rstrip().endswith('data: {"finish_reason":"completed"}')
+        frame_ids = [
+            int(line.removeprefix("id: "))
+            for line in events.text.splitlines()
+            if line.startswith("id: ")
+        ]
+        assert frame_ids == sorted(set(frame_ids))
+        assert len(frame_ids) >= 3
+        cursor = frame_ids[1]
+        replay = client.get(body["events_url"], headers={"Last-Event-ID": str(cursor)})
+        replay_ids = [
+            int(line.removeprefix("id: "))
+            for line in replay.text.splitlines()
+            if line.startswith("id: ")
+        ]
+        assert replay_ids == [event_id for event_id in frame_ids if event_id > cursor]
+        assert replay.text.count("event: run.succeeded\n") == 1
 
-    assert (root / "workspace" / "artifacts" / run_id / "proof.txt").read_bytes() == PROOF
+        mutable_path = root / "workspace" / "artifacts" / run_id / "proof.txt"
+        assert mutable_path.read_bytes() == PROOF
+        mutable_path.write_bytes(b"changed workspace file")
+        assert client.get(artifact["download_url"]).content == PROOF
+
+    assert (
+        root / "workspace" / "artifacts" / run_id / "proof.txt"
+    ).read_bytes() == b"changed workspace file"

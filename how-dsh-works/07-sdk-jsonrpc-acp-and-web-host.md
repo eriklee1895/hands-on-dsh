@@ -1,122 +1,87 @@
-# SDK JSON-RPC、ACP 与 Web Host 不是同一层协议
+# SDK JSON-RPC、ACP 与 Web Host：分别核对能力
 
-> 固定版本：`dsh-v0.1.1-rc.2`
-> 固定 revision：`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`
-> 验证日期：2026-08-31
+> 固定版本：`dsh-v0.1.7-rc.2`；revision：`477b4f420553e8a52c2fbccc464d7561b239c443`；源码审查：2026-09-29；Web 运行补证：2026-09-30。
 
-## 要回答的问题
-
-DSH 同时出现 SDK JSON-RPC、ACP 和 Web Host，并不表示三者只是同一套方法的不同传输。它们面向不同调用者，拥有不同的 session 创建方式、下行事件、取消/权限语义与物理 carrier。本篇从三个 server 入口追到 Agent/Session，而不是从客户端方法名反推服务端能力。
-
-```mermaid
-flowchart LR
-    SDK[Python or TypeScript SDK] -->|JSONL JSON-RPC over stdio| SDKServer[SDK JSON-RPC server]
-    ACPClient[ACP client] -->|ACP NDJSON over stdio| ACPServer[ACP bridge]
-    Browser[DSH Web client] -->|HTTP upstream and WebSocket downlinks| Connection[Connection carrier]
-
-    SDKServer --> Agents[Agent Registry and AgentLoop]
-    ACPServer --> Agents
-    Connection --> ApiProxy[ApiProxy and Typert gateway]
-    ApiProxy --> Agents
-    Agents --> Session[(SessionEvent log)]
-```
-
-## 入口与源码路由
-
-| 面 | 协议与 carrier | 固定 revision 入口 |
-| --- | --- | --- |
-| SDK JSON-RPC 类型 | 3 个 request、4 个 notification | [`packages/sdk/protocol/src/types.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/sdk/protocol/src/types.ts) |
-| SDK JSONL transport | newline-delimited JSON-RPC 2.0 | [`packages/sdk/protocol/src/transport.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/sdk/protocol/src/transport.ts) |
-| SDK server | lazy SDK session、事件/状态通知 | [`packages/sdk/server/src/server.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/sdk/server/src/server.ts)、[`index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/sdk/server/src/index.ts) |
-| TypeScript client | process ownership、低层 request、高层 receipt-to-idle | [`packages/sdk/client/src/client.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/sdk/client/src/client.ts)、[`api.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/sdk/client/src/api.ts) |
-| ACP bridge | ACP session/prompt/cancel/permission | [`packages/acp/acp/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/acp/acp/src/index.ts) |
-| Web raw server | HTTP route registry 与 upgrade handoff | [`packages/host/webserver/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/host/webserver/src/index.ts) |
-| Web product API | browser-safe contract、ApiProxy、fetch carrier | [`packages/host/apiproxy/src/api/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/host/apiproxy/src/api/index.ts)、[`fetch/handler.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/host/apiproxy/src/fetch/handler.ts) |
-| Browser connection | HTTP upstream、两条 WebSocket downlink | [`packages/client/connection/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/client/connection/src/index.ts)、[`client/web-api-client.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/client/connection/src/client/web-api-client.ts) |
-| Typert Remote | generated descriptor 到同进程 Service | [`packages/api/gateway/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/packages/api/gateway/src/index.ts) |
+三者拥有不同的 session/control/output 语义。北向 AG-UI 可以投影已有能力，不能让 SDK 获得它没有的 cancel/resume，也不能把自有应用的验收当成官方 Web Host 的证据。
 
 ## Verified from source
 
-### SDK JSON-RPC：详细观察，控制面很窄
+| 入口 | 职责 |
+| --- | --- |
+| [SDK types](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/protocol/src/types.ts)、[server](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/server/src/server.ts)、[client API](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/client/src/api.ts) | wire 方法、通知与 receipt-to-idle |
+| [ACP bridge](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/acp/acp/src/index.ts)、[README](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/acp/acp/README.md) | 标准 session control、配置、输出与清理 |
+| [Connection](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/client/connection/src/index.ts)、[browser auth](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/client/connection/src/browser-auth.ts) | HTTP 路由、身份与 carrier |
+| [API Gateway](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/api/gateway/src/index.ts)、[stream server](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/api/gateway/src/stream-server.ts) | Remote unary/stream 与 multiplex WebSocket |
+| [Session Controller](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/api/session-controller/src/index.ts)、[history](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/api/session-controller/src/history.ts) | 产品会话控制与 follow 的 live/durable 内容 |
 
-`HarnessSdkRequestMap` 只有 `initialize`、`session/prompt` 和 `shutdown`。`session/prompt` 返回持久入队的 `messageId`，不是该 prompt 的最终回答。服务端下行只有 `session.event`、`session.status`、`subagent.started`、`subagent.finished`。高层 `HarnessSession.run()` 是客户端策略：匹配 inbox receipt，再等待 root Agent 进入 whole-agent idle；它没有增加 wire 方法。
+### SDK：wire 控制面仍窄
 
-JSONL transport 以换行分帧。带 `id + method` 是 request，仅 `id` 是 response，仅 `method` 是 notification。JSON 语法错误行被忽略；没有 handler 的 request 返回 method-not-found；transport close 会拒绝所有 pending request。
+request 仍只有 initialize、session/prompt、shutdown；通知为 session.event、session.status、subagent.started、subagent.finished。prompt 返回持久 inbox messageId，高层 run 匹配 receipt 后等待 root whole-agent idle。server 转发 durable assistant message/attempt 的 embedded stream，不订阅实时 agent/assistant-stream；事后展开 stream 不是实时 token delivery。
 
-rc.2 wire 没有 prompt/session cancel、approval、session close、load 或 resume。server 的进程内 session map 能复用 live Agent，但进程重启后 stock `createSession()` 固定调用 `ctx.agents.create()`。[`ag-ui-dsh-runtime`](../projects/ag-ui-dsh-runtime/README.md) 的 generation-local adapter 将“存在同 cwd 的持久 header”路由到官方 `agents.resume()`；它没有伪造一个新的 JSON-RPC 方法，也不能写成 stock rc.2 的能力。
+stock server 新实例首次看到 ID 仍调用 agents.create，没有 resume、cancel、approval 或 session close RPC。调用 SDK close 关闭整个 owner/runtime，不是取消某一个共享 session 的 prompt。[AG-UI 项目](../projects/ag-ui-dsh-runtime/README.md)的部署 adapter 必须独立核对 persisted ID、canonical cwd 和 agents.resume，不能称为 SDK 原生能力。
 
-### ACP：互操作 prompt，加上 cancel 与 one-shot permission
+### ACP：v1 协议与 SDK 1.4.0
 
-ACP 通过 `@agentclientprotocol/sdk` 的 NDJSON stream 暴露 `initialize`、`session/new`、`session/prompt` 和 `session/cancel` 等标准语义。每个 `session/new` 创建 bridge-owned fresh Agent；同一 session 一次只允许一个 in-flight prompt。
+该 DSH 包依赖 `@agentclientprotocol/sdk 1.4.0`；这是库版本，协商的 protocol version 仍是 1。当前 bridge 提供 session/new、list、resume、close、set_config_option、prompt、cancel 以及一次性 permission。list 发现可恢复 inactive root；resume 核对 canonical cwd，恢复模型历史但不向 client 重放旧 transcript；close 只回收目标 Agent scope，持久状态保留。
 
-ACP 只投递 committed assistant text/image。reasoning、raw chunk、tool trace、plan、title 和 retry marker 不进入 automation wire。取消同时覆盖异步附件 admission 与已经进入 durable inbox 的 Agent work。`approval/request` 被映射为 `allow_once` / `reject_once`；未知或 cancelled response 不会升级成 durable grant。
+配置来自服务端 catalog，model/effort option value 是 opaque ID。prompt 在异步 image admission 前快照选择，并把 route 固定到该 turn 的各 step；同时修改配置作用于下一轮。同一 session 只允许一个 in-flight ACP prompt，结算还等待有序 update delivery。
 
-因此 ACP 的“事件更少”不是遗漏实现细节，而是产品语义：它为客户端互操作提供 committed output、cancel 和 permission，不是完整 SessionEvent 调试流。
+session/update 现在包括 **committed assistant messages/thoughts、generic tool lifecycle、配置与 context usage**。raw provider deltas、retry attempts、DSH 专用 UI cards 不在 wire。`agent_message_chunk` 的名称不意味着 token delta。未知/取消 permission response 不升级为 durable grant。
 
-### Web Host：产品 API 加 carrier 组合
+session/load、delete、fork、transcript replay、terminal 和 elicitation 等仍不支持。authenticate 立即成功，不能把该方法存在当成认证已经实现。完整 close 处理 admission、Agent 活动、updates、descendants、flush 和 dispose。
 
-`dsh-host-webserver` 只拥有原始 HTTP route/upgrade 生命周期，不知道 Agent。`client-connection` 把 `/api` 上游 request 交给 Typert gateway 或 ApiProxy，并为浏览器建立 `/api/events.mux` 与 `/api/events.host` 两条下行 WebSocket。Browser `WebApiClient` 的 unary/respond 使用 fetch，下行使用 WebSocket；同一个抽象 client 在 in-process 或其他 carrier 中也可以用 streaming fetch/SSE。
+### Web Host：Remote streams 与产品身份
 
-ApiProxy 的逻辑消息是“谁发起 × request/response”四象限。普通客户端 request 走 `POST /api/<method>`；server request 的回答复用原 `rpcId`，走 `POST /api/respond`。`session/event`、tool view、approval、question、history、session export 等产品能力属于这套 Host API，不属于 SDK JSON-RPC 或 ACP。Typert gateway 再把 generated descriptor 映射到当前 Cordis Service；物理 `/api` 不能反推只有一种业务 RPC 实现。
+当前 browser unary Remote 走 HTTP POST；API Gateway 管理 `/api/remote.mux` WebSocket 的 logical streams。旧双下行 `/api/events.mux` 与 `/api/events.host` / ApiProxy 叙述不能解释此版。shell carrier 可通过相同 Remote abstraction 提供流，不必开 WebSocket。
 
-`session.prompt` 的 response 只表示输入已经被接纳（以及可选 slash-command 结果），不是 prompt-specific completion receipt。客户端需要从 whole-session events/projections 判断后续活动。持久恢复也不是一个公开的 `session.resume` method：`session.create` 接受显式 session ID，内部 ensure 路径可按 persistence 状态调用 `agents.resume()`；`session.fork` 是另一项公开 product method。
+Host 的 `$events` source 先安装增量监听再发送 ready；Client 收到 ready 后才发布该 generation 与 connected 状态。错误/断线使 generation 失效，旧 source 完成取消后才替换。Session-follow 在持久历史之外接收 `agent/assistant-stream` 实时帧，这是官方 Web 路径具备而 stock SDK 不具备的输出能力。
 
-Web Host 默认面向完整 DSH GUI composition。浏览器使用 WebSocket 下行；Electron 从 `file://` 加载前端并通过 IPC bridge 发 fetch。它不是“更完整的 SDK runtime protocol”。
+浏览器请求需要 launch token 换取的 authority-bound signed cookie，并先经过 Host/Origin 检查。信任主机不是身份认证，loopback 也不是多租户 ACL。Desktop carrier 拥有自己的认证与连接；不能继续假定所有 Electron 请求都经过旧 ApiProxy。
 
-## 能力对照
+```mermaid
+flowchart LR
+    SDK["TS / Python SDK"] --> S["stdio SDK JSON-RPC"]
+    ACP["ACP controller"] --> A["stdio ACP v1"]
+    WEB["DSH GUI"] --> W["Connection / Remote Gateway"]
+    S --> CORE["Agent + Session"]
+    A --> CORE
+    W --> CORE
+    BFF["custom AG-UI BFF"] --> S
+    BFF --> DB["business DB and replay"]
+```
 
-| 语义 | SDK JSON-RPC rc.2 | ACP rc.2 | Web Host rc.2 |
+| 能力 | SDK JSON-RPC | DSH ACP | 官方 Web Host |
 | --- | --- | --- | --- |
-| 主要调用者 | Python/TS SDK | 通用 ACP client / automation | DSH Web/Electron product client |
-| session 建立 | caller 提供 ID，进程内 lazy create | `session/new` 返回 fresh ID | `session.create`；显式 ID 经内部 ensure create-or-resume；另有 `session.fork` |
-| 下行 | full SessionEvent + Agent status + local subagent lifecycle | committed assistant text/image | mux/host frames、SessionEvent、product projections |
-| prompt 完成 | client receipt-to-idle 投影 | prompt response `stopReason` | `session.prompt` 只确认 admission；完成度由 whole-session product stream 投影 |
-| wire cancel | 无 | 有 | 有 product session cancel |
-| permission | 无 | one-shot ACP permission | approval/question product flow |
-| 跨进程 resume | stock server 无；项目 adapter 内部补齐 | `session/new` 不加载旧 session | 无公开 `session.resume`；`session.create` 的内部 ensure 可走 persistence-aware resume |
-| carrier | stdio JSONL | stdio NDJSON | HTTP fetch + browser WebSocket；其他平台可换 carrier |
+| 输出 | 原生 durable events/status | committed 语义 updates | 产品历史/投影 + live stream |
+| prompt 结算 | 客户端 receipt-to-idle | prompt response + update drain | 产品会话观察与控制 |
+| cancel | 无 per-prompt wire cancel | 有 | 产品会话控制 |
+| persisted resume | stock server 无 | 有，且不回放 transcript | 产品 Session Controller |
+| permission | 无 | one-shot ACP request | 产品 approval/question |
+| session close | 只能 shutdown runtime | 指定 session close | 产品 lifecycle |
 
 ## Observed at runtime
 
-在固定 rc.2 checkout 运行了三组 keyless focused probe：
+[2026-09-29 protocol 执行记录](../docs/reviews/2026-09-29-web-protocol-migration.md)记录发布 npm `0.1.7-rc.2`：SDK matching receipt、非空 committed text、completed/idle；ACP close/list、第二个 CLI 进程 resume 同 ID、无旧 transcript update 回放、无工具 nonce 回忆。该 SDK/ACP 记录没有真实 cancel/permission 验证，其精确选择与双向 ID 相关性属于 fake/keyless tests。
+
+从 protocol lab 重跑 keyless 测试：
 
 ```sh
-corepack pnpm exec vitest run \
-  packages/sdk/protocol/tests/transport.spec.ts \
-  packages/sdk/server/tests/server.spec.ts \
-  packages/sdk/client/tests/sdk-client.spec.ts
-# 3 files / 75 tests passed
-
-corepack pnpm exec vitest run \
-  packages/acp/acp/tests/turns.spec.ts \
-  packages/acp/acp/tests/approval.spec.ts \
-  packages/acp/acp/tests/multi-session.spec.ts
-# 3 files / 39 tests passed
-
-corepack pnpm exec vitest run \
-  packages/client/connection/tests/client-apply.client.spec.ts \
-  packages/client/connection/tests/websocket-downlink.host.spec.ts \
-  packages/host/apiproxy/tests/fetch-carrier.spec.ts
-# 3 files / 56 tests passed
+cd labs/protocol-semantics
+uv sync --group dev
+uv run --python 3.10 pytest tests
 ```
 
-这些 probe 分别覆盖 JSONL correlation/server/high-level client、ACP turn/permission/multi-session，以及浏览器 WebSocket/downlink + ApiProxy fetch carrier；它们不是完整仓库测试。真实 SDK/ACP source prompt 记录见 [`labs/protocol-semantics`](../labs/protocol-semantics/README.md)。真实 Web 产品 Host 本篇没有启动；Stage 5 的 AG-UI 应用是自有 BFF，不是 DSH Web Host 的替代验证。
+[官方 Web Host Lab](../labs/web-host-lifecycle/README.md)新增独立浏览器证据：匿名首页 401、token 登录后干净 URL、页面 reload 保留历史，以及两个顺序启动的 Host 使用同一个 Session 完成两轮文件任务。持久记录 `26 → 43`、原前缀不变，两个产物均为相同的 36 字节口令；第二轮输入不带口令。两个最终回复各有 4 个独立 `assistant-stream / text-delta` 帧先于对应持久 `assistant/message` 到达浏览器，未将历史内嵌 chunk 算成实时输出。详见[验收记录](../docs/reviews/2026-09-30-web-host.md)。
 
-## Inference
+[Web 控制案例](../labs/web-host-lifecycle/CONTROLS.md)另补了真实审批、foreground 取消和离线：拒绝没有目标写入且根 turn completed；单次允许后持续策略仍 read-only；取消为 user-caused aborted、保留已发生的开始标记；浏览器离线时 Host 继续完成一次 append，重连补齐同会话历史。参见[控制验收](../docs/reviews/2026-09-30-web-controls.md)。
 
-- 需要完整 tool/step/session lifecycle，并愿意自己拥有 runtime process 与业务 recovery 时，SDK JSON-RPC 是较直接的 southbound adapter；cancel/approval 必须由 capability descriptor 明确标成 false。
-- 需要第三方 Agent client 互操作、prompt cancel 和 machine permission 时，ACP 更合适；不要期待它复制完整工具轨迹。
-- 需要 DSH 自带 GUI 的 session 管理、审批、问题、投影与平台连接时，Web Host 是 product control plane；把它当通用嵌入 SDK 会把 UI 语义和 carrier 一起带入业务。
+这些 Web 观察使用公开 `web` profile；基础恢复为 SIGINT 后重启，控制案例也不覆盖强杀恢复或完整交互矩阵。无模型源码核对命令：
 
-## Proposal
+```sh
+git show dsh-v0.1.7-rc.2:packages/acp/acp/src/index.ts
+git show dsh-v0.1.7-rc.2:packages/client/connection/README.md
+```
 
-业务应用可以定义统一的 runtime adapter 接口，但必须先暴露 capability：`fullSessionEvents`、`wireCancel`、`permission`、`persistedResume`、`productRpc`。北向 AG-UI 只消费这些能力的投影；它不能让 SDK JSON-RPC 获得 ACP cancel，也不能让 ACP 自动产生完整 SessionEvent。
+## Inference、Proposal 与未确认
 
-上游 SDK server 的合理演进是把 first-session create-or-resume 变成显式 server policy，并增加跨进程 regression；这比在客户端新增一个没有服务端实现的 `resume()` 方法更可靠。
-
-## Unconfirmed / version boundary
-
-- 结论只适用于固定 rc.2。developer preview 的 method、Host package 和 carrier 可能变化。
-- 本篇没有证明 Web Host 的认证、远程暴露或生产安全；源码默认 loopback 也不等于认证。
-- focused tests 不证明所有 error/escalation/platform 分支。
-- 项目 resume adapter 依赖 rc.2 server 首次 session 创建仍经过 `ctx.agents.create()`；升级 DSH 时必须重新审计并删除已被 upstream 取代的 adapter。
+Inference：适配器应逐项声明 fullSessionEvents、liveTokens、wireCancel、permission、persistedResume，不能用统一接口假装对等。[Web恢复课](../labs/web-host-lifecycle/RECOVERY.md)已补实际admission断线、取消后的同事件迟到回答、串行/并发重复与Host SIGKILL修复。并发同requestId实测接纳两次；迟到结果的200/OK可能只是no-op，必须关联原请求与持久决策。现有Web Lab覆盖这些明确场景；自有 FastAPI/AG-UI 的成功仍不能替代其他官方 Web 功能的证据。[旧 170 项测试](historical-2026-08-31.md)也不能验证新版 Remote carrier。

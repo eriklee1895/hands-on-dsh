@@ -52,14 +52,17 @@ function fixture(headers: ReturnType<typeof header>[]) {
     return this.marker;
   });
   const agents = { marker: "agents", create, resume, list: registryList };
-  const list = vi.fn(async () => headers);
+  const stat = vi.fn(async (id: string) => {
+    const found = headers.find((entry) => entry.id === id);
+    return found === undefined ? undefined : { header: found, revision: "fixture-revision" };
+  });
   const contextMethod = vi.fn(function (this: { marker: string }) {
     return this.marker;
   });
   const context = {
     marker: "context",
     agents,
-    sessionPersistence: { list },
+    sessionPersistence: { stat },
     contextMethod,
   };
   let proxied: Record<string, any> | undefined;
@@ -69,7 +72,7 @@ function fixture(headers: ReturnType<typeof header>[]) {
   const config = { maxTokensAsSuccess: false };
   apply(context as unknown as Context, config);
   if (proxied === undefined) throw new Error("official apply did not receive a Context");
-  return { agents, config, context, create, list, proxied, resume };
+  return { agents, config, context, create, stat, proxied, resume };
 }
 
 describe("SDK resume deployment adapter", () => {
@@ -91,7 +94,7 @@ describe("SDK resume deployment adapter", () => {
 
   test("creates unchanged when no persisted header has the exact SessionId", async () => {
     const cwd = await root("sdk-resume-create-");
-    const { create, list, proxied, resume } = fixture([header("other", cwd)]);
+    const { create, stat, proxied, resume } = fixture([header("other", cwd)]);
     const options = {
       sessionId: SessionId("fresh"),
       meta: { cwd },
@@ -100,7 +103,7 @@ describe("SDK resume deployment adapter", () => {
 
     await expect(proxied.agents.create(options)).resolves.toMatchObject({ route: "create" });
 
-    expect(list).toHaveBeenCalledTimes(1);
+    expect(stat).toHaveBeenCalledWith(SessionId("fresh"), { signal: undefined });
     expect(create).toHaveBeenCalledWith(options);
     expect(resume).not.toHaveBeenCalled();
   });
@@ -145,13 +148,13 @@ describe("SDK resume deployment adapter", () => {
     expect(resume).not.toHaveBeenCalled();
   });
 
-  test("does not fall back to create after listing or resume fails", async () => {
+  test("does not fall back to create after stat or resume fails", async () => {
     const cwd = await root("sdk-resume-failure-");
     const listing = fixture([]);
-    listing.list.mockRejectedValueOnce(new Error("list failed"));
+    listing.stat.mockRejectedValueOnce(new Error("stat failed"));
     await expect(
       listing.proxied.agents.create({ sessionId: SessionId("existing"), meta: { cwd } }),
-    ).rejects.toThrow("list failed");
+    ).rejects.toThrow("stat failed");
     expect(listing.create).not.toHaveBeenCalled();
 
     const resuming = fixture([header("existing", cwd)]);

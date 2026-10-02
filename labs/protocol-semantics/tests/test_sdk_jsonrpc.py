@@ -61,12 +61,11 @@ def test_sdk_probe_correlates_receipt_then_root_idle_and_normalizes_committed_an
         assert evidence["unmatchedReceiptsIgnored"] == 1
         assert evidence["settlement"] == "receipt-to-root-idle"
         assert evidence["staleRootIdleIgnored"] == 1
-        assert evidence["staleRootEventsIgnored"] == 7
-        assert evidence["rawTextDeltas"] == ["raw fixture answer"]
+        assert evidence["staleRootEventsIgnored"] == 6
         assert evidence["committedAnswer"] == "fixture answer"
         assert evidence["transcript"] == EXPECTED_TRANSCRIPT
         assert evidence["descendantSessions"] == ["child-1"]
-        assert evidence["descendantEventsObserved"] == 8
+        assert evidence["descendantEventsObserved"] == 7
         assert evidence["subagentFinishedObserved"] == 1
         assert evidence["foreignEventsDiscarded"] == 1
         with pytest.raises(ProcessLookupError):
@@ -137,7 +136,6 @@ def test_sdk_fake_emits_exact_rc2_event_payloads(tmp_path: Path) -> None:
             "agent/inbox/spliced",
             "step/start",
             "user/message",
-            "assistant/chunk",
             "assistant/message",
             "step/end",
             "turn/end",
@@ -146,17 +144,15 @@ def test_sdk_fake_emits_exact_rc2_event_payloads(tmp_path: Path) -> None:
             "agent/inbox/spliced",
             "step/start",
             "user/message",
-            "assistant/chunk",
             "assistant/message",
             "step/end",
             "turn/end",
         ]
         child_events = events_by_session["child-1"]
-        assert [event["seq"] for event in child_events] == list(range(6))
+        assert [event["seq"] for event in child_events] == list(range(5))
         assert [event["type"] for event in child_events] == [
             "turn/start",
             "step/start",
-            "assistant/chunk",
             "assistant/message",
             "step/end",
             "turn/end",
@@ -169,11 +165,7 @@ def test_sdk_fake_emits_exact_rc2_event_payloads(tmp_path: Path) -> None:
                 if "step" in data:
                     assert data["step"] >= 1
                 if event["type"] == "assistant/message":
-                    chunk_seq = event["sourceEventSeqs"][0]
-                    chunk = next(item for item in session_events if item["seq"] == chunk_seq)
-                    assert chunk["type"] == "assistant/chunk"
-                    assert chunk["data"]["turn"] == data["turn"]
-                    assert chunk["data"]["step"] == data["step"]
+                    assert event["sourceEventSeqs"] == []
                     assert event["surfaceOp"] == "append"
 
     asyncio.run(scenario())

@@ -552,6 +552,45 @@ def test_close_reaps_adapter_when_worker_surfaces_a_terminal_transaction_error(
     asyncio.run(scenario())
 
 
+def test_cancelled_close_waiter_does_not_cancel_admitted_worker(tmp_path: Path) -> None:
+    coordinator_module = load_coordinator()
+    _, runtime, _, _ = modules()
+
+    async def scenario() -> None:
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def blocked(_session_id: str, _runtime_input: str, _emit):
+            entered.set()
+            await release.wait()
+            return runtime.RuntimeResult(final_response="done", finish_reason="completed")
+
+        repository = make_store(tmp_path / "cancel-close.db")
+        adapter = FakeAdapter([blocked])
+        coordinator = coordinator_module.RunCoordinator(
+            repository, adapter, tmp_path / "workspace", poll_interval=0.01
+        )
+        await coordinator.start()
+        conversation = await asyncio.to_thread(repository.create_conversation)
+        submission = await coordinator.submit_run(conversation.id, "once", "prompt", [])
+        await asyncio.wait_for(entered.wait(), timeout=0.5)
+
+        first_close = asyncio.create_task(coordinator.close())
+        await asyncio.sleep(0)
+        first_close.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await first_close
+        assert adapter.closed == 0
+        second_close = asyncio.create_task(coordinator.close())
+        assert not second_close.done()
+        release.set()
+        await second_close
+        assert repository.get_run(submission.run.id).state == "succeeded"
+        assert adapter.closed == 1
+
+    asyncio.run(scenario())
+
+
 def test_close_failure_keeps_coordinator_stopping_until_cleanup_retry_succeeds(
     tmp_path: Path,
 ) -> None:
