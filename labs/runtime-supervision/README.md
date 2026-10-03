@@ -1,6 +1,8 @@
 # 第一课：一个 runtime 的所有权、超时与重建
 
-这次实验回答：当一个 DSH 调用超时或进程连接丢失时，应用何时可以接收下一条输入？读完并运行后，你应能解释为什么“重新启动进程”不等于“安全重做任务”，并观察到关闭失败时 slot 被隔离。
+假设服务正在让 Agent 写一份文件，等待结果时连接却断了。此时有两个问题：文件到底写完没有，以及这个 runtime 还能不能接下一条输入。本课先处理第二个问题：确认旧进程退出后，才允许建立新的 runtime；文件是否完成，则留给业务层核对。
+
+你将运行几组可控故障，观察超时、迟到结果和关闭失败如何影响后续请求。这里把一个可分配的执行位置叫作 **slot**；slot 中的 **owner** 是拥有 SDK runtime 生命周期的对象，**generation** 则记录这个位置先后创建过多少个 owner。
 
 前置知识：[TypeScript SDK 教程](../../tutorials/typescript-sdk/README.md)中的 run/session 与 receipt-to-idle，以及[新版变化审查](../../docs/reviews/2026-09-28-upstream-refresh.md)。本实验使用新版公开 API，不需要准备 upstream source checkout。
 
@@ -38,7 +40,9 @@ pnpm test -t 'newer generation'
 pnpm test -t 'shares cleanup'
 ```
 
-预期结果依次是：顺序调用只创建一个 owner；超时后停在 `stopping` 等待回收；close 抛错后拒绝新输入；旧 run 的迟到结果不影响新 generation；主动 close 与失败回收只执行一次 SDK close。
+先关注第二条测试：它故意让 run 超时，却暂时不让 close 完成。此时 supervisor 停在 `stopping`，下一条输入仍会被拒绝。只有测试确认 close 完成，这个 slot 才重新可用。测试成功意味着这个顺序被断言检查过，并不表示真实进程已经经历了一次超时。
+
+其余测试逐步改变条件：顺序调用复用同一个 owner；close 抛错后拒绝新输入；旧 run 的迟到结果不影响新 generation；主动 close 与失败回收竞争时，也只执行一次 SDK close。可以一边运行，一边对照 [`tests/supervisor.test.ts`](tests/supervisor.test.ts) 中的可控 Promise。
 
 ## 2. 先验证真实 profile，再调用模型
 
@@ -71,7 +75,27 @@ pnpm exec node --env-file=../../.env --import tsx examples/run.ts
 
 [`examples/run.ts`](examples/run.ts)打印 `generation`、`sessionId`、`finalResponse` 和 `turnEnd`。默认请求期望回复 `runtime supervision ok`；示例检查 `turnEnd.kind === completed`，其他终态使进程返回非零。不要只根据 Promise resolve 或非空文本判断模型成功。
 
-## 3. 资源状态怎么变化
+## 3. 超时之后，slot 为什么仍然忙
+
+把刚才的测试放进下面这张图。activity deadline 先到达，`run()` 仍要等资源回收后才向调用方返回失败；`stopping` 正好表达中间这段不能接单的时间。
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> running: 接收输入
+    running --> idle: run 正常返回
+    running --> stopping: run 失败或超时
+    stopping --> idle: 回收成功，未主动关闭
+    stopping --> quarantined: close 失败
+    idle --> stopping: 主动 close，有 owner
+    running --> stopping: 主动 close
+    stopping --> closed: 回收成功，已主动关闭
+    idle --> closed: 主动 close，无 owner
+    quarantined --> [*]
+    closed --> [*]
+```
+
+图中的 `idle` 只表示资源可以接纳输入；模型是否完成任务仍需检查 `turn/end` 和业务产物。回收失败后的 `quarantined` 与主动关闭后的 `closed` 都不再接单，前者还保留退出未确认的 owner。
 
 | 状态          | 能否接纳新输入   | 含义                                                        |
 | ------------- | ---------------- | ----------------------------------------------------------- |
@@ -89,7 +113,7 @@ pnpm exec node --env-file=../../.env --import tsx examples/run.ts
 
 假设模型已经调用工具写入文件，但应用还没有收到终态，连接就断了。重新执行同一 prompt 可能再次执行副作用。supervisor 不知道业务是否完成，所以它只回收资源，并把错误交还调用者；业务层先核对数据库、Artifact 或外部系统，再决定下一步。
 
-本课有三个不同的时限：
+回到开篇的文件任务：activity timeout 只决定我们何时停止等这次活动，并启动回收。它既不能撤销已写入的文件，也不能让 close 瞬间完成。运行示例时，把三个时限分开看：
 
 | 时限               | 谁负责     | 覆盖什么                                              |
 | ------------------ | ---------- | ----------------------------------------------------- |
@@ -101,7 +125,9 @@ activity deadline 到期后仍需等待 SDK close。因此它不是完整 `run()
 
 SDK wire 没有 per-prompt cancel。这里的主动 close 会结束整个 runtime，不能直接拿去关闭共享进程池里某一个租户的 turn。
 
-## 5. 源码事实、观察与限制
+## 5. 改一个条件，再看证据
+
+练习：打开 `waits for exit confirmation` 测试，先找到“超时发生”和“允许 close 完成”的两个动作。预测如果把旧 run 的完成放到两者之间，新输入能否开始，再对照断言。随后读 `keeps a newer generation` 测试，检查旧结果为什么不会归还新 owner 占用的 slot。
 
 **Verified from source：** 新 SDK 通过[公开 launch resolver](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/client/src/launch.ts)解析同版本 dsh；[高层 API](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/client/src/api.ts)收集 receipt-to-idle；[dispose](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sdk/client/src/dispose.ts)拥有进程关闭。
 

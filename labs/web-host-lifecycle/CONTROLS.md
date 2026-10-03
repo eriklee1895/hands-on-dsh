@@ -1,6 +1,8 @@
 # Web 控制：拒绝、单次允许、取消与离线
 
-本课接续[官方 Web Host 基础实验](README.md)，沿用同一 `0.1.7-rc.2` 与工具链。三个问题分别验证：用户是否允许本次操作、已开始的操作是否停止、浏览器是否仍连接。它们不能互相替代。
+用户拒绝写文件、点击停止、关闭浏览器网络，这三个动作会造成同一种结果吗？先分清它们各自在控制什么：审批决定某次操作是否允许，取消试图停止已经开始的工作，离线只说明浏览器暂时无法连接。
+
+本课接续[官方 Web Host 基础实验](README.md)，沿用同一 `0.1.7-rc.2` 与工具链。我们让每个动作留下可检查的文件或日志差异，再回到页面理解看到的状态。
 
 ## 准备
 
@@ -18,11 +20,21 @@ agent-browser --session dsh-web-lesson eval 'JSON.parse(localStorage.getItem("ds
 
 每条 prompt 只发送一次；失败不自动重发。模型如果改变命令、调用其他工具或重试次数不符，验收应失败。
 
+这一页会使用三个 Session，先留好下面三个 ID 的记录位置。审批的拒绝与允许共享一个 Session，取消和离线各自新建：
+
+| 保存的 ID | 案例 | 文件观察 |
+| --- | --- | --- |
+| `approval` | denied，随后 allowed | `denied.txt` 不存在；`allowed.txt` 内容准确 |
+| `cancel` | 开始后取消 | 有 `cancel-started.txt`；延迟结束文件不存在 |
+| `reconnect` | 浏览器离线再连接 | `reconnect-count.txt` 只追加一次随机值 |
+
 ## 1. 拒绝和允许一次
 
 在第一个 Session 中将访问模式改为“仅可查看”。先发送 `cases.denied.prompt`，目标是 `denied.txt`。
 
-官方 Bash 的正常路径是：先在 read-only 下尝试，得到明确的 sandbox denial，再用**完全相同的 command** 请求 `workspace-write`，携带 `sandbox_permissions` 与 `justification`。因此这里预期两次工具调用，不是一次。第一个 shell 失败可能仍返回正常的工具消息，必须读其中的 `[sandbox: file access denied under read-only mode]`；不能只根据 `isError` 判断是否写入成功。
+这里为什么预期两次 Bash 调用？固定 prompt 要求模型先在 read-only 下尝试，遇到明确的 sandbox denial 后，再用**完全相同的 command** 请求 `workspace-write`，携带 `sandbox_permissions` 与 `justification`。第二次才会等待用户审批。
+
+第一次 shell 失败可能仍返回正常的工具消息，所以要检查内容中的 `[sandbox: file access denied under read-only mode]`，并独立确认文件没有出现。只看 `isError` 无法判断这次写入。
 
 等审批面板出现，确认 `denied.txt` 尚不存在，再点击“拒绝”。预期最终回复 `DENIED`，文件仍不存在。持久审计有同一个 ID 的 `approval/asked → approval/decided(rejected)`，关联第二个 tool call；其 result 为 error。**根 turn 仍可 completed**，表示模型结束了本轮，不表示被拒绝的操作成功。
 
@@ -38,7 +50,9 @@ test -f "$LAB_ROOT/workspace/cancel-started.txt"
 
 开始标记出现后立即点击“停止生成”，必须早于延迟写入。等待页面显示“已停止”，记录 Session ID 为 `cancel`。验证器要求一次匹配的失败工具结果，以及 `turn/end.reason = { kind: 'aborted', reason: { kind: 'user' } }`。点击返回或停止按钮消失都不能替代这个终态。
 
-本次观察到正在运行的两个子进程退出，开始标记保留；超过原定 45 秒后，结束文件仍不存在。**取消不是回滚**：已完成的第一份写入仍在。也不能从本例推出外部系统写入、主动脱离进程组的进程或已分离 job 一定可取消。
+观察结束后，回头看那份开始文件：它还在。本次两个正在运行的子进程已退出，超过原定 45 秒后结束文件仍未出现，但第一份写入没有被撤销。**取消不是回滚**。
+
+这只验证本例的 foreground 命令，不能推导外部系统写入、主动脱离进程组的进程或已分离 job 都一定可取消。
 
 提示明确指定 `timeoutMs: 60000`、`run_in_background: false`。这避免较短 foreground timeout 把命令转为 detached job。官方 Web 会把命令登记到 jobs，UI 显示 job 不等于本例采用了后台分离执行。
 
@@ -59,7 +73,7 @@ agent-browser --session dsh-web-lesson reload
 
 ![浏览器处于离线错误页](assets/browser-offline.png)
 
-保持浏览器离线，观察追加文件出现。此次 Host 完成了写入；浏览器离线没有发送取消，也没有让 Host 自动暂停。然后恢复连接：
+保持浏览器离线，继续从操作终端看文件：追加文件仍然出现了。执行命令的是 Host，它与模型服务的网络仍然可用；浏览器离线没有发送取消，也没有让 Host 自动暂停。然后恢复连接：
 
 ```sh
 agent-browser --session dsh-web-lesson set offline off
@@ -97,18 +111,26 @@ pnpm test
 
 ## 从源码解释观察
 
+审批发生在更宽权限的执行之前；取消与离线发生在命令已经运行之后。后两者的区别可以沿进程看：
+
 ```mermaid
-flowchart TD
-    Start[工具请求] --> Policy{当前写入策略}
-    Policy -->|只读拒绝| Ask[同一命令请求更宽权限]
-    Ask --> Decision{本次用户决定}
-    Decision -->|rejected| NoWrite[不执行重试写入]
-    Decision -->|allowed-once| Write[仅本次执行]
-    Active[Host 中运行的 foreground 命令] --> Cancel[用户请求 session cancel]
-    Cancel --> Aborted[等待工具停止与 aborted 终态]
-    Active --> Offline[浏览器离线并刷新]
-    Offline --> Continue[Host 继续推进]
-    Continue --> Reload[重连后读取历史与当前状态]
+sequenceDiagram
+    participant B as 浏览器
+    participant H as Host
+    participant S as Shell
+    H->>S: 启动 foreground 命令
+    alt 用户点击停止
+        B->>H: session cancel
+        H->>S: 取消在途命令
+        S-->>H: 工具停止与失败结果
+        H-->>B: aborted 终态
+    else 浏览器离线
+        Note over B: 网络不可用，没有发送 cancel
+        S-->>H: 继续执行并返回结果
+        Note over B: 恢复连接
+        B->>H: 读取原会话
+        H-->>B: 历史与当前状态
+    end
 ```
 
 固定源码的 [Session cancel](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/api/session-controller/src/commands.ts) 调用 `agent.cancel({ kind: 'user' }, { keepInbox: true })`，只返回 accepted；本例没有排队消息，不能据此宣称队列已清空。[审批 service](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/interaction/user-approval/src/index.ts) 记录问答 ID；[Bash consumer](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/shell/tool-bash/src/index.ts) 在更宽策略执行之前等待批准。

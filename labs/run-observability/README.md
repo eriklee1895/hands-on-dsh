@@ -1,6 +1,8 @@
 # 第 7.5 课：Run 时间线、用量与费用估算
 
-一个业务 Run 可能包含多个 turn、step 和 provider attempt；一个 Session 又可以服务多个 Run。把事件重放两遍、把 cache token 当成普通 input 再算一遍，都会让统计失真。本课生成仅含元数据的观测记录，保存后重载并重复导入原事件，验证结果保持不变。
+假设你为 Agent 做了一张 Run 详情页：第一次导入事件时费用正常，服务重启后重放同一批事件，金额却翻了一倍。还有一种更隐蔽的错误：一次请求在 stream 和最终消息里都报告了 usage，应用把它们当成两次消费。
+
+本课用两个虚构 Run 重现这些容易混淆的记录。我们先手算一遍，再保存只含元数据的快照，重新加载并重复导入事件，检查结果是否保持不变。一个业务 Run 可以跨多个 turn、step 和 provider attempt，一个 Session 也可以服务多个 Run；先跟着具体数据走，再给这些层次命名。
 
 前置：[运行时所有权](../runtime-supervision/README.md)、[SDK receipt-to-idle](../../tutorials/typescript-sdk/README.md)。本实验使用 npm SDK/runtime `0.1.7-rc.2`、Cordis `4.0.4`；源码固定为 `477b4f420553e8a52c2fbccc464d7561b239c443`。
 
@@ -30,28 +32,42 @@ pnpm demo
 - Run B 的 `missingUsage=1`；已报告部分的估算为零，但这不说明该请求没有成本。
 - 快照中不存在 prompt、模型文本、工具参数、原始错误或嵌入 stream。
 
-## 2. 先确定每一层的标识
+## 2. 从六条事件算出 43300
 
-```mermaid
-flowchart TD
-    Run[业务 Run ID] --> Slice[某个 Session 的本次观测区间]
-    Slice --> Turn[turn]
-    Turn --> Step[step]
-    Step --> A[失败 attempt 的结算事件]
-    A --> Retry[retry 计划和启动标记]
-    Retry --> B[成功 attempt 的结算事件]
-    A --> Usage[每个结算只贡献一次 usage]
-    B --> Usage
-    Usage --> Estimate[显式费率下的已报告用量估算]
+打开 [`examples/scenario.ts`](examples/scenario.ts)。两个 Run 使用同一 `session-demo`：A 占 seq 0–10，B 占 seq 11–14。下面只摘出决定本次统计的六条，其他事件仍会进入时间线：
+
+| seq | Run / 事件 | 看到什么 | 本次如何计数 |
+| --- | --- | --- | --- |
+| 4 | A / `assistant/attempt` | 失败前先后报告两份 usage | 取最后一份：input 10、output 2、cache read 5 |
+| 5 | A / `llm/retry` | 计划一次 retry | 记计划，不增加已结算 attempt |
+| 6 | A / `llm/retry-started` | retry 已开始 | 记启动，仍无新的结算用量 |
+| 7 | A / `assistant/message` | scalar 与 embedded 都是 input 20、output 4、cache read 8 | 核对一致后计一次 |
+| 9 | A / `compaction/summary` | 另有辅助调用 usage | 标记排除，不纳入普通 attempt 估算 |
+| 13 | B / `assistant/attempt` | 失败且没有 usage | `missingUsage=1`，保留未知 |
+
+现在只算 Run A。两个 attempt 的 uncached input 是 `10 + 20 = 30`，output 是 `2 + 4 = 6`，cache read 是 `5 + 8 = 13`，cache write 均为 0。用第 5 节的教学费率：
+
+```text
+30 × 1000 + 6 × 2000 + 13 × 100 + 0 × 1200
+= 43300 nanoUSD
+= 0.000043300 USD
 ```
 
-[`Binding`](src/core.ts)由业务调用方传入 `sourceId/runId/sessionId/provider/model`。`sourceId` 标识一份 session 存储，同一份存储重放时必须保持；重新创建了完全独立的存储才应更换它。`runId` 标识业务请求；`sessionId` 标识 DSH Session；`turn/step` 来自事件，不能拿这些编号代替业务 Run ID。
+seq 4 的早期 usage 是同一次调用尚未完成时的累计值，不能再相加；seq 7 的两处 usage 是同一次结算的两种记录位置，也不能相加。reasoning 已包含在 output 中。Run B 的已报告部分估算为零，只因没有拿到 usage，不能据此认定它免费。
+
+`pnpm demo` 的输出较长，先找 `duplicateEventsIgnored`、`reports` 中的 `observedAttempts` 和 `knownUsageEstimateNanoUsd`。这个固定场景共 15 条事件，重载后再次导入会忽略这 15 条，两个 Run 的摘要与保存前深度相等。
+
+## 3. 事件属于哪个 Run
+
+有了这张小账本，再看 [`Binding`](src/core.ts)：每条事件除了 Session 的 seq，还需要应用告诉我们它属于哪个业务 Run。否则同一 Session 的第二次请求就可能记到第一次请求上。
+
+业务调用方为 Binding 传入 `sourceId/runId/sessionId/provider/model`。`sourceId` 标识一份 session 存储，同一份存储重放时必须保持；重新创建了完全独立的存储才应更换它。`runId` 标识业务请求；`sessionId` 标识 DSH Session；`turn/step` 来自事件，不能拿这些编号代替业务 Run ID。
 
 事件去重键为 `(sourceId, sessionId, seq)`。相同键与相同观测记录重复导入返回 false；同一键的用量、元数据或 Run 归属发生冲突则拒绝。把相同事件换一个 runId 再导入，不会得到第二份用量。一个 runId 也不能跨 source、Session 或路由重新绑定。
 
 这里比较的是白名单投影。若两份原始事件只在被丢弃的文本上不同，观测账本不会发现这种冲突；原始 Session 完整性必须由权威日志负责。更换 sourceId 也会绕过这个去重域，所以它必须来自受控的业务存储标识，不能由客户端任意提交。
 
-## 3. usage 的来源与重复计数
+## 4. 将例子推广到其他 usage
 
 | 事件或字段                                         | 本课如何处理                                                  |
 | -------------------------------------------------- | ------------------------------------------------------------- |
@@ -69,7 +85,7 @@ flowchart TD
 
 明确的 `request/header` 路由或 assistant message source 必须与 Binding 匹配，否则拒绝。无 message source 的失败 attempt 只能依据业务绑定归属，不能从 retryId 推导供应商账单请求 ID。一个 retry 计划也可能在等待阶段取消，不能据此声称下一次模型调用已经完成。
 
-## 4. 时间线与费用分别表达什么
+## 5. 时间线和费用各自回答什么
 
 `summary()` 按 seq 排列时间线，包含 turn/step、结算事件、retry 标记和有限终态类别。事件 `time` 是记录的 Unix 毫秒时刻，attempt 结算时间不等于请求开始时间。时钟回退由 `clockRegressed` 标识，本课不使用负的时间差伪造延迟；也没有凭空生成完整的分布式 trace 或 provider span。
 
@@ -86,7 +102,7 @@ flowchart TD
 
 这个数字不覆盖未报告 usage、未形成结算的失败、标题生成、其他辅助调用、供应商侧计费调整或实际账户费率。成功 compaction 可能有自己的 usage，本课明确排除它，便于先掌握普通 assistant attempt 的统计；后续扩展时必须单独定义分类与去重，不能把这部分默认记为零。
 
-## 5. 内容如何被排除
+## 6. 保存快照时留下什么
 
 白名单记录只保留受控标识符、seq/time、有限 kind/终态、turn/step、retry 数字和 token 数字。prompt、assistant 文本、reasoning 文本、工具名/参数/结果、错误消息、URL 和原始 stream 都不会被导出。未知事件只变成 `other`，不保留可能携带文本的任意类型字符串。
 
@@ -94,7 +110,7 @@ flowchart TD
 
 [`snapshot.ts`](src/snapshot.ts)写入同目录的独占临时文件，权限 0600，完成写入与文件同步后 rename 替换快照；读取限制为 8 MiB，并严格校验 envelope 和每条观测记录的字段。多余字段和未知 schema 被拒绝，错误不回显原始 JSON。它是单写入者教学 checkpoint，没有跨进程锁、数据库事务、目录 fsync 的崩溃持久保证，也不执行扣费。
 
-## 6. 运行真实的两个 Run
+## 7. 运行真实的两个 Run
 
 环境已有 `DEEPSEEK_API_KEY` 时执行：
 
@@ -113,6 +129,8 @@ pnpm exec node --env-file=../../.env --import tsx examples/live.ts
 SDK 的收集范围是本次输入 receipt 到根 agent idle，不等于完整 session 全量导出。child session、区间外异步标题或其他辅助活动不能从这个结果推断为已覆盖。示例把规范化记录保存、重载并重复导入所有已收集事件，要求两个 Run 的摘要完全不变；保存文件不含两次 prompt/reply marker 或 API key。
 
 原始事件仅供当前进程内验证，不写入观测快照。成功验证并确认 SDK close 后删除临时目录；失败不自动重试，保留目录并打印位置。不要将保留的原始 DSH 数据当成已经去除内容的快照。
+
+无模型练习：复制场景中的 seq 7 原样导入，预测金额是否变化；再保留 seq、修改其中一个已报告用量，查看冲突为什么应当被拒绝。最后只改变已被白名单丢弃的文本，解释账本为什么不能发现这一差异。可以对照 `tests/core.test.ts` 的 duplicate/conflict 测试，不需要重新调用模型。
 
 具体测试数量、真实 usage 与缺失项见[验收记录](../../docs/reviews/2026-09-29-run-observability.md)。下一课 [7.6 Eval 与可重放回归](../../docs/learning-paths/engineering.md)会使用固定场景验证 Agent 行为，本课不把 token 数量当作质量指标。
 

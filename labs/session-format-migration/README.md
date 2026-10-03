@@ -1,6 +1,8 @@
 # Session V1 / V3 → V4：只读迁移与不可变发布
 
-这个实验回答一个存储问题：新版 DSH 如何读取旧 Session 日志，以及什么时候会把当前格式写到磁盘。它直接挂载发布版 JSONL persistence backend，调用公开的 `ctx.sessionPersistence.open(id, "read" | "write")`。这里没有 Agent、模型调用或私有 runtime bin；要运行完整 Agent 应用，仍应使用公开 `dsh` profile。
+磁盘上只有一个旧版 Session 文件，新版 DSH 却读出了 V4 事件：它已经修改原文件了吗？本实验把“内存中读到什么”与“磁盘上写了什么”分开观察，再比较 read open 和 write open 的差别。
+
+实验直接挂载发布版 JSONL persistence backend，调用公开的 `ctx.sessionPersistence.open(id, "read" | "write")`，不需要 Agent 或模型。完整 Agent 应用仍从公开 `dsh` profile 启动；这里仅研究存储服务。
 
 ## 版本与实验条件
 
@@ -8,19 +10,24 @@
 - 上游源码：`dsh-v0.1.7-rc.2`，commit `477b4f420553e8a52c2fbccc464d7561b239c443`。当次发布包含 `lib/worker.cjs`，write open 的 successor 校验确实由已安装 worker 执行。
 - Node 支持范围 `^22.19.0 || >=24.0.0`；本次运行使用 Node 26.7.0、pnpm 12.3.4、macOS arm64。项目采用 strict ESM/NodeNext、Vitest、Oxlint、Oxfmt。
 
-从本目录安装并运行：
+从仓库根目录开始，先运行一个 V1 示例：
 
 ```sh
 cd labs/session-format-migration
 pnpm install --frozen-lockfile
 node --import tsx examples/run.ts v1
+```
+
+留意输出中的 `sourceBytesUnchanged`、`successorBytesStable` 和 `logicalReopenStable`，它们应全部为 true。它们分别回答：旧文件有没有被改、新版文件重开后是否稳定、重读的逻辑历史是否一致。下面会解释这三个观察是怎样产生的。
+
+仍在 `labs/session-format-migration`，再看 V3 并运行本地检查：
+
+```sh
 node --import tsx examples/run.ts v3
 pnpm test
 pnpm typecheck
 pnpm lint
 pnpm format:check
-node --import tsx scripts/generate-compressed.ts
-node --import tsx scripts/capture-release.ts
 ```
 
 CLI 只接受 `v1` 或 `v3` 两个项目内 fixture 名称，不接受外部日志路径或用户 Session root。每次运行把 fixture 复制到一个新临时 root，完成 backend close 后删除它，不会修改原始 fixture。输出只报告版本、事件类型、文本、SHA-256 和 generation 文件名，不打印临时绝对路径。
@@ -28,6 +35,8 @@ CLI 只接受 `v1` 或 `v3` 两个项目内 fixture 名称，不接受外部日�
 ## 合成输入和物理布局
 
 `fixtures/synthetic-v1.jsonl` 与 `fixtures/synthetic-v3.jsonl` 是本 lab 手工构造的**合成**历史文件，不是用户资料或真实会话录制。V1 有一轮 user 与 assistant 文本、四条旧 `assistant/chunk` 事件及其 assistant message；V3 有一轮 user/assistant 文本，assistant message 内含当时的 embedded stream。两者都有完整的 turn/step 结束事件。V1 的旧 chunk 行经发布包迁移后折入 V4 assistant message 的 stream；实验没有复制 codec 或 repair 实现。
+
+这里把磁盘上的一份版本文件称为 **generation**。例如 `session.v1.jsonl` 是旧 generation，write open 发布的 `session.v4.jsonl` 是它的 successor，也就是新版文件；两者可以同时保留。
 
 `src/fixture.ts` 的极小路径 helper 只处理这两个固定、仅含安全字符的 ID，按此发行版的 `_no-cwd/<id>/session.vN.jsonl` 布局复制输入：
 
@@ -44,7 +53,7 @@ CLI 只接受 `v1` 或 `v3` 两个项目内 fixture 名称，不接受外部日�
 ## 观察什么
 
 ```mermaid
-flowchart LR
+flowchart TD
     A["旧 generation<br/>session.v1/v3.jsonl"] --> B["open(id, read)<br/>逻辑 V4"]
     B --> C["无新文件<br/>源字节不变"]
     A --> D["open(id, write)<br/>发布包迁移与 worker 校验"]
@@ -52,13 +61,19 @@ flowchart LR
     E --> F["新 backend 再 open<br/>同一逻辑历史"]
 ```
 
-`read` 打开 V1 或 V3 后，handle 的 header 是 V4，`read().events` 有非空 user/assistant 历史。V1 逻辑事件不再有顶层 `assistant/chunk`，assistant 的 embedded stream 有四项；V1 经迁移还出现一条 `system/message`。此时目录仍只有原 generation，原文件字节和 SHA-256 不变。
+先看 `read`。打开 V1 或 V3 后，handle 的 header 已经是 V4，`read().events` 包含非空 user/assistant 历史。V1 的顶层 `assistant/chunk` 被折入 assistant 的 embedded stream，共四项；迁移后的 V1 还出现一条 `system/message`。
 
-`write` 打开同一 ID 后，backend 发布 `session.v4.jsonl`。V1 到 V4 经过发布包的相邻逻辑转换，但磁盘只新增当前 V4 successor，不要求每个中间格式都留一个物理文件。V1/V3 输入以及任何已存在的较低 generation 都保持逐字节不变。关闭 backend、重新挂载并读取，得到相同的 V4 逻辑事件，successor 的字节也没有变化。demo 输出 `sourceBytesUnchanged`、`successorBytesStable`、`logicalReopenStable` 和三个时点的 generation 列表以便核对。写打开可能留下独立的 `session.lock` 辅助文件；generation 断言只统计规范的 `session.vN.jsonl`。
+然后再看目录：仍然只有原 generation，原文件字节和 SHA-256 不变。逻辑格式转换已经发生，但尚未发布新版文件。这就是 `sourceBytesUnchanged` 所检查的区别。
+
+再用 `write` 打开同一 ID，backend 才发布 `session.v4.jsonl`。V1 到 V4 会经过发布包的相邻逻辑转换，磁盘却只新增当前 V4 successor，不要求给每个中间格式都留一个物理文件。V1/V3 输入及其他已存在的较低 generation 都逐字节保留。
+
+最后关闭 backend、重新挂载并读取：V4 逻辑事件相同，successor 字节也不变。demo 会打印三个时点的 generation 列表，便于与布尔结果一起核对。写打开可能留下独立的 `session.lock` 辅助文件；generation 断言只统计规范的 `session.vN.jsonl`。
 
 **拒绝也是结果：** 放入未来版本 `session.v5.jsonl` 后，read/write 都拒绝；即使较旧 V1 可读也不会回退。把最高 V4 generation 改为完整但无效的事件，或在 V1 加入未知历史事件，同样拒绝；这些失败不生成新 successor，也不改动现有 generation 字节。实验没有把这些文件“修好”或降级。
 
 ## 验证边界
+
+正常学习只需要运行已提交样本。若要了解压缩样本和发布版采集如何生成，继续读[复杂历史章节](RICH-HISTORY.md)；其中的生成脚本会重建本 Lab 的固定 fixture，与这里复制到临时目录进行 read/write 实验的操作不同。
 
 2026-09-29 的基础 keyless 测试使用真实发布包、worker 和临时文件系统，覆盖两份非空 plaintext fixture 的 read/write/reopen、源 SHA-256、已有 V1+V3 generation 不变、future/corrupt/unsupported body 拒绝，以及新建 V4 的默认 Zstd header。两次 demo 都观察到逻辑版本 4、源 SHA-256 前后一致、read 阶段无 successor、write 后新增 V4、重新打开稳定。2026-10-01 的压缩历史和附件增量结果另见[复杂历史章节](RICH-HISTORY.md)。这些样本不能代表任意历史用户日志均可无损升级。
 

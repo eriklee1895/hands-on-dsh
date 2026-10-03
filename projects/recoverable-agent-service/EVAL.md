@@ -1,6 +1,8 @@
 # 第 7.6 课：Eval 与可重放回归
 
-这套评测回答一个明确问题：修改可恢复服务后，它是否仍然按约定处理成功、工具错误、中止、断线和恢复？每个案例都有固定输入、独立期望和明确检查项。先运行应用得到实际观察，再评分；不能从 expected 生成 actual，也不能只看测试进程是否退出成功。
+假设你改了可恢复服务的 coordinator，正常任务仍能跑完，却不确定断线后会不会悄悄重跑一次。手工发一个成功请求回答不了这个问题；我们需要保留几种固定场景，每次改动后重新执行，再检查同一组事实。
+
+本课准备成功、工具错误、中止、断线和恢复五个案例。每例都有固定输入、独立期望和明确检查项：先运行应用得到实际观察，再评分。expected 不能拿来生成 actual，测试进程退出成功也不能代替逐项检查。
 
 本课复用[可恢复服务](README.md)的 SQLite、coordinator、FastAPI、SSE 和产物下载，固定 Python SDK/runtime `0.1.5rc1`。前一课的[用量观测](../../labs/run-observability/README.md)使用 npm `0.1.7-rc.2`；本课评测的是业务服务，没有把两个 SDK 的事件格式混用。
 
@@ -16,7 +18,9 @@ uv run --python 3.10 python examples/evaluate.py
 
 输出 `counts.selected=5, passed=5, failed=0, not_run=0`，退出码为 0。此模式使用可控 RuntimeAdapter，但数据库、worker、HTTP 路由、SSE 编码和产物快照都执行项目代码。HTTP 使用 TestClient/ASGI，不是一个真实 TCP 断线实验。
 
-每个案例的 17 项检查全部通过才算通过，没有用平均分抵消某项失败。`runtime_calls` 统计 RuntimeAdapter.run 调用次数，不是 provider 请求数：一个 Agent Run 内可以有多次模型调用和工具调用。
+先在输出中找到 `success` 与 `tool-error`。它们都可能显示案例通过，但前者要求下载到精确文件，后者要求看到工具错误和缺失产物。评测通过的意思是观察符合该场景约定，不能只拿这个布尔值当用户任务的成功率。
+
+每个案例的 17 项检查全部通过才算通过，没有用平均分抵消失败。`runtime_calls` 统计 RuntimeAdapter.run 调用次数，不是 provider 请求数；一个 Agent Run 内可以有多次模型调用和工具调用。
 
 | 案例 | 注入条件 | 必须观察到的结果 |
 | --- | --- | --- |
@@ -28,7 +32,7 @@ uv run --python 3.10 python examples/evaluate.py
 
 每个场景还检查幂等重复提交、完整 SSE 与数据库一致、按游标重放、终态游标返回空流，以及 cleanup 已确认。`tool-error` 用例通过，只说明应用实现了这条错误处理约定，不表示模型完成了一个必须交付产物的用户任务。如果业务把“产物必须可用”作为成功条件，需要另外定义相应的产品检查。
 
-## 2. 固定输入、期望与实际观察分别放在哪里
+## 2. 输入、实际观察与期望怎样分开
 
 [`eval/cases.json`](eval/cases.json)拥有数据集版本和五个案例，每项分为：
 
@@ -39,17 +43,19 @@ uv run --python 3.10 python examples/evaluate.py
 这个拆分参考 [Langfuse 的数据集指南](https://langfuse.com/academy/datasets)。本课使用本地文件和现有业务约定，没有创建或上传远端数据集，也没有把自动生成的开放题答案当作人工标注的标准答案。
 
 ```mermaid
-flowchart LR
-    Input[固定 input] --> Runner[真实业务服务与受控或真实 adapter]
-    Runner --> Evidence[数据库 / 下载字节 / SSE / 关闭观察]
+flowchart TD
+    Input[固定 input] --> Runner[执行业务服务]
+    Runner --> Evidence[收集 Observation]
     Evidence --> Grader[逐项评分]
     Expected[独立 expected] --> Grader
-    Grader --> Report[通过或失败的检查清单]
-    Evidence --> Record[白名单观测文件]
+    Grader --> Report[逐项检查报告]
+    Evidence --> Record[保存白名单观察]
     Record -->|离线重评| Grader
 ```
 
-[`eval_scenarios.py`](src/recoverable_agent_service/eval_scenarios.py)只读取 scenario 和 input，从实际服务状态及外部字节生成 Observation，不读取 expected。受控 adapter 本身按 scenario 产生预定行为，所以这部分验证应用如何处理这些行为，不验证模型能否自主产生它们。真实模型分支则要求模型实际写出产物。
+沿着图追一次 success：runner 读取 input，让受控或真实 adapter 执行；HTTP 下载得到的字节、数据库状态和 SSE 再组成 Observation。另一边，grader 从固定 expected 取标准，逐项比较。这样即使应用错误地返回成功、漏掉文件，也不能直接从期望中抄出一个正确结果。
+
+[`eval_scenarios.py`](src/recoverable_agent_service/eval_scenarios.py) 只读取 scenario 和 input，不读取 expected。受控 adapter 按 scenario 产生预定行为，所以这部分验证应用如何处理这些行为，不验证模型能否自主产生它们；真实模型分支则要求模型实际写出产物。
 
 [`eval_contract.py`](src/recoverable_agent_service/eval_contract.py)校验 fixture 并评分。空数据集、重复 case ID、重复 JSON key、未知字段、缺失检查、bool 冒充整数和无效枚举都不能静默通过。可用产物的期望 hash/字节数必须匹配 input 的 UTF-8 内容，避免先写入一个自相矛盾的基准。
 
@@ -71,6 +77,8 @@ uv run --python 3.10 python examples/evaluate.py --case aborted-turn
 
 报告会明确列出 selected 和另外四个 not_run。单例通过不能被显示成全套五例都通过；未知选择和空评测返回配置错误。
 
+现在可以做一个小练习：比较正例与 negative control 的报告，只找发生变化的检查。它应是 `runtime_calls`，不是文件 hash 或 SSE。这个反例让你确认评分器会拒绝哪一种偏差，也提醒我们：一个负对照只能证明对应检查有效。
+
 默认输出是成功/失败的精确检查，不是模型综合能力分数、生产成功率或质量置信区间。本课没有 LLM-as-a-Judge、开放题语义评分或统计采样结论。
 
 ## 4. 保存观察，离线重新评分
@@ -85,7 +93,9 @@ record 文件权限为 0600，已有路径会被拒绝覆盖。需要新的采�
 
 每个执行子进程在运行前核对父进程传入的数据集指纹，防止途中修改文件导致“执行新版输入，却按旧版记录”。
 
-记录包含白名单 Observation、原始模式、案例集合和数据集指纹；没有 prompt、模型回复、原始错误、token 或 artifact 原始字节。只保存状态、有限标签、计数、hash、大小和布尔检查。离线重评不执行 RuntimeAdapter，也不需要 API key；它不会重新测试已经修改的应用代码，代码回归需要重新执行场景取得观察。`execution=record-replay` 与记录原本的 `mode` 分开显示，避免把重评误读成一次新的模型实验。
+记录只保留白名单 Observation、原始模式、案例集合与数据集指纹。你可以看到状态、有限标签、计数、hash、大小和布尔检查，但看不到 prompt、模型回复、原始错误、token 或 artifact 原始字节。
+
+离线重评会重算“这份已有观察是否满足期望”，不执行 RuntimeAdapter，也不需要 API key。假如你刚改了 coordinator，重放旧观察不会运行新代码；此时必须重新执行场景取得观察。报告把 `execution=record-replay` 与记录原本的 `mode` 分开显示，正是为了区分这两个动作。
 
 读入时检查 8 MiB 上限、严格 schema、案例归属及数据集完整指纹。修改 input、expected 或 metadata 后旧记录会被拒绝，不能换了题目却继续引用旧结果。修改数据集时应升级 dataset_version，并重新取得观察。
 
@@ -115,7 +125,20 @@ uv run python examples/evaluate.py --replay .data/eval-real.json
 
 `aborted-turn` 注入的是一个已经结束的 RuntimeResult，不提供新的 HTTP cancel 或 SDK per-prompt cancel。`transport-disconnect` 证明应用保守记录执行不确定，并要求后续确认；它不是对真实网络连接执行断流。
 
-`recovery` 使用本机持久 SQLite 预置 running Run，启动恢复后验证 failed/execution_uncertain 和 attention_required，再确认新 Session 与旧记录保留。新 Run 是显式提交的新工作，不自动续跑旧 prompt，也不恢复旧模型记忆。
+再单独看 recovery。数据库里预置的旧 Run 是 running，表示服务重启前有未结算工作；测试启动服务后，应先保守记录不确定，再等待调用方确认：
+
+```mermaid
+flowchart TD
+    Old[旧 Run：running] --> Boot[服务启动，检查 SQLite]
+    Boot --> Uncertain[旧 Run：failed<br/>execution_uncertain]
+    Uncertain --> Attention[Conversation：attention_required]
+    Attention --> Ack[显式确认恢复]
+    Ack --> Rotate[更换 Session ID]
+    Rotate --> Submit[显式提交新 Run]
+    Submit --> New[新 Session 执行新工作]
+```
+
+`recovery` 验证上述状态、Session 换代及旧 Run 记录保留。图中没有从旧 prompt 自动连到新执行的箭头：新 Run 是调用方显式提交的新工作，不自动续跑旧 prompt，也不恢复旧模型记忆。你可以在报告里分别查看 `recovery_rotated` 与 `prior_run_preserved`，确认“获得新的执行机会”和“旧记录被保留”都成立。
 
 SSE 验证在终态后读取完整事件，再按 Last-Event-ID 重放；完整帧还会逐项对照 SQLite 原始事件及连续 seq，避免“完整接口与重连接口丢掉同一事件”仍然通过。它覆盖游标重放语义，未制造真实 TCP 断线。
 
@@ -134,7 +157,9 @@ uv run --python 3.10 ruff format --check .
 uv lock --check
 ```
 
-CLI 为每个案例启动独立的 POSIX 子进程组，默认 deadline 为受控案例 15 秒、真实案例 240 秒，可用 `--case-timeout SECONDS` 调整。子进程内服务仍保留 drain 语义；deadline 到达由父进程终止自有进程组，并在有限宽限后强制回收，报告退出码 2。主进程已退出但仍有同组后代，也会回收并拒绝本次结果。
+### 评测卡住时，由谁结束它
+
+服务内部的优雅关闭需要等待活动结算，但评测本身也不能无限卡住。CLI 为每个案例启动独立的 POSIX 子进程组，默认 deadline 为受控案例 15 秒、真实案例 240 秒，可用 `--case-timeout SECONDS` 调整。子进程内服务仍保留 drain 语义；deadline 到达由父进程终止自有进程组，并在有限宽限后强制回收，报告退出码 2。主进程已退出但仍有同组后代，也会回收并拒绝本次结果。
 
 这个 watchdog 是评测基础设施的终止保护，不是 SDK cancel，也不能证明外部副作用被撤销；主动脱离进程组的进程和远端任务不在它的确认范围内。支持范围为 POSIX，不能把它当作 Windows 或多租户安全 sandbox。调用方只在每例正常返回且关闭已确认后删除临时目录；超时、执行或关闭未确认时保留目录，在 stderr 打印位置。文件清理失败也返回 2，不先打印通过报告。
 

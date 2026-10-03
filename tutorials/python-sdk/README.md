@@ -4,7 +4,9 @@
 
 English | [中文](README.zh.md)
 
-These examples progress from one high-level call to direct newline-delimited JSON-RPC. The SDK depends on the matching runtime wheel, which ships the public `dsh` CLI and profiles; running the examples needs no separate Node.js installation.
+When a Python application hands a task to an agent, you do not need to start by managing a protocol or an event queue. First run one high-level call and get an answer. Then keep a conversation open, observe notifications, and ask the agent to write a file you can verify independently. The first four examples follow that path; the last two open up the SDK to explain how it waits for results and closes processes.
+
+This tutorial runs complete examples, then examines them one layer at a time. Each chapter links its script, explains what to observe, and offers a reading or hands-on exercise. The SDK depends on the matching runtime wheel, which ships the public `dsh` CLI and profiles; these Python examples need no separate Node.js installation.
 
 ## Prerequisites
 
@@ -32,7 +34,7 @@ Keep credentials out of Git. When the variables are already exported in your she
 | [`05_low_level_client.py`](05_low_level_client.py) | `HarnessClient` | Initialization, prompt enqueue, durable inbox receipt, events, and idle settlement | [Drive `HarnessClient`](tutorials/05-low-level-client.md) |
 | [`06_raw_jsonrpc.py`](06_raw_jsonrpc.py) | Raw stdio JSON-RPC | Process launch, JSONL framing, response correlation, notification consumption, and teardown | [Hand-write JSON-RPC](tutorials/06-raw-jsonrpc.md) |
 
-Run the examples from the `tutorials/python-sdk` directory:
+Start with the first script to check your credential and runtime, then follow the chapter order in the table. Run these commands from `tutorials/python-sdk`. Each explicitly loads `.env`: an earlier `uv run` does not export credentials for later shell commands.
 
 ```sh
 uv run --env-file ../../.env python 01_hello.py
@@ -61,7 +63,9 @@ Apply Ruff's formatter with `uv run ruff format .`. Update dependencies through 
 
 ## Streaming behavior
 
-The Python SDK delivers notifications through `on_notification` during `Session.run()`. The example projects the text blocks of root-session `assistant/message` events after each message is committed. These notifications are not token-level model streaming. The callback can also receive known descendant sessions, so it filters by the root `sessionId`.
+The third example can print a message before `run()` returns, but do not expect a typewriter effect. The Python SDK calls `on_notification` during synchronous `Session.run()`, and the example reads text blocks from committed `assistant/message` events. Internal token generation and delivery of a committed message are different moments.
+
+The callback can also receive known descendant sessions. Filtering by the root `sessionId` prevents a child agent’s answer from replacing the main answer. Tool and lifecycle events are also kept out of the final text.
 
 `Session.run()` is synchronous and returns when its receipt-to-idle activity interval settles. The SDK has no token iterator; `03_stream_events.py` prints each committed message as its event arrives, then compares it with `RunResult.final_response`.
 
@@ -73,7 +77,9 @@ The Python SDK delivers notifications through `on_notification` during `Session.
 | `HarnessClient` | The business needs direct notification subscriptions or prompt enqueue receipts | Activity-interval correlation and result projection |
 | Raw JSON-RPC | Diagnosing the protocol, prototyping another SDK, or working around a client-only limitation | Process lifecycle, concurrent stdout/stderr draining, request correlation, notification routing, timeouts, protocol validation, and teardown |
 
-Raw JSON-RPC cannot add a server method that the DSH JSON-RPC server does not implement. Prefer extending the server and wrapping the new method in `HarnessClient` over duplicating transport code in each application.
+Choose an integration level by asking what is missing. To observe committed messages, the high-level callback is enough. To inspect an enqueue receipt, use the low-level client. The sixth example mainly explains the work that client takes on.
+
+Raw JSON-RPC cannot add a method absent from the DSH server. For new control capabilities, implement the server semantics first and wrap the method in `HarnessClient`, rather than duplicating transport code in each application.
 
 ## Release verification (2026-09-28)
 

@@ -1,5 +1,7 @@
 # SSE 与 WebSocket：先看事件何时产生
 
+界面只在最后一下显示整段回答，换成 WebSocket 会不会更快出现文字？先检查上游什么时候交出文本：如果 SDK 只在消息提交后通知，换连接并不会让它提前产生数据。
+
 本章比较本仓库两个已运行的方案：自有AG-UI应用的HTTP/SSE，和固定DSH `0.1.7-rc.2` 官方Web的HTTP/Remote WebSocket。传输选型需要同时看控制入口、数据产生时间、订阅生命周期和恢复来源；仅把连接换成WebSocket不会增加上游缺失的live token。
 
 ## 两条真实链路
@@ -12,6 +14,22 @@
 | 恢复依据 | SQLite RunEvent、业务状态与Artifact | Host Session历史、订阅generation与runtime状态 |
 | 已实测断开行为 | AG-UI detach后Run继续，业务游标可回读 | 浏览器离线后历史恢复；正常Host重启后同Session续写 |
 | 限制 | 当前项目没有wire cancel/approval | 每项GUI控制仍需按固定版实际验证 |
+
+```mermaid
+flowchart TD
+    UI["自有应用浏览器"] -->|"HTTP 提交"| BFF["业务 BFF"]
+    BFF -->|"AG-UI SSE"| UI
+    DB["SQLite 事件"] -->|"cursor SSE 重放"| UI
+```
+
+```mermaid
+flowchart TD
+    GUI["官方 Web 浏览器"] -->|"HTTP unary 控制"| Host["DSH Host"]
+    Host -->|"Remote WebSocket"| GUI
+    History["Session 历史与实时帧"] --> Host
+```
+
+两图各展开一种实际应用。箭头标记传输方向，不代表 SQLite 自己监听 HTTP；cursor 响应仍由业务服务读取并发送。
 
 SSE是服务器向客户端推送的事件流；应用把提交/审批等控制放在独立HTTP请求上即可形成双向业务交互。WebSocket可以在同一连接上承载双向消息，但官方Web在这里仍将unary控制放在HTTP上。不要从协议支持双向通信推断产品把全部控制都放进了同一条socket。
 

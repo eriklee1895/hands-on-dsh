@@ -1,10 +1,10 @@
 # 进阶实验：PTC 失败、并发上限与 child 森林恢复
 
-本章把正常关闭、PTC 进程死亡、父 runtime 崩溃和历史 child catalog 迁移分开观察。每个成功结论都要求发布版服务的结果、持久日志或外部文件相互印证；错误结果不当成完成。
+一个 workflow 报错了，已经写出的文件会消失吗？父进程被强杀后，子会话历史又能恢复到哪一步？本章从这两个问题出发，把 PTC 进程死亡、父 runtime 崩溃和旧版 child catalog 迁移分开实验。每次先明确故障发生在哪一步，再用服务结果、持久日志与外部文件互相核对。
 
 ## 固定版本与运行
 
-本实验锁定 `@deepseek-ai/dsh-*` npm `0.1.7-rc.2`、Cordis `4.0.4`，对应上游 `dsh-v0.1.7-rc.2` / [`477b4f420553e8a52c2fbccc464d7561b239c443`](https://github.com/deepseek-ai/deepseek-harness/commit/477b4f420553e8a52c2fbccc464d7561b239c443)。受控响应只替换模型；Workflow Engine、Node PTC 子进程、AgentLoop、continuable subagent、Session Query 与 JSONL backend 都来自发布包。2026-10-02 在 macOS arm64、Node `26.7.0`、pnpm `12.3.4` 执行。以下命令从本目录运行，不需要 API Key：
+本实验锁定 `@deepseek-ai/dsh-*` npm `0.1.7-rc.2`、Cordis `4.0.4`，对应上游 `dsh-v0.1.7-rc.2` / [`477b4f420553e8a52c2fbccc464d7561b239c443`](https://github.com/deepseek-ai/deepseek-harness/commit/477b4f420553e8a52c2fbccc464d7561b239c443)。受控响应只替换模型；Workflow Engine、Node PTC 子进程、AgentLoop、continuable subagent、Session Query 与 JSONL backend 都来自发布包。2026-10-02 在 macOS arm64、Node `26.7.0`、pnpm `12.3.4` 执行。以下命令从仓库根目录运行，不需要 API Key：
 
 ```sh
 cd labs/workflow-child-lifecycle
@@ -22,9 +22,15 @@ pnpm build
 
 ## PTC 进程死亡与部分外部效果
 
-[`tests/recovery.test.ts`](tests/recovery.test.ts) 让已发布的 Workflow Engine 启动真实 Node PTC 进程。脚本先用 Node `fs.writeFileSync` 写入 `ptc-started.json`，其中包含实际 PTC PID；随后对自身发 `SIGKILL`。脚本尾部原本要写 `ptc-completed.txt` 并返回 `{ verified: true }`，故障后两者都不得出现。宿主逐字节核对 marker、确认 PID 与测试进程不同、完成文件不存在、PTC PID 已退出、`stopReason: error`、`value: null`、`agentsStarted: 0`，最后 await run disposal。marker 是**部分外部文件效果**；Workflow 的错误状态没有回滚它。脚本利用 VM 逃逸取到 Node process，仅用来对实验自身做确定性注入，不能据此推断恶意脚本隔离能力。
+[`tests/recovery.test.ts`](tests/recovery.test.ts) 让发布版 Workflow Engine 启动真实 Node PTC 进程。脚本先用 `fs.writeFileSync` 写入带实际 PTC PID 的 `ptc-started.json`，随后对自身发送 `SIGKILL`。原本排在后面的 `ptc-completed.txt` 写入和 `{ verified: true }` 返回都不应发生。
 
-`FixtureModel` 的第一次 stream 抛出受控错误，使第一个真实 child 失败；Workflow 脚本见到 `agent()` 返回 `null` 后只发起第二个 child。`maxTotalAgents: 2` 限制总调用数，事件记录先 `failed` 后 `completed`，最终只在第二个响应成功时返回 `CONTROLLED`。这是脚本显式写出的重试，不是 DSH 自动重放工具效果。另一脚本用 `parallel()` 同时启动两个 child：受控模型 gate 观察峰值并发 `2`；第三次 `agent()` 被总量上限拒绝，Workflow 以 `error` 结束，模型请求仍只有两次。`maxConcurrentAgents: 2`、`maxTotalAgents: 2` 都是协作上限，不是恶意代码的资源隔离。
+观察这个结果时，把开始标记与完成结果分开：宿主逐字节核对 marker，确认 PID 不是测试进程、完成文件不存在、PTC PID 已退出。同时要求 `stopReason: error`、`value: null`、`agentsStarted: 0`，最后 await run disposal。marker 留下了**部分外部文件效果**，Workflow 的错误状态并没有回滚它。
+
+脚本利用 VM 逃逸取到 Node process，仅用于对自身确定性注入故障。这个实验没有验证恶意脚本隔离能力。
+
+下一组改为让 child 失败。`FixtureModel` 第一次 stream 抛出受控错误，workflow 脚本看到 `agent()` 返回 `null` 后，再显式发起第二个 child。`maxTotalAgents: 2` 限制总调用数；事件先是 `failed`，再是 `completed`，只有第二次成功才返回 `CONTROLLED`。这里的重试写在脚本里，不是 DSH 自动重放工具效果。
+
+再换成并发：另一个脚本用 `parallel()` 同时启动两个 child，受控模型 gate 观察到峰值并发 2。第三次 `agent()` 被总量上限拒绝，workflow 以 error 结束，模型请求仍只有两次。`maxConcurrentAgents: 2` 与 `maxTotalAgents: 2` 分别约束同时活跃数与累计数，都是协作上限，不是恶意代码的资源隔离。
 
 ## 正常关闭与崩溃后的森林
 
@@ -35,32 +41,50 @@ pnpm build
 | 正常关闭 | 释放父 handle 和 Context，退出码 `0`                                                                | 新 Context 从持久根目录读 catalog 并继续原 grandchild |
 | 崩溃     | 保持父 handle/Context，在 flush 后由测试进程对**所启动的 worker PID** 发 `SIGKILL`，观察退出 signal | 新 Context 从同一根目录读 catalog 并继续原 grandchild |
 
+小屏阅读时可[打开此图的 SVG](assets/forest-recovery-sequence.svg)放大查看。下图为可编辑的 Mermaid 源，SVG 由同一版本图生成。
+
 ```mermaid
 sequenceDiagram
     participant T as 测试宿主
     participant W1 as worker 1
-    participant J as JSONL Session
-    participant W2 as worker 2 / 新 Context
-    T->>W1: seed-normal 或 seed-crash
-    W1->>J: parent/child/grandchild 描述和目录项
-    W1->>J: flush 持久性屏障
+    participant J as 日志
+    participant W2 as worker 2
+    T->>W1: 建立森林
+    W1->>J: 三个节点及父子关系
+    W1->>J: flush
     alt crash
-        T->>W1: SIGKILL 已记录的 worker PID
+        T->>W1: SIGKILL 自有 PID
     else normal
-        W1->>W1: dispose Context 并退出
+        W1->>W1: dispose 并退出
     end
-    T->>W2: inspect，同一临时根目录
-    W2->>J: 冷读两条 catalog 边和原事件前缀
-    W2->>J: resume parent，parent→child→grandchild 直接消息
-    W2->>J: 两个 child 追加事件并 flush
-    W2-->>T: PID 不同、原前缀相同、grandchild 两轮 completed
+    T->>W2: 使用同一存储
+    W2->>J: 冷读 catalog 与旧事件
+    W2->>W2: 沿直接父链继续
+    W2->>J: 追加事件并 flush
+    W2-->>T: 核对前缀与终态
 ```
 
-新进程在激活 child 前调用 `listDescendants(parentId)`，得到深度 `1/2`、父 ID 分别为 parent/child 的两行，并确认两个 child 都不在 Agent registry。之后 `agents.resume(parent)`，父向原 child 发送消息；child 活跃时，它作为 grandchild 的**直接父**向原 grandchild 发送消息。最终重读 JSONL：两个 child 的旧事件均为新日志的精确前缀，新增 grandchild user message 的 sender 是 child，grandchild 的两个 turn/end 均为 `completed`。child 可能因 grandchild settlement 通知产生额外的已完成 turn；测试逐一核查其结束原因，不把 child turn 数硬写成两个。
+恢复前，先区分“知道某个 child 存在”和“它正在运行”。新进程调用 `listDescendants(parentId)`，读出深度 1/2、父 ID 分别为 parent/child 的两行；此时两个 child 都不在 Agent registry。
+
+父子关系分别记录在不同日志里，下面的箭头表示引用关系：
+
+```mermaid
+flowchart TD
+    P[Parent 日志<br/>catalog 记录 Child] --> C[Child 日志<br/>header 指向 Parent<br/>descriptor 描述自身]
+    C --> G[Grandchild 日志<br/>header 指向 Child<br/>descriptor 描述自身]
+    C --- Catalog[Child 的 catalog<br/>记录 Grandchild]
+    Catalog --> G
+```
+
+接着 `agents.resume(parent)`，父向原 child 发送消息；child 活跃时，再作为 grandchild 的**直接父**向原 grandchild 发送消息。不能用最顶层 parent 替代这条直接父链。
+
+最终重读 JSONL，要求两个 child 的旧事件都是新日志的精确前缀；新增 grandchild user message 的 sender 是 child，grandchild 两个 turn/end 均为 completed。child 可能因 grandchild settlement 通知产生额外的已完成 turn，测试逐一核查结束原因，不把它的 turn 数硬写成两个。
 
 测试对 seed 和 inspect worker 都设置了有限的退出等待；任何失败路径的 `finally` 只通过自己创建的 `ChildProcess` handle 发 `SIGKILL`，等待退出后才删除临时根目录。一个真实 Node fixture 分别模拟 inspector 提前失败与持续挂起，验证这两条清理路径；若 worker 仍不能退出，目录会保留供检查。
 
-崩溃发生在 flush 之后、worker 清理之前；本实验**没有**声称中途未提交 turn 一定可继续，也没有执行重复的有副作用工具。初始实现曾在 gate 刚放行时调用 `drainContinuableDescendants()`，真实日志显示 turn 为 `aborted`；改为等待 child 自行完成后再 drain。此负证据说明“成功调用清理”不等于 child 任务成功。
+崩溃发生在 flush 之后、worker 清理之前，因而这里只能判断已确认持久的森林能否继续，不能推广到中途未提交 turn，也没有测试重复执行有副作用工具。
+
+等待 child 完成这一条件不能省略。实验曾在 gate 刚放行时调用 `drainContinuableDescendants()`，日志得到的是 aborted；这份负面证据说明，清理调用成功不等于 child 任务成功。当前 worker 先等 child 自行完成，再 drain 和 flush。
 
 ## 历史 V3 child catalog 与不可变 predecessor
 

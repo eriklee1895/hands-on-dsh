@@ -1,29 +1,19 @@
-# Labs
+# 用小实验解释一个问题
 
-这里保存针对单一机制的短实验。每个 lab 应该有一个清晰问题、最小代码、可重复验证命令和结论。
+Lab 适合在“例子能跑”之后继续追问。一次实验只改变少量条件，同时观察调用结果、日志和外部状态。你可以按[工程化路线](../docs/learning-paths/engineering.md)顺序学习，也可以从眼前的问题进入。
 
-已完成：
+| 你想弄清的问题 | 实验入口 |
+| --- | --- |
+| 超时后进程还在，下一条请求能借它吗？ | [单 runtime 管理](runtime-supervision/README.md) → [有界进程池](runtime-supervision/POOL.md) |
+| SDK 的入队回执、ACP 的结束响应各代表什么？ | [协议语义](protocol-semantics/README.md) → [跨引擎适配](protocol-semantics/ADAPTERS.md) |
+| 依赖服务被卸载后，插件留下的 listener 归谁清理？ | [Cordis 生命周期](cordis-plugin-lifecycle/README.md) |
+| 历史文件能读出来，磁盘格式就已经变了吗？ | [Session 迁移](session-format-migration/README.md) → [压缩历史与附件](session-format-migration/RICH-HISTORY.md) |
+| 日志还在，模型为什么忘记了一部分内容？ | [上下文压缩](compaction-lifecycle/README.md) → [溢出/取消](compaction-lifecycle/RECOVERY.md) → [裁剪/offload](compaction-lifecycle/REDUCTION.md) |
+| 压缩调用报错，checkpoint 会不会已经提交？ | [事务与并发](compaction-lifecycle/TRANSACTIONS.md)；另有[真实服务端 overflow](compaction-lifecycle/PROVIDER-OVERFLOW.md) |
+| 模型看到的图片与上传、存储的是同一份吗？ | [附件输入](attachment-input/README.md) → [fallback](attachment-input/FALLBACK.md) → [预算](attachment-input/BUDGET.md) → [失效 ID](attachment-input/STALE.md) |
+| 子 Agent 结束或进程重启后，哪些关系仍能找回？ | [Workflow 与 child](workflow-child-lifecycle/README.md) → [故障与森林恢复](workflow-child-lifecycle/RECOVERY.md) |
+| 浏览器断线、取消、Host 崩溃分别影响谁？ | [官方 Web](web-host-lifecycle/README.md) → [控制案例](web-host-lifecycle/CONTROLS.md) → [恢复实验](web-host-lifecycle/RECOVERY.md) |
+| workspace 写入策略与容器隔离分别限制了什么？ | [本机 sandbox](sandbox-isolation/README.md) → [Linux 容器/SSH](sandbox-isolation/CONTAINERS.md) |
+| 同一份日志导入两遍，usage 会不会算两次？ | [Run 观测与费用演算](run-observability/README.md) |
 
-- [attachment-input](attachment-input/README.md)：真实附件 store、SDK 图片接纳、Files 视觉输入、字节核对与本次上传清理；[fallback课](attachment-input/FALLBACK.md)验证受控Files失败后的真实整请求inline传输。
-
-- [官方 Web Host](web-host-lifecycle/README.md)：浏览器认证、实时帧、工具产物、页面刷新及正常重启后的同会话续写；[控制案例](web-host-lifecycle/CONTROLS.md)验证审批、取消和离线行为。
-
-- [Workflow PTC 与 child 冷恢复](workflow-child-lifecycle/README.md)：发布包 PTC、取消后的迟到 child 清理，以及两次独立 runtime 的持久 child 恢复和文件验证。
-- [compaction-lifecycle](compaction-lifecycle/README.md)：真实发布engine的manual/auto/failure测试，真实pressure摘要、后续产物和持久surface重放；[溢出与取消](compaction-lifecycle/RECOVERY.md)验证受控故障、重试上限及迟到摘要；[裁剪/offload](compaction-lifecycle/REDUCTION.md)核对原始日志、模型输入、图片文件与重放。
-
-- [run-observability](run-observability/README.md)：Run/session/attempt 时间线、用量去重、缺失项与费用估算；仅导出白名单元数据。
-
-- [sandbox-isolation](sandbox-isolation/README.md)：macOS 三模式真实 provider 矩阵、两种受限模式的模型 Bash 调用，以及读取/网络/进程能力的实测限制。
-
-- [session-format-migration](session-format-migration/README.md)：发布版 backend 的 synthetic V1/V3 → V4、只读/写入区别与不可变 generation。
-
-- [runtime-supervision](runtime-supervision/README.md)：基于新版公开 SDK 的单 runtime 所有权、超时、隔离与显式重建；[第二课](runtime-supervision/POOL.md)扩展有界 FIFO 池与容量控制。
-- [protocol-semantics](protocol-semantics/README.md)：固定 npm `0.1.7-rc.2` 的 SDK/ACP profiles、JSONL、committed output、cancel/permission、持久 session list/resume/close 与进程生命周期；[适配层](protocol-semantics/ADAPTERS.md)提供显式能力与共同场景
-- [cordis-plugin-lifecycle](cordis-plugin-lifecycle/README.md)：固定 DSH `0.1.7-rc.2` 的原创 proof journal、Cordis lifecycle/HMR/PENDING、preset scope、可复用 tool/listener 与真实模型调用
-
-扩展范围：
-
-容器/SSH基础现见[sandbox补充课](sandbox-isolation/CONTAINERS.md)；完整生产多租户调度仍不属于该实验保证。
-Codex/Hermes基础已接入[协议适配课](protocol-semantics/ADAPTERS.md)，真实nonce与文件场景分别验收；未集成的控制仍由能力表明确标注。
-
-教程可以引用 lab，但不复制其实现。完整应用则放在 `projects/`。
+每个入口都声明版本、运行条件与清理责任。先跑确定性案例，再决定是否使用自己的模型凭据。完整生产多租户调度、任意故障恢复和跨平台保证，仍需按实际场景验证；各实验的观察不自动扩大到这些范围。

@@ -2,16 +2,18 @@
 
 ## 学习目标
 
-先用最容易理解的方式嵌入 DSH：一个 HTTP 请求对应一次 `RuntimeService.run()`，FastAPI 等待 agent 的整个活动区间结束，再返回 JSON。完成本节后，你能区分 HTTP 请求、DSH session 和 agent turn 三个不同概念。
+先做一个最朴素的 Web Agent：浏览器发一句话，服务等 Agent 忙完，再一次返回答案。这里“阻塞式”说的是客户端要等待整份响应；服务端仍然可以处理别的请求。我们先跑通这条路径，再看一个 HTTP 请求如何交给 `RuntimeService.run()`，以及它为什么要等到 DSH 的整个活动区间结束。
 
 ## 前置条件
 
-在项目根目录完成 `uv sync --group dev`，并在环境中设置 `DEEPSEEK_API_KEY`。服务只监听 `127.0.0.1`，workspace 与 Harness home 默认分别写入 `workspace/` 和 `.dsh-fastapi-home/`。
+先在 `tutorials/fastapi-101` 目录完成 `uv sync --group dev`，并在仓库根 `.env` 中设置 `DEEPSEEK_API_KEY`，或把它导出到 shell。服务只监听 `127.0.0.1`，workspace 与 Harness home 默认分别写入当前项目的 `workspace/` 和 `.dsh-fastapi-home/`。
 
 ## 运行
 
+在克隆仓库的 `tutorials/fastapi-101` 目录执行。命令用 Git 定位仓库根目录，再加载其中的本地 `.env`。若服务已在运行，沿用同一个进程即可，不必每章重启；若凭据已由 shell 导出，可省略 env-file 参数。
+
 ```sh
-uv run python -m dsh_fastapi_101
+uv run --env-file "$(git rev-parse --show-toplevel)/.env" python -m dsh_fastapi_101
 ```
 
 打开 `http://127.0.0.1:8000/chapter/1`，或者直接调用 API：
@@ -22,27 +24,32 @@ curl -s http://127.0.0.1:8000/api/chat \
   -d '{"session_id":"chapter-1","prompt":"只回复：CHAPTER_1_OK"}'
 ```
 
-响应字段为 `session_id`、`response` 和 `finish_reason`。这里的 session ID 是业务传入的稳定标识，不是一次 HTTP request ID。
+模型按要求回答且运行完成时，响应形如下面这样。它是输出示意，实际措辞由模型决定：
+
+```json
+{"session_id":"chapter-1","response":"CHAPTER_1_OK","finish_reason":"completed"}
+```
+
+`session_id` 是业务传入的对话标识，第二次请求可以继续使用它；它不是这一次 HTTP 请求的 ID。`finish_reason` 说明 Agent 如何结束，`response` 才是最终提交的文本。先把这三个字段分开理解，下一章再观察答案形成之前的事件。
 
 ## 源码分析
 
-`src/dsh_fastapi_101/app.py` 的 `/api/chat` 路由接收 `ChatRequest`，调用 `RuntimeService.run()`。`src/dsh_fastapi_101/runtime.py` 使用 `asyncio.to_thread()` 把同步的 `Session.run()` 放入线程，避免阻塞 ASGI 事件循环。`Session.run()` 内部仍按 DSH 的语义等待提示词进入持久 inbox，再等待整个 agent 回到 `idle`。
+打开 `src/dsh_fastapi_101/app.py`，从 `/api/chat` 路由往下读：请求先被解析为 `ChatRequest`，再交给 `RuntimeService.run()`。切到 `runtime.py` 的 `_execute()`，最关键的一行是 `await asyncio.to_thread(session.run, ...)`。
+
+Python SDK 的 `Session.run()` 是同步调用，会等提示词进入持久 inbox，再等整个 Agent 回到 `idle`。把它交给工作线程，ASGI 的事件循环就能继续处理健康检查等请求；`await` 只让当前请求等待结果。
 
 ```mermaid
 sequenceDiagram
-    participant Browser
-    participant FastAPI
-    participant RuntimeService
-    participant Worker as Worker thread
-    participant DSH as DSH runtime process
-    Browser->>FastAPI: POST /api/chat
-    FastAPI->>RuntimeService: run(prompt, session_id)
-    RuntimeService->>Worker: asyncio.to_thread
-    Worker->>DSH: session/prompt
-    DSH-->>Worker: notifications until idle
-    Worker-->>RuntimeService: RunResult
-    RuntimeService-->>FastAPI: RunOutput
-    FastAPI-->>Browser: JSON response
+    participant B as 浏览器
+    participant A as API / Service
+    participant T as 工作线程
+    participant D as DSH
+    B->>A: POST /api/chat
+    A->>T: to_thread
+    T->>D: session/prompt
+    D-->>T: 通知直到 idle
+    T-->>A: RunResult
+    A-->>B: JSON
 ```
 
 为什么不直接在 `async def` 路由里调用 `session.run()`？因为它会持续等待模型、工具和 `idle`，直接调用会冻结当前事件循环线程，使同一 worker 无法及时处理健康检查与其他请求。
@@ -52,7 +59,9 @@ sequenceDiagram
 1. `/api/health` 返回 `runtime_started: true`。
 2. `/api/chat` 返回 HTTP 200，`finish_reason` 为 `completed`；`error` 与 `max-tokens` 返回 HTTP 502 JSON 错误。
 3. `.dsh-fastapi-home/` 下出现 profile 和持久会话数据。
-4. 服务停止后不再残留 公开 `dsh` runtime 子进程。
+4. 服务停止后不再残留公开 `dsh` runtime 子进程。
+
+可以做个小实验：一个终端请求较长回答时，在另一个终端访问 `/api/health`。它应仍能及时响应。这个观察解释了工作线程的用途；不要把单次延迟测量当成吞吐量基准。
 
 ## 限制
 

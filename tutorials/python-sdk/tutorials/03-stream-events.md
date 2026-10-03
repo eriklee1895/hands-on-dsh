@@ -4,7 +4,7 @@ English | [中文](03-stream-events.zh.md)
 
 ## Outcome
 
-Use [`03_stream_events.py`](../03_stream_events.py) to print a root assistant message when DSH commits it, then compare it with the synchronous `RunResult` returned at idle. The filename is retained for links; this release does not expose token-level assistant chunks.
+The previous chapter printed its result only after `run()` returned. To observe what the agent has already said while it is still active, use the notification callback in [`03_stream_events.py`](../03_stream_events.py). It can print an assistant message when DSH commits it. You receive a whole committed message, not text appearing one token at a time.
 
 ## Prerequisites
 
@@ -12,29 +12,35 @@ Complete [Tutorial 02](02-reuse-session.md) and install the locked `0.1.5rc1` SD
 
 ## Run it
 
+Run the command from `tutorials/python-sdk`; `../../.env` is the local credential file at the repository root. If the credential is already exported in your shell, omit env-file; for example, `uv run python 03_stream_events.py` uses the script’s default arguments.
+
 ```sh
-uv run python 03_stream_events.py \
+uv run --env-file ../../.env python 03_stream_events.py \
   --session-id python-demo-03 \
   --dsh-home /tmp/dsh-demo-03 \
   "Explain agent runtimes in three short bullets."
 ```
 
-`committed_message` appears when its event arrives; `final_response`, `finish_reason`, and counts follow after idle. The two texts must match for this single-message example.
+Watch the order in the terminal: `committed_message` is printed inside the callback, while `final_response`, `finish_reason`, and the counts are printed after `run()` returns. The default single-message task should produce matching text; the script compares the last projected message with the final result. The lines may appear almost together—a short task does not guarantee a visible delay.
 
 ## How it works
 
-`Session.run()` calls `on_notification` with notifications from the root session and known descendants. `committed_text_from()` accepts only root `session.event` notifications containing `assistant/message`, then joins their text content blocks. It ignores tool events and child messages. Notification delivery can precede the final `RunResult`, but it is not model token streaming.
+Start reading at the print inside `on_notification()`: it can execute before the synchronous `Session.run()` returns. Then follow the three checks in `committed_text_from()`: is this a `session.event`, does it have the root `sessionId`, and is its type `assistant/message`? Only then are text blocks joined.
+
+Why check the root ID? The SDK can notify you about known descendant sessions too. A child agent’s answer may belong in a timeline, but it should not replace the main agent’s answer. Tool events also need their own presentation.
 
 ```mermaid
-flowchart LR
-    N[Notification] --> M{session.event?}
-    M -->|No| I[Ignore]
-    M -->|Yes| S{Root sessionId?}
-    S -->|No| I
-    S -->|Yes| E{assistant/message?}
-    E -->|No| I
-    E -->|Yes| P[Join committed text blocks]
-    P --> O[Print committed message]
+sequenceDiagram
+    participant R as DSH
+    participant C as Callback
+    participant A as Python
+    A->>R: Session.run(prompt)
+    R-->>C: assistant/message
+    Note over R,C: Message committed
+    C->>C: root session filter
+    C-->>A: print committed_message
+    R-->>A: idle → RunResult
+    A->>A: compare final_response
 ```
 
 The release implementation is [`Session.run()`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/api.py); the callback and transport subscription run through [`client.py`](https://github.com/deepseek-ai/deepseek-harness/blob/183f08e9c6dde7e36cd2318eaee70b0da08fb35e/python/sdk/src/deepseek_harness/client.py).
@@ -42,6 +48,8 @@ The release implementation is [`Session.run()`](https://github.com/deepseek-ai/d
 ## Verify it
 
 Check exit status 0, at least one committed message, `finish_reason: completed`, and equality between the last projected text and `final_response`. The script fails if these conditions are not met.
+
+Try a keyless exercise: open `test_notification_demo_projects_only_root_committed_message` in `tests/test_demos.py` and inspect the root, child, and unrelated events. Predict which ones yield text, then compare with `uv run pytest -k notification_demo`. This checks projection rules, not what a model will say.
 
 ## Limitations
 

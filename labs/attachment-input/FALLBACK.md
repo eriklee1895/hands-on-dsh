@@ -1,6 +1,8 @@
 # Files 失败后的整请求 inline fallback
 
-本课接续[附件输入](README.md)，固定相同 npm `0.1.7-rc.2` 与 upstream `477b4f420553e8a52c2fbccc464d7561b239c443`。问题是：两张图中有一张无法取得 Files ID 时，另一张是否仍用 Files？已经上传的图片由谁清理？
+上一课两张图都取得了 Files ID。现在让第一张上传成功、第二张上传失败：你可能预期请求混用一个 Files 引用和一张 inline 图片，但固定版 provider 会把**整条请求的图片都改为 inline**。已经上传的第一张不会因此自动消失。
+
+本课接续[附件输入](README.md)，用两个对照场景解释这个选择及其清理责任。npm 仍为 `0.1.7-rc.2`，upstream 为 `477b4f420553e8a52c2fbccc464d7561b239c443`。
 
 ## 两个受控场景
 
@@ -10,6 +12,18 @@
 | -------------------- | -------------: | ----------------------------------- | ------------------------------------------------------------- |
 | `reject-all`         |              0 | 所有 Files POST 返回501             | 两轮各2张 inline，0个 Files 引用；无远端上传可清理            |
 | `reject-after-first` |              1 | 第一次上传之后的 Files POST 返回501 | 两轮各2张 inline，0个 Files 引用；最后显式清理那1个已确认上传 |
+
+先预测部分上传场景的结果，再运行：Messages 里应有两张 inline 图片，远端却仍有第一张已确认上传的对象。两份观察并不矛盾，它们分别回答“本次请求用了什么”和“之前创建了什么”。
+
+```mermaid
+flowchart TD
+    A[图 A 上传成功] --> ID[取得 A 的 Files ID]
+    ID --> B[图 B 上传被本地拒绝]
+    B --> F[重建整条 Messages 请求]
+    F --> Wire[图 A inline + 图 B inline]
+    ID --> Remote[A 的远端对象仍存在]
+    Remote --> Cleanup[实验结束后显式删除]
+```
 
 `reject-after-first` 按转发尝试次数限制，不按成功次数放行。若第一次远端上传失败，例子不会放行另一张来补齐“成功数量”；其未确认状态仍遵守上一课的保守清理规则。
 
@@ -35,7 +49,7 @@ node --env-file=../../.env --import tsx examples/live.ts --files=reject-after-fi
 
 ## 固定源码说明
 
-调用链：SDK encoded image → 接纳/归一化 → Session图片引用 → `prepareImages()` → `readImageRequest()` → `prepareFileIds()` → `RequestFiles.resolve()` → `DeepSeekFileStore.ensureUploaded()`。
+顺着源码读时，先从已有的 Session 图片引用出发。`prepareImages()` 和 `readImageRequest()` 准备请求字节；接着 `prepareFileIds()` 通过 `RequestFiles.resolve()` 调用 `DeepSeekFileStore.ensureUploaded()`，为图片取得可用的 Files ID。更早的 SDK encoded image 接纳与归一化过程仍与上一课相同。
 
 [RequestFiles.resolve](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/llm/llm-deepseek/src/request-files.ts)把未被父请求取消的 Files 解析错误包装为 `FileResolutionFailure`。取消仍传播错误，不能由本课推断取消时也会 fallback。
 
@@ -47,7 +61,9 @@ node --env-file=../../.env --import tsx examples/live.ts --files=reject-after-fi
 
 [`verifyTransport()`](src/verify.ts)要求恰有两个成功 Messages 响应，每个包含恰好两张 inline图片、零个Files引用，顺序/hash与独立重读的请求版本一致；上传数量、确认状态、被拒绝图片的hash和拒绝次数也必须匹配所选场景。模型答案准确但字节不匹配，仍然失败。
 
-keyless 测试先观察到缺失行为，再实现：代理注入测试最初得到200而不是501；验收器的负对照最初没有拒绝混用、图片调序/改字节、缺少注入/额外上传、上传未确认/模型响应失败。修正后这些用例通过。另加远端404/501的清理不确定性回归，确保不会把真实错误响应当成本地“未转发”。
+如果模型正确说出了两张图的颜色，fallback 就验证成功了吗？还差传输证据。回答只能说明模型得到了足够的信息，不能告诉我们请求如何发送。因此无 Key 测试故意混入 Files 引用、调换图片顺序或修改字节；即使模型答案正确，验收也必须失败。
+
+其他负对照检查缺少注入、额外上传、上传未确认和模型响应失败。远端 404/501 仍按已转发但清理状态未确认处理，不能与本地“未转发”混为一谈。测试修正前的失败记录保留在[验收记录](../../docs/reviews/2026-10-01-attachment-fallback.md)。
 
 第二轮文本历史已经包含首轮答案，所以两个场景合计是两份独立双图视觉样本，外加两次历史/传输复用检查；不能宣称4份独立视觉样本。
 

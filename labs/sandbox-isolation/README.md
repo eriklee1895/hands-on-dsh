@@ -26,7 +26,7 @@ pnpm probe
 
 ## 2. 观察八种操作
 
-每种模式使用全新目录和 nonce，父进程独立检查结果：
+先看两项最容易产生误解的结果：`workspace-write` 拒绝写 outside，却能读到 outside 的 canary。canary 是实验事先放好的随机内容，用来确认读取确实发生；它不是个人数据。接着比较三种模式的完整矩阵，每种模式都使用全新目录与 nonce，由父进程独立检查结果：
 
 | 操作                                           | 显式未限制对照 | `read-only` | `workspace-write` |
 | ---------------------------------------------- | -------------- | ----------- | ----------------- |
@@ -41,7 +41,15 @@ pnpm probe
 
 表格是本机真实结果，不是所有平台统一保证。写入内容必须精确等于本次 nonce；拒绝写入要求目标文件确实不存在；读取与 HTTP 响应也必须精确匹配 canary。`signal 0` 不向进程发送终止信号，只检查这个已知的自有 PID；本课不扫描其他进程。
 
-JSON 输出包括 `mode`、`enforcement`、`runner`、每个 operation 的 `status/code`，以及 `externalFilesVerified=true`。这次受限模式使用 `sandbox-exec`，拒绝返回 `EPERM`。只接受 `EPERM` / `EACCES` / `EROFS` 为权限拒绝；`ENOENT`、连接失败、程序启动失败、错误 nonce、子进程超时都使整个探针失败。
+在 JSON 输出中，先找 `mode`，再看 `result.operations.outsideWrite`。本次 macOS 受限模式中，这一个操作的记录为：
+
+```json
+{"status":"denied","code":"EPERM"}
+```
+
+这只展示一项 operation，不是完整探针输出。父进程还会确认 `outside/outside.txt` 实际不存在，再给出 `externalFilesVerified=true`；仅有一个错误字符串不够。完整输出另含 `enforcement` 与 `runner`，本次受限 runner 是 `sandbox-exec`。
+
+为什么不把所有失败都记为 denied？如果路径拼错产生 `ENOENT`，实验根本没有碰到想测的权限。这里仅接受 `EPERM` / `EACCES` / `EROFS`；连接失败、程序启动失败、错误 nonce 和子进程超时都会使探针失败。
 
 显式 `danger-full-access` 对照直接运行原 argv，证明文件路径和命令本身可用；它不是受限模式失败时的 fallback。provider 说 `full`，表示它报告完整覆盖该策略承诺的文件效果，不表示它禁止读取、网络或进程观察。
 
@@ -84,17 +92,28 @@ pnpm exec node --env-file=../../.env --import tsx examples/model.ts
 
 [`examples/model.ts`](examples/model.ts)分别为 `read-only` 和 `workspace-write` 启动全新 `sdk-minimal` runtime、Session、HOME 与 dshHome，调用 `deepseek-flash`。Python 的 `0.1.5rc1` 配置不能直接替代这里的 npm pin。可选 `DEEPSEEK_BASE_URL` 必须兼容此版本使用的 Messages API。
 
-patch 设置 `sandbox-policy.config.mode` 与 workspaceRoot。持久 Bash 的实际链路是：
+这一步让模型调用 Bash 执行同一个 built worker，检验真实工具是否走了前面测过的限制。patch 设置 `sandbox-policy.config.mode` 与 workspaceRoot；策略由 terminal backend 创建持久 shell 时解析：
 
-```text
-SDK prompt -> bash(command) -> TerminalBashBackend.spawn
-  -> sandboxPolicy.resolve(session) -> sandbox.confine(shell argv)
-  -> 持久 shell -> 同一个 built worker -> worker 的子进程
+```mermaid
+flowchart TD
+    SDK[SDK prompt] --> Tool[bash 工具]
+    Tool --> Backend[TerminalBashBackend.spawn]
+    Backend --> Resolve[sandboxPolicy.resolve]
+    Resolve --> Confine[sandbox.confine]
+    subgraph Limited[受限 Bash 进程及其后代]
+        Shell[持久 shell] --> Worker[built worker]
+        Worker --> Child[固定短命子进程]
+    end
+    Confine -->|受限 argv| Shell
 ```
+
+图中受限框从 Bash 开始。SDK 父进程、DSH runtime 与宿主插件仍在框外，不能根据 worker 写入被拒绝就推断它们也受到了同样限制。
 
 策略在持久 shell 创建时解析；后续命令复用该 shell，因此不要通过修改配置来假设一个已存活 shell 的模式已经改变。本课每种模式都新建 runtime。Session 的 immutable cwd 决定 workspace；新 Session 没有旧的 `sandbox/mode` 覆盖事件。
 
-固定版本的持久 Bash 工具只有 `command` 参数，没有逐次 `sandbox_permissions` 升权参数。示例还会检查 durable `tool/call.data.arguments`：必须只含那一条精确命令，不能增加字段、修改脚本或多调用工具。它通过 callId 匹配 `tool/result.data.message.toolCallId`，检查最后根 `turn/end.kind=completed`，解析工具输出中的完整 worker JSON，再核对实际文件。
+先确认模型执行了哪条命令。固定版本的持久 Bash 工具只有 `command` 参数，没有逐次 `sandbox_permissions` 升权参数；示例要求 durable `tool/call.data.arguments` 只有预定命令，没有额外字段、脚本修改或多余工具调用。
+
+再确认收到的是这次调用的结果：示例用 callId 匹配 `tool/result.data.message.toolCallId`，解析其中完整的 worker JSON，核对实际文件，并检查最后根 `turn/end.kind=completed`。这把“模型决定做什么”“工具返回什么”和“文件实际发生什么”连在了一起。
 
 不要只看模型回复或 `message.isError=false`：shell 命令的非零退出可能只出现在工具文本中。两次真实调用的八项结果均与上表对应受限模式一致，见[本课验收](../../docs/reviews/2026-09-29-sandbox-isolation.md)。
 
@@ -121,6 +140,8 @@ provider 示例拥有独立 POSIX process group。正常主进程退出后还会
 
 如果需求是阻止租户 A 的工具读取租户 B 数据，仅靠第 7.3 课的 API 路由加 `workspace-write` 仍不够。下一层执行环境需要明确文件系统可见范围、网络出口、进程可见性、凭据注入和资源回收，并让 shell、文件工具与其他执行能力指向一致的环境。[容器 workspace 与 SSH 远程执行补充实验](CONTAINERS.md)验证了一个只挂载 A 的 Linux 容器和固定发行版远程 provider 路径。
 
-原始 DSH runtime、SDK 父进程及宿主插件代码都在这里的受限 Bash 之外；本课测到的拒绝不能当作它们也被隔离。后续工程课 [7.5 可观测性与成本](../../docs/learning-paths/engineering.md)将把这些执行事实记录到业务 Run 中。
+无模型练习：在运行前预测系统 temp 写入的三种结果，再对照矩阵；随后阅读 `tests/verification.test.ts`，找到“目标路径不存在”为什么不能算 sandbox 拒绝。无需修改策略或访问实验之外的文件，也能检查自己是否理解了允许、拒绝和实验错误的区别。
+
+后续工程课 [7.5 可观测性与成本](../../docs/learning-paths/engineering.md)将把这些执行事实记录到业务 Run 中。
 
 源码参考：[file-effect 词汇](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sandbox/sandbox/src/index.ts)、[平台 profile](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sandbox/sandbox-local/src/profiles.ts)、[writableRoots](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/sandbox/sandbox/src/roots.ts)、[持久 terminal 的策略解析](https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/terminal/terminal-bash/src/index.ts)。

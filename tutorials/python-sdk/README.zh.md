@@ -4,7 +4,9 @@
 
 [English](README.md) | 中文
 
-这些示例从一次高层调用逐步深入到直接使用换行分隔的 JSON-RPC。SDK 依赖同版本 runtime wheel，后者携带公开的 `dsh` CLI 与 profile；运行示例无需另装 Node.js。
+如果你的 Python 应用要把一项工作交给 Agent，第一步并不需要自己管理协议或事件队列。先运行一次高层调用，拿到回答；再保持会话聊第二轮，观察运行中的通知，最后让 Agent 写一个可独立核对的文件。前四例把这条路径走通，后两例再打开 SDK，解释它如何等待结果和回收进程。
+
+这是“运行现成示例，再逐层拆解”的教程。每章链接完整脚本，给出应观察的结果和一个阅读或动手练习。SDK 依赖同版本 runtime wheel，后者携带公开的 `dsh` CLI 与 profile；无需为这些 Python 示例另装 Node.js。
 
 ## 前置要求
 
@@ -32,7 +34,7 @@ uv sync --group dev
 | [`05_low_level_client.py`](05_low_level_client.py) | `HarnessClient` | 初始化、提示词入队、持久 inbox 回执、事件与空闲结算 | [驱动 `HarnessClient`](tutorials/05-low-level-client.zh.md) |
 | [`06_raw_jsonrpc.py`](06_raw_jsonrpc.py) | 原始 stdio JSON-RPC | 启动进程、JSONL 分帧、关联响应、消费通知与清理资源 | [手写 JSON-RPC](tutorials/06-raw-jsonrpc.zh.md) |
 
-从 `tutorials/python-sdk` 目录运行示例：
+第一次只运行第一个脚本，确认凭据和 runtime 能用，再按表中的章节往下走。以下命令均从 `tutorials/python-sdk` 目录执行；每条都显式加载 `.env`，因为前一次 `uv run` 不会替后续 shell 命令导出凭据：
 
 ```sh
 uv run --env-file ../../.env python 01_hello.py
@@ -61,7 +63,9 @@ uv run ruff format --check .
 
 ## 流式行为
 
-Python SDK 在 `Session.run()` 执行期间通过 `on_notification` 交付通知。示例从根会话 `assistant/message` 事件的文本块投影已提交消息。这些通知不是模型逐 token 流。回调还可能收到已知后代会话的通知，因此示例按根 `sessionId` 筛选。
+第三例能在 `run()` 返回之前打印消息，但不要因此期待打字机效果。Python SDK 在同步的 `Session.run()` 期间调用 `on_notification`，我们取的是 DSH 已经提交的 `assistant/message` 文本块。模型内部逐 token 生成和客户端收到已提交消息，是两个不同的时刻。
+
+回调还可能收到已知后代会话的通知。示例按根 `sessionId` 筛选，避免子 Agent 的回答覆盖主回答；工具和生命周期事件也不拼进最终文本。
 
 `Session.run()` 是同步调用，在回执到整个 agent 空闲的活动区间结束时返回。SDK 没有逐 token 迭代器；`03_stream_events.py` 在事件抵达时输出每条已提交消息，随后与 `RunResult.final_response` 对照。
 
@@ -73,7 +77,9 @@ Python SDK 在 `Session.run()` 执行期间通过 `on_notification` 交付通知
 | `HarnessClient` | 业务需要直接订阅通知或获取提示词入队回执 | 关联活动区间并投影结果 |
 | 原始 JSON-RPC | 诊断协议、验证另一个 SDK 的原型，或绕过仅存在于客户端的限制 | 管理进程生命周期、并发排空 stdout/stderr、关联请求、路由通知、超时、协议校验与资源清理 |
 
-原始 JSON-RPC 无法增加 DSH JSON-RPC 服务器没有实现的方法。业务应优先扩展服务器，并在 `HarnessClient` 中封装新方法，而不是在每个应用中重复实现传输代码。
+选层级时，先问自己缺的是什么。如果只想知道 Agent 何时提交消息，高层回调已经够用；如果想观察入队回执，才需要底层客户端。第六例则主要帮助你理解客户端承担的工作。
+
+原始 JSON-RPC 无法增加 DSH JSON-RPC 服务器没有实现的方法。需要新控制能力时，应先补服务器语义，再在 `HarnessClient` 中封装，避免每个应用重复实现传输代码。
 
 ## 发行版验收（2026-09-28）
 

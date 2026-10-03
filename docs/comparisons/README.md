@@ -1,15 +1,14 @@
-# Comparisons
+# 在实际例子之间作选择
 
-这里保存需要同时考察多个实现或协议的横向比较。每份比较应先给出使用场景，再列能力、生命周期、事件粒度和缺失项，避免只比较 API 名称。
+同一个“运行 Agent”的需求，可以从不同语言、协议和界面进入。先运行相应例子，再用下面的比较检查自己到底需要哪一种控制、事件和恢复方式。
 
-已完成：
+| 面临的选择 | 阅读入口 |
+| --- | --- |
+| Python 后端还是 Node BFF，启动与环境有什么差别？ | [Python 与 TypeScript SDK](python-vs-typescript-sdk.md) |
+| 需要原始日志，还是标准会话控制和权限交互？ | [SDK JSON-RPC 与 ACP](sdk-jsonrpc-vs-acp.md) |
+| 重启后要恢复的是任务、模型上下文还是文件格式？ | [三种恢复](recovery-and-session-migration.md) |
+| 哪些事件用于诊断，哪些事件用于界面？ | [Session events 与 AG-UI](session-events-vs-ag-ui.md) |
+| 提交、实时输出和断线重放分别走哪条连接？ | [SSE 与 WebSocket](sse-vs-websocket.md) |
+| 同一任务换一个引擎后，如何确认完成？ | [DSH、Codex 与 Hermes](dsh-codex-hermes.md) |
 
-- [SDK JSON-RPC 与 ACP](sdk-jsonrpc-vs-acp.md)：方法、事件、控制、错误、打包与适用场景
-- [Python SDK 与 TypeScript SDK](python-vs-typescript-sdk.md)：发布包、runtime 启动、流式通知、生命周期与选型
-
-- [业务恢复、会话恢复与格式迁移](recovery-and-session-migration.md)：SQLite、ACP resume 与不可变 Session generation 各自保证什么
-
-- [DSH Session events与AG-UI](session-events-vs-ag-ui.md)：执行事实、业务游标、UI投影与实时语义
-- [SSE与WebSocket](sse-vs-websocket.md)：本仓库两条实际链路、断线与恢复依据
-
-- [DSH、Codex和Hermes](dsh-codex-hermes.md)：共同任务、原生终态、能力声明与真实验收
+每篇限定实际版本与本仓库实现。能力矩阵用于解释这些例子的选择依据，性能、生产隔离和其他版本的兼容性仍需独立证据。

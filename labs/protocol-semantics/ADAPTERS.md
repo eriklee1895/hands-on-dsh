@@ -1,6 +1,8 @@
 # 第 7.7–7.8 课：显式能力与跨引擎适配
 
-先把同一项任务交给 DSH 的 SDK JSON-RPC 和 ACP，再用独立 CLI adapter 验证 Codex 与 Hermes。共同接口只承诺 `prompt(text)`、`close()` 和显式能力描述。各引擎的终态、失败及会话控制仍按原生入口解释；两款 CLI 的 nonce 和文件真实任务均通过，早期 Hermes 失败及修复见[验收记录](../../docs/reviews/2026-10-02-cross-engine.md)。
+假设业务服务想把同一句任务交给四个入口：DSH SDK JSON-RPC、DSH ACP、Codex CLI 和 Hermes CLI。把方法都叫 `prompt()` 很容易，但“可以再发一条吗”“close 会等任务完成吗”未必有同一个答案。
+
+本课先比较 DSH 的两个入口，再加入两个独立 CLI adapter。共同接口提供 `prompt(text)`、`close()` 和显式能力描述；终态、复用与关闭规则仍需逐项保留。两款 CLI 的 nonce 和文件真实任务均已通过，具体版本与早期失败证据见[验收记录](../../docs/reviews/2026-10-02-cross-engine.md)。
 
 前置：[协议语义实验](README.md)、[业务 Eval](../../projects/recoverable-agent-service/EVAL.md)。DSH 继续使用本 lab 的 npm `0.1.7-rc.2`、ACP protocol v1 和既有 JSONL peer。Codex/Hermes 使用各自 CLI JSONL 事件流，并非 SDK JSON-RPC；专用 reader 不发送伪造的 JSON-RPC 请求。
 
@@ -25,7 +27,7 @@ uv run --python 3.10 python -m protocol_labs.comparison --negative-control
 
 负对照会故意将第一条精确文本检查改为 false，退出码为 1；其余场景照常执行。它不修改 adapter 或生成一份新的期望答案。
 
-## 2. 共同接口只描述已有事实
+## 2. 先理解 DSH 两个入口的结果
 
 [`adapters.py`](src/protocol_labs/adapters.py)复用 SdkProbe、AcpProbe、OwnedState 和公开 launch resolver。两个 Adapter 共享 `prompt(text)` 与 `close()`，结果保留：
 
@@ -45,7 +47,7 @@ SDK 的 completed 必须建立在 matching inbox receipt、根 turn completed �
 
 `tool_events` 只用于本课验证零工具：SDK 数根 `tool/call`，ACP 数 `tool_call` 和 `tool_call_update`。非零时这些数字不是同一种“工具次数”，不能直接跨协议相加或比较。两者也都没有在本课提供逐 token transport。
 
-## 3. 能力表优先于统一方法名
+## 3. 同名方法还需要生命周期说明
 
 | 能力 | SDK adapter | ACP adapter |
 | --- | --- | --- |
@@ -55,6 +57,17 @@ SDK 的 completed 必须建立在 matching inbox receipt、根 turn completed �
 | permission 交互 | unsupported | probe-only |
 | token stream | unsupported | unsupported |
 
+先看成功之后是否还能复用，以及活动期调用 close 的后果。下面的“实例”是 lab 的 adapter 对象，不能用它代替持久业务 Run：
+
+| 入口 | 每实例 prompt 与复用 | 活动期 close | native cancel |
+| --- | --- | --- | --- |
+| DSH SDK | 成功后可继续顺序提交 | 关闭接纳，等自有操作结算，再回收进程 | unsupported |
+| DSH ACP | Session 开启时可继续顺序提交 | 同样等待自有操作，再协议关闭与回收 | 只有 fake probe |
+| Codex CLI | one-shot，只接纳一次；下次新建实例 | 终止并回收仍存在的进程组，不等待业务完成 | not-integrated |
+| Hermes CLI | one-shot，只接纳一次；下次新建实例 | 同样终止并回收进程组 | not-integrated |
+
+DSH 的等待结算是 drain；CLI 的关闭是 terminate-and-reap。它们都负责清理资源，但活动期调用会产生不同后果。CLI 即使正常完成，实例也进入 `finished`，不会重新开放 prompt；[`comparison.py`](src/protocol_labs/comparison.py) 因此为每个 CLI 场景创建一个新 adapter。所有入口的 process close 都不能当作 native cancel 成功的证明。
+
 `supported` 表示本适配层提供实现；`unsupported` 限定这里锁定的协议/入口；`probe-only` 表示当前只有明确范围的实验，不是通用生产接口。`describe_adapter()` 对 Codex `exec-jsonl` 和 Hermes `chat-stream-json` 报告已实现的 prompt/process close；session close、resume、native cancel、逐 token 文本消费和 permission 仍是 `not-integrated`。这个标记只描述本 lab 的实现，不判断产品是否提供相应功能。
 
 `cancel_probe()` 仅适用于 ACP fake，复用既有 readiness-then-cancel 实验。它不能取消任意已发出的 prompt，也不接受 package 模式。ACP 的协议本身有 cancel 通知，但要实现通用 UI 取消还需定义发送时机、完成与取消的竞态、请求状态和部分输出；本课没有把这些未实现语义藏在一个布尔值里。
@@ -63,9 +76,9 @@ permission 也仅保留受控实验的证据，本 Adapter 默认拒绝一次性
 
 调用 SDK 的 session close、resume 或 cancel 扩展会在发出 RPC 前抛 `UnsupportedCapability`；不会用“关闭整个进程”冒充 session close，也不会用新建 Session 冒充 resume。
 
-## 4. 失败与资源状态分开处理
+## 4. DSH Adapter 失败后为什么不能继续复用
 
-一个 Adapter 同时只接纳一个 prompt，忙时拒绝新的输入。超时、EOF 或 RPC 失败产生 `AdapterExecutionError`，只保留有限 kind，并保守标为 `may_have_executed=true`。没有证据证明任务未产生副作用时，不自动重放。
+本节描述 [`adapters.py`](src/protocol_labs/adapters.py) 中的 DSH 双入口；CLI 的 one-shot 关闭规则见上表和第 6 节。一个 DSH Adapter 同时只接纳一个 prompt，忙时拒绝新的输入。超时、EOF 或 RPC 失败产生 `AdapterExecutionError`，只保留有限 kind，并保守标为 `may_have_executed=true`。没有证据证明任务未产生副作用时，不自动重放。
 
 失败后 Adapter 进入 faulted，必须 close，不能把下一条输入直接发到状态不明的 owner。调用方任务取消时原样传播 CancelledError，也会阻止继续复用；这与 ACP 的 native cancelled 不同。
 
@@ -93,20 +106,35 @@ uv run --env-file ../../.env python -m protocol_labs.comparison --server package
 
 ## 6. 运行 Codex 与 Hermes 的独立场景
 
-安装两款 CLI 并完成它们自己的账户配置后，从本目录运行：
+这里每个场景都新建 adapter、临时状态目录与 CLI 进程。安装两款 CLI 并完成它们自己的账户配置后，从本 lab 目录运行：
 
 ```sh
 uv run --python 3.10 python -m protocol_labs.comparison --engine codex --server binary
 uv run --python 3.10 python -m protocol_labs.comparison --engine hermes --server binary
 ```
 
-每个引擎的完整比较执行两个新的单轮任务：精确随机 nonce 回复，以及在隔离 workspace 写入 `result.txt` 并精确核对文件字节。nonce 只允许完全相同的文本或末尾恰好一个换行；前置空白、额外空行和后置空格均失败。脚本只输出 hash、状态和布尔验收，不输出提示词、回答或凭据。一次任务有不确定结果时不自动重发。Codex 使用当前配置的 model、内建 OpenAI provider 和精确复制到 `0700` 临时 home 的 `0600` `auth.json`；`--ignore-user-config`/`--ignore-rules` 避免加载个人 MCP 与规则。Hermes 从当前配置读取 model/provider，仅支持这里验证的 `deepseek` provider；只把对应 key 写入临时 `0600` `.env`，使用 `--safe-mode` 禁用个人插件、MCP 和规则。私有文件在写入首个字节前即以 `0600` 创建，准备失败时删除临时状态。两个 CLI 的可执行文件可用 `CODEX_ADAPTER_BIN` / `HERMES_ADAPTER_BIN` 指定；默认从 PATH 查找。特定账户可通过 `CODEX_ADAPTER_CONFIG`、`CODEX_ADAPTER_AUTH`、`HERMES_ADAPTER_CONFIG`、`HERMES_ADAPTER_ENV` 指向确切配置/凭据文件，model 可通过 `CODEX_ADAPTER_MODEL` 或 `HERMES_ADAPTER_MODEL` 加 `HERMES_ADAPTER_PROVIDER` 指定。无需改变原有登录。
+先看任务：第一个要求精确回复随机 nonce，第二个要求在独立临时 workspace 写入 `result.txt`，再由脚本核对实际文件字节。nonce 只允许完全相同的文本或末尾恰好一个换行；前置空白、额外空行和后置空格均失败。脚本只输出 hash、状态和布尔验收，不输出提示词、回答或凭据；有不确定结果时不自动重发。
 
-Codex `exec --json` 的正常结果要求 `thread.started`、唯一末尾 `turn.completed` 和进程退出码 0；`turn.failed` 或非零退出是 failed。Hermes `chat --format stream-json` 的正常结果要求 `system/init`、唯一末尾 `result`、其 `exit_code` 与进程返回码一致且为 0；130 是 interrupted，其余非零是 failed。Hermes 0.21.5 在 `system/init` 后可能向 stdout 打印一条固定的 `tirith` 缺失警告。adapter 仅允许这条源码可定位的警告出现一次，并在 `native.startupWarning` 标记；任何其他非 JSON 行、提前 EOF、缺少终态、超时及输出超限都报执行错误。不能由部分文本推断 completed。`close()` 有界回收进程组，只有独立确认后删除临时状态。这里没有把关闭进程解释成 native cancel。真实二进制与真实模型任务是两级证据：`--version`/`--help` 只确认入口存在，不说明模型任务可用。
+再看账户与环境。Codex 使用当前配置的 model、内建 OpenAI provider，将 `auth.json` 精确复制到 `0700` 临时 home，文件为 `0600`；`--ignore-user-config`/`--ignore-rules` 避免加载个人 MCP 与规则，执行时选择 `workspace-write`。Hermes 从当前配置读取 model/provider，仅支持这里验证的 `deepseek` provider；只把对应 key 写入临时 `0600` `.env`，用 `--safe-mode` 禁用个人插件、MCP 和规则。独立目录和这些配置选择不构成跨引擎统一的安全 sandbox，不能据此推断任意工具都只能访问 workspace。
+
+私有文件在写入首个字节前即以 `0600` 创建，准备失败时删除临时状态。可执行文件默认从 PATH 查找，也可用 `CODEX_ADAPTER_BIN` / `HERMES_ADAPTER_BIN` 指定。特定账户通过 `CODEX_ADAPTER_CONFIG`、`CODEX_ADAPTER_AUTH`、`HERMES_ADAPTER_CONFIG`、`HERMES_ADAPTER_ENV` 指向确切文件；model 可通过 `CODEX_ADAPTER_MODEL`，或 `HERMES_ADAPTER_MODEL` 加 `HERMES_ADAPTER_PROVIDER` 指定。无需改变原有登录。
+
+最后看结果是否真正结算：
+
+| CLI | 事件要求 | 进程退出与状态 |
+| --- | --- | --- |
+| Codex `exec --json` | `thread.started`，唯一末尾 `turn.completed` | 退出 0 才 completed；`turn.failed` 或非零为 failed |
+| Hermes `chat --format stream-json` | `system/init`，唯一末尾 `result` | `exit_code` 与进程返回码一致；0 为 completed，130 为 interrupted，其余非零为 failed |
+
+Hermes 0.21.5 在 `system/init` 后可能向 stdout 打印一条固定的 `tirith` 缺失警告。adapter 只允许这条源码可定位的警告出现一次，并在 `native.startupWarning` 标记；其他非 JSON 行、提前 EOF、缺少终态、超时或输出超限都报执行错误。部分文本不能代替终态。
+
+CLI `close()` 会对仍存在的自有进程组发送 SIGTERM，必要时升级 SIGKILL；它不先等待 prompt 正常结算。只有独立确认回收后才删除临时状态。这是资源清理，不是 native cancel，也不撤销已经产生的外部副作用。真实二进制与真实模型任务是两级证据：`--version`/`--help` 只确认入口存在，不说明模型任务可用。
 
 Codex 0.156.1 与 Hermes v0.21.5 各在本机完成两个新的真实任务：nonce 精确匹配且零工具事件；文件字节精确匹配并观察到工具事件。Hermes 的成功结果保留 `startupWarning=tirith-unavailable`，并非声称 CLI stdout 完全干净。早期失败的两条任务没有重放；成功证据来自独立的新 nonce 和 workspace。更完整的语义矩阵见[跨引擎对比](../../docs/comparisons/dsh-codex-hermes.md)。
 
 ## 7. 检查与后续扩展
+
+练习：假设调用方要连续提交两条任务，分别为 DSH SDK 和 Codex CLI 写出对象创建、prompt、close 的顺序，只画调用顺序即可。再设想第一条还在执行时服务开始关闭，对照生命周期表，说明哪个会等待、哪个会终止进程，以及为何两者都不能自动重放原任务。
 
 ```sh
 uv run --python 3.10 pytest tests

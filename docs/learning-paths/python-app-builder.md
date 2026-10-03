@@ -1,56 +1,27 @@
 # Python App Builder
 
-目标：学会通过 Python SDK 管理 DSH runtime，并构建 Web Agent。SDK 入门已采用 `0.1.5rc1`；FastAPI 本批迁移到同版本，SSE 输出已提交消息与状态/工具事件。可恢复服务也已升级到 `0.1.5rc1`，旧数据库事件与产物兼容验证见[第四批记录](../reviews/2026-09-29-recovery-storage.md)。状态见[SDK 记录](../reviews/2026-09-28-sdk-migration.md)与[Web/协议记录](../reviews/2026-09-29-web-protocol-migration.md)。
+这条路线从一次 Python 调用开始，逐步把它变成长时间运行、能查询任务状态的服务。全程固定 Python SDK/runtime `0.1.5rc1`。你会反复遇到同一个问题：调用方看到的结果，是否足以说明 Agent 已经完成工作？
 
-## 1. Python SDK 基础
+## 先在一个进程里完成两轮对话
 
-完成 [`tutorials/python-sdk/`](../../tutorials/python-sdk/README.zh.md)：
+从 [Python SDK 六章](../../tutorials/python-sdk/README.zh.md)开始。第一章拿到最终回答并关闭 runtime；第二章让同一个 Session 记住上一轮内容。接着观察通知、让工具写文件，最后拆开高层 SDK，看到底层 client 怎样订阅、提交输入、匹配回执和等待 idle。
 
-- 运行与关闭 runtime
-- 复用 session
-- 读取通知流并投影已提交的 root assistant message；不承诺逐 token streaming
-- 验证工具产生的外部状态
-- 对照高层 SDK、`HarnessClient` 与裸 JSON-RPC
+完成这一段时，应能解释三个区别：runtime 进程与 Session、已提交消息与实时 token、模型回复与外部文件结果。同一进程内的会话复用先跑通，跨进程恢复留到有明确恢复入口时再验证。
 
-## 2. FastAPI Web Agent
+## 把调用放进 FastAPI
 
-完成 [`tutorials/fastapi-101/`](../../tutorials/fastapi-101/README.md)：
+[FastAPI 五章](../../tutorials/fastapi-101/README.md)提供一个可以直接运行的浏览器应用。先走 JSON 请求，再用 POST + SSE 观察状态、已提交正文和工具事件。随后让两个 Session 同时运行，观察每个 Session 的锁与整个服务的 runtime 生命周期。
 
-- 用 lifespan 拥有 runtime 进程
-- 把同步回调桥接到 asyncio
-- 通过 POST + SSE 输出已提交消息、工具和状态事件，正文替换而非模拟 token 追加
-- 展示工具轨迹
-- 管理 session 并发和优雅关闭
+同步 SDK 工作由线程执行，回调通过 asyncio 桥接到 HTTP 输出。浏览器断开只结束这次连接，已经开始的工作可能仍在继续。关闭服务时要等谁、如何回收子进程，是第五章的重点。
 
-## 阶段 0 验收记录 2026-08-31
+## 给任务一个持久的业务身份
 
-以下为旧 Python `0.1.1rc1` 的历史记录，包含当时的 `assistant/chunk`；新版 SDK 入门验收单列于 SDK 迁移记录。
+进入 [Recoverable Agent Service](../../projects/recoverable-agent-service/README.md)。先创建 Conversation，再提交 Run、读回事件并下载产物。SQLite 持有这些业务记录，DSH Session ID 则是执行层引用。
 
-已完成六次全新的 Python SDK 真模型运行，分别验证高层调用的最终回复、两轮 session 复用、完成前到达的 text-delta、在模型回复之外检查输出的 workspace 工具任务、`HarnessClient` 在匹配的持久 inbox 回执和 idle 后完成结算，以及原始 JSON-RPC 的初始化、通知关联、关闭与 runtime 干净终止。
+现在重启服务。如果旧任务还处于 running，程序不能凭进程消失推断工具没执行；它将记录执行不确定，要求调用方核对外部状态后确认恢复。确认会允许提交新工作并旋转 Session ID，不会悄悄重放原 prompt。用[三种恢复对照](../comparisons/recovery-and-session-migration.md)检查自己是否把业务恢复、模型会话恢复和格式升级混在了一起。
 
-全新的 FastAPI 验证覆盖 JSON chat、命名 SSE、两轮记忆交互、输出经外部检查的 workspace 工具任务，以及两个独立 session 的并发运行。浏览器验证覆盖章节 UI 和一次真实流式交互的桌面与移动视口；同时检查 runtime 健康状态、外部工具状态，以及关闭后 runtime 进程已被回收。
+## 怎样判断已经学会
 
-已提交的无凭据检查当时通过 Python SDK 7 个测试和 FastAPI 11 个测试，并完成两套教程的 Ruff lint 与 format 检查。详细 transcript、截图和持久 session 日志属于本地 gitignored 证据，不进入跟踪文档；真模型的措辞与时延仍取决于 provider，因而并不确定。
+先通过各项目的无 Key 测试和 Ruff 检查。真实任务按章节条件使用自己的 Key，观察原生结束原因、外部产物字节，以及关闭后 runtime 回收。对服务，还要核对持久事件游标、下载哈希和恢复确认后的新旧 Run。
 
-一项仅限终端 harness 的操作观察并非应用保证：其 `uv` wrapper 未能及时转发 SIGINT。直接向 Uvicorn 发送 SIGINT 后，FastAPI lifespan 正常结束，并回收了 runtime。
-
-## 3. 可恢复 Agent 服务
-
-完成 [`projects/recoverable-agent-service/`](../../projects/recoverable-agent-service/README.md)：
-
-- SQLite 持有 Conversation、Run、RunEvent 和 Artifact 权威状态
-- 单 worker 从 durable queue 领取 Run，并区分已知失败与 `execution_uncertain`
-- FastAPI 提交、查询、恢复确认和健康接口
-- 按持久事件 seq 回放与 live tail 的命名 SSE
-- 从保留目录描述符快照并通过 SQLite BLOB 下载的不可变产物
-- Python 3.10 keyless 测试和显式真实 DSH E2E
-
-本阶段的完成门槛是：无凭据测试、Ruff、lock 检查通过；显式真实 E2E 能创建 proof artifact、核对下载字节与哈希、观察 SSE 终态，并在 lifespan 退出后回收 runtime 进程。需要深入协议时再进入 `labs/`，需要理解 DSH 生命周期实现时进入 `how-dsh-works/`。
-
-新版采用公开 profile/home，并以已提交 assistant_message 作为新正文事件。旧 text_delta 按原始 seq/type/data 保留；业务恢复、ACP resume 与格式升级的区别见[对照说明](../comparisons/recovery-and-session-migration.md)。
-
-### 阶段 1 历史验收记录（2026-08-31，Python 0.1.1rc1）
-
-显式真实 DSH E2E 已实际运行，结果为 `1 passed in 9.68s`。完整 FastAPI lifespan 创建了 Conversation 和 Run，最终状态为 `succeeded`、`finish_reason=completed`；SQLite 持久化 134 条按 seq 排序的 RunEvents，末条为 `run.succeeded`，terminal SSE replay 正常结束。
-
-外部 artifact 验证得到精确无换行字节 `RECOVERABLE_AGENT_SERVICE_E2E_PROOF_V1`，大小 38 bytes，SHA-256 为 `8f0b99fb14fe8b40932d1446c3a4e944e0aacca7e6944c251f442ba8328f5ae4`；下载内容来自 SQLite immutable BLOB。进程快照在运行前为零个匹配 runtime、运行中恰好一个、lifespan 退出后再次为零。交付前 fresh keyless regression 另有 129 passed、1 个显式 E2E deselected；真实与 keyless 证据不混写。
+当前版本的执行依据见 [SDK 迁移](../reviews/2026-09-28-sdk-migration.md)、[FastAPI/协议](../reviews/2026-09-29-web-protocol-migration.md)与[业务恢复](../reviews/2026-09-29-recovery-storage.md)。[8 月历史结果](../reviews/2026-08-31-python-app-history.md)另存原日期。下一步可走[工程化路线](engineering.md)，或从[协议实验](../../labs/protocol-semantics/README.md)继续理解客户端能力。

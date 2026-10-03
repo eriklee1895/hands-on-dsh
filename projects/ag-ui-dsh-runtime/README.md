@@ -2,17 +2,22 @@
 
 > 固定版本（2026-09-29）：npm `@deepseek-ai/dsh@0.1.7-rc.2`、同版本 TypeScript SDK 与 Cordis `4.0.4`；上游源码为 [`dsh-v0.1.7-rc.2`](https://github.com/deepseek-ai/deepseek-harness/tree/477b4f420553e8a52c2fbccc464d7561b239c443)。
 
-这是一个可运行的 TypeScript AG-UI 学习项目。Fastify 提供同源 API 与静态页面，React/CopilotKit 展示对话和 Run Inspector；应用 SQLite 保存权威 Conversation、Run、RunEvent 和不可变 Artifact。DSH Session 是 runtime 引用，浏览器连接与模型回复都不是业务状态真源。本项目只绑定 loopback，没有认证、多租户、wire cancel 或 approval。
+聊天窗口停止接收后，右侧 Run Inspector 为什么还会继续更新？点击重启 runtime 后，刚才的对话又如何接上？这个 TypeScript AG-UI 项目把浏览器体验、业务任务记录和 DSH 执行放在同一个可运行应用里，让我们逐一观察这些关系。
 
-```text
-React + CopilotKit / HttpAgent
-  -> loopback Fastify /api/ag-ui
-  -> RunCoordinator -> SQLite Conversation / Run / RunEvent / Artifact
-  -> PackageRuntimeManager -> public @deepseek-ai/dsh sdk-minimal profile
-  -> ordered application + proof-plugin patches
-  -> project resume adapter around official SDK JSON-RPC server
-  -> persistent Harness home / Session history + generation-local plugin code
+Fastify 提供同源 API 与静态页面，React/CopilotKit 展示对话和 Run Inspector；应用 SQLite 保存 Conversation、Run、RunEvent 和不可变 Artifact。DSH Session 只是 runtime 引用，浏览器连接与模型回复都不决定业务终态。本项目只绑定 loopback，没有认证、多租户、wire cancel 或 approval。
+
+```mermaid
+flowchart TD
+    Browser[Chat / Run Inspector] --> API[Fastify]
+    API --> Runs[RunCoordinator]
+    Runs --> DB[(SQLite)]
+    Runs --> Manager[PackageRuntimeManager]
+    Manager --> DSH[dsh sdk-minimal]
+    DSH --> Adapter[项目 resume adapter]
+    Adapter --> History[持久 Session 历史]
 ```
+
+先关注两份历史：业务数据库记录“接受了哪个任务、结果是什么”，DSH 日志记录模型会话。后面的重启实验会说明，保存前者并不自动恢复后者。
 
 ## 固定工具链
 
@@ -25,10 +30,10 @@ React + CopilotKit / HttpAgent
 
 ## 安装与运行
 
-先在 Stage 4 lab 构建文件依赖，再回到本项目安装。命令从 `projects/ag-ui-dsh-runtime` 执行：
+本项目复用 [Cordis 实验](../../labs/cordis-plugin-lifecycle/README.md)的工具包。先构建这个文件依赖，再安装本项目。以下命令从仓库根目录开始：
 
 ```sh
-cd ../../labs/cordis-plugin-lifecycle
+cd labs/cordis-plugin-lifecycle
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
 cd ../../projects/ag-ui-dsh-runtime
@@ -36,14 +41,27 @@ corepack pnpm install --frozen-lockfile
 corepack pnpm build
 ```
 
-Keyless fake 模式使用临时业务状态；关闭后删除：
+第一次体验可直接运行已构建的 fake 应用，不需要模型凭据。它使用临时业务状态，关闭后删除：
 
 ```sh
+corepack pnpm start:fake
+```
+
+打开 `http://127.0.0.1:4317`。点击 New 创建 Conversation，再发一条消息；观察主聊天区与 Run Inspector 展示同一次 Run 的不同信息。fake 模式用于检查应用交互，不证明真实模型、工具或 Session 恢复已经通过。
+
+需要开发页面时，改用两个终端，二者都停留在 `projects/ag-ui-dsh-runtime` 目录；先停止上面的 `start:fake`，避免占用同一端口：
+
+```sh
+# 终端 A：持续运行 API 服务
 corepack pnpm server:fake
+```
+
+```sh
+# 终端 B：持续运行 Vite 页面
 corepack pnpm dev:web
 ```
 
-访问 `http://127.0.0.1:5173`。Vite 只把 `/api` 代理到 loopback Fastify `:4317`。也可以通过 `corepack pnpm start:fake` 从 production build 同源提供页面与 API。server entry 必须显式选择 `--runtime fake|package`；没有 source checkout 模式。
+开发模式访问 `http://127.0.0.1:5173`，Vite 只把 `/api` 代理到 loopback Fastify `:4317`。两种 fake 启动方式用的是同一套应用语义。server entry 必须显式选择 `--runtime fake|package`；没有 source checkout 模式。
 
 真实 package 模式要求本地 `DEEPSEEK_API_KEY`、已构建的 server 和可丢弃 workspace。以下命令从本项目目录加载仓库根目录的私有 `.env`，在 loopback `:4317` 同源提供页面与 API：
 
@@ -56,19 +74,62 @@ node --env-file=../../.env dist/server/server/entry.js \
 
 ## 运行时组成和恢复
 
-`PackageRuntimeManager` 让公开 npm `dsh --profile sdk-minimal` 负责启动。它通过两个有序 `--patch` 层禁用默认 shell、保留 `includeRuntimeContext: false`、启用编译后的 SDK resume adapter，再加入唯一可见的 `write_stage4_proof`、审计 listener 和工具清单检查。工具描述与参数 schema 由 Stage 4 包拥有；补丁不复制其源码。`sdk-minimal` 的 `danger-full-access` 策略不是 sandbox，因此只能用隔离 workspace 运行。
+真实模式仍由公开 npm `dsh --profile sdk-minimal` 启动。`PackageRuntimeManager` 准备两个有序 patch：应用层禁用默认 shell、保留 `includeRuntimeContext: false` 并启用编译后的 resume adapter；工具层加入唯一可见的 `write_stage4_proof`、审计 listener 和工具清单检查。工具描述与参数 schema 由 Stage 4 包提供，补丁不复制源码。
 
-项目的 `.runtime/app-state` 保存 0700 owner marker、SQLite、workspace、evidence 与独立 `dsh-home/sessions`。每个 generation 只保存复制的 plugin/adapter、补丁、临时 HOME 和可见工具证明；关闭并确认 runtime 退出后才删除 generation。server build 与 installed Stage 4 文件的路径、出口和 hash 会在 generation 准备及首次启动前核对。关闭失败会隔离 owner，不会在旧进程旁创建新 generation；restart 和 shutdown 期间拒绝新 Run。项目不再依赖 upstream source bin 或本地 source attestation。
+这样选择工具是为了把实验缩小到一个可检查的副作用，不是建立了安全沙箱。`sdk-minimal` 的执行策略仍是 `danger-full-access`，插件与 runtime 拥有进程权限，因此真实运行必须使用隔离、可丢弃的 workspace。
 
-stock SDK JSON-RPC server 对新见到的 Session ID 仍调用 `agents.create()`。本项目的 deployment adapter 只代理这个调用：先用 `sessionPersistence.stat(id, { signal })` 读取 exact persisted header；没有记录才 create，存在记录则把持久化与请求的 cwd 都 canonicalize 并核对，然后调用 `agents.resume()`。stat、cwd 或 resume 失败不会回退 create。它不是 stock SDK 原生跨进程 resume，也不改变官方 server 的其他 wire 行为。
+先把 generation 理解为“一次 runtime 启动所需的临时代码与配置”。它保存复制的 plugin/adapter、补丁、临时 HOME 和可见工具证明，确认 runtime 退出后才删除。较长寿命的 `.runtime/app-state` 目录权限为 0700，其中保存 0600 owner marker、SQLite、workspace、evidence 与独立 `dsh-home/sessions`，不会因为一次 generation restart 就清空。
+
+```mermaid
+flowchart TD
+    State[app-state] --> DB[SQLite 业务记录]
+    State --> Home[dsh-home 会话日志]
+    State --> Files[workspace / evidence]
+    Manager[Runtime manager] --> G1[generation 1]
+    G1 -->|退出确认后替换| G2[generation 2]
+    G2 --> Code[plugin / patch / 临时 HOME]
+    G2 -->|复用持久资源| State
+```
+
+读 [`src/server/package-runtime.ts`](src/server/package-runtime.ts)时，沿 generation 准备与关闭路径看这些资源。server build 与已安装 Stage 4 文件的路径、出口和 hash 会在准备和首次启动前核对；关闭失败就隔离 owner，不在旧进程旁启动新 generation。restart 与 shutdown 期间拒绝新 Run。启动依据是发布包和本项目构建产物，不依赖 upstream source bin。
+
+留下日志后，新进程仍需要一个恢复入口。锁定版本的 stock SDK JSON-RPC server 首次见到 Session ID 时调用 `agents.create()`；它不会因为同 ID 的日志在磁盘上就自动 resume。
+
+本项目的 [`sdk-resume-adapter.ts`](src/server/sdk-resume-adapter.ts)只代理这一步：先用 `sessionPersistence.stat(id, { signal })` 读取对应持久 header；没有记录才 create。有记录时，把持久化和请求的 cwd 都转换为真实路径并核对，匹配后调用 `agents.resume()`。stat、cwd 或 resume 失败就报错，不回退成新对话。其他官方 server wire 行为保持不变。
+
+理解这个分支后，再读 `tests/sdk-resume-adapter.test.ts` 的“没有日志”“cwd不匹配”“resume失败”三种输入。真实恢复实验则在第一轮记一个随机 nonce，重启 generation 后只问代号；第二轮问题和工具文件都不能带答案。末尾的真实 gate 自动做了这些核对，不能用 fake 页面体验代替。
 
 ## 业务状态、事件与产物
 
-`AuthoritativeStore` 使用 Node `DatabaseSync`、WAL 和 busy timeout。Run admission 在一个 transaction 中分配 Conversation 内单调序号、保存 immutable request/fingerprint 并写入 queued event；同一 Conversation 只有一个 active Run，两个不同 Conversation 可并发。startup 对历史 `running` 标为 `execution_unknown` 并 block Conversation；acknowledgement 原子旋转 DSH session reference，不能重试未知外部副作用。已有 SQLite schema v2 和旧 RunEvent 按原 seq/type/payload 重放，本次 SDK 升级没有业务 schema bump。
+一个输入到达 `/api/ag-ui` 后，先由 `AuthoritativeStore` 在事务中分配 Conversation 内的单调序号、保存不可变请求与 fingerprint，再写 queued event。数据库使用 Node `DatabaseSync`、WAL 和 busy timeout。同一 Conversation 只允许一个 active Run，两个不同 Conversation 可以并发。
 
-新 DSH V4 的 `assistant/message` 是已提交消息。`AguiProjector` 从其文本块生成一组 AG-UI `TEXT_MESSAGE_START/CONTENT/END`，不伪装逐 token 输出；tool call 必须对应同一步已提交的 assistant call，V4 `tool/result` 的 call ID 来自 `event.data.message.toolCallId`。原始 DSH notification 先写入 SQLite，再投影 AG-UI；最后一个 root `turn/end.reason.kind` 只有为 `completed` 才能把业务 Run 标为 succeeded。模型以 `max-tokens`、`error` 等原因结束时 Run failed，可验证的 proof 仍快照为 Artifact。
+如果应用重启时发现历史 `running`，它无法据此判断外部工具做到了哪一步，于是把 Run 标为 `execution_unknown`，并 block Conversation。这里 unknown 是一个业务 Run 状态；与 Python 可恢复项目使用 failed+错误码的表达不同。
 
-Artifact 不信任模型自述或 runtime 返回的字节。coordinator 从 root `tool/call` 获取 call ID，计算 `sha256("stage5-proof-v1\0" + session + "\0" + callId)` 目录，验证 0700 partition、0600 regular proof 与 accepted prompt 的精确字节，再把 BLOB/hash 原子写入 SQLite。audit 对同一 call ID 记录 `live,durable`；health 中任何 violation 都需排查。失败或未知终态尽可能保留可验证 proof；Artifact 写入失败时 quarantine 唯一原件并停止新 admission。
+```mermaid
+stateDiagram-v2
+    [*] --> queued
+    queued --> running: 接纳并执行
+    running --> succeeded: completed 且结果校验通过
+    running --> failed: 已知失败
+    running --> execution_unknown: 无法确认执行结果
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> active
+    active --> blocked: 执行结果不确定
+    blocked --> active: acknowledge 并轮换 session 引用
+```
+
+acknowledgement 允许 Conversation 开始新的工作，不重试旧 Run，也不证明未知副作用可以重复。已有 SQLite schema v2 和旧 RunEvent 仍按原 seq/type/payload 重放；SDK 升级没有改变这份业务 schema。
+
+再看文字如何进入聊天框：DSH V4 的 `assistant/message` 是已提交消息，`AguiProjector` 将文本块转换成一组 `TEXT_MESSAGE_START/CONTENT/END`。AG-UI 的 CONTENT 事件存在，不代表底层正在逐 token 推送。原始 DSH notification 先写 SQLite，再投影成 AG-UI。
+
+工具调用必须对应同一步已提交的 assistant call；V4 `tool/result` 的 call ID 从 `event.data.message.toolCallId` 读取。结束时还要检查最后一个 root `turn/end.reason.kind`：只有 `completed` 才有资格进入 succeeded，`max-tokens`、`error` 等会使 Run failed。失败时已可验证的 proof 仍会快照为 Artifact，因此不能只用“有下载文件”判断 Run 成功。
+
+最后看下载内容从哪里来。coordinator 从 root `tool/call` 取 call ID，计算 `sha256("stage5-proof-v1\0" + session + "\0" + callId)` 目录，再亲自检查 0700 partition、0600 普通 proof 文件和 accepted prompt 的精确字节。验证过的 BLOB/hash 原子写入 SQLite，模型自述与 runtime 返回的字节不作为下载真源。
+
+audit 为同一 call ID 记录 `live,durable`；health 出现 violation 需要排查。失败或未知终态尽可能保留可验证 proof；若 Artifact 写入失败，则 quarantine 唯一原件并停止接纳新 Run，避免为了继续服务丢掉尚未落库的证据。
 
 ## AG-UI 与 HTTP
 
@@ -81,7 +142,28 @@ Artifact 不信任模型自述或 runtime 返回的字节。coordinator 从 root
 - `POST /api/runtime/restart`、`POST /api/conversations/:id/acknowledge`：idle runtime generation restart 与不确定执行确认。
 - `GET /api/capabilities`、`GET /api/health`：明确 false 的 cancel/approval 与不含 PID 的 last-observed 健康信息。
 
-AG-UI subscriber 断开只移除浏览器 waiter，Run 继续到终态。Run Inspector 用 SQLite cursor 先分页再订阅，断线后按确认位置重连；浏览器 stop 只停止接收，不是假装 wire cancel。Fastify `preClose` 停止 admission，给 active Run 有界 drain；超时按 unknown 结算并关闭整个 transport。SQLite 终态在 AG-UI terminal 之前提交。
+现在回到开头的现象：聊天流断开，只移除浏览器 waiter，Run 仍在服务端执行。Run Inspector 先按 SQLite cursor 分页，再订阅后续业务事件，重连时从确认位置继续。浏览器 Stop 的意思是停止接收，不能当作 wire cancel。
+
+小屏阅读时可[打开此图的 SVG](assets/run-replay-sequence.svg)放大查看。下图为可编辑的 Mermaid 源，SVG 由同一版本图生成。
+
+```mermaid
+sequenceDiagram
+    participant C as Chat
+    participant R as API / Run
+    participant D as SQLite
+    participant I as Inspector
+    C->>R: POST /api/ag-ui
+    R->>D: 保存 queued / running
+    C--xR: 停止接收
+    R->>D: 提交业务终态
+    I->>R: 请求 cursor 后的事件
+    R->>D: 查询已提交事件
+    D-->>R: 持久结果
+    R-->>I: 重放结果
+    Note over C,R: 仍连接时才发送 AG-UI terminal
+```
+
+关闭整个应用又是另一层操作。Fastify `preClose` 停止接纳新 Run，为 active Run 提供有界等待；超时按 unknown 结算并关闭整个 transport。无论浏览器是否还连接，SQLite 终态都先于 AG-UI terminal 提交。
 
 ## 验证
 

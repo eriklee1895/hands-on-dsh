@@ -1,28 +1,26 @@
-# How DSH Works
+# 从现象读懂 DSH
 
-本目录从可观察问题追踪 DSH 的生产方、事件、状态与读侧。七篇当前正文均按 **`dsh-v0.1.7-rc.2` / `477b4f420553e8a52c2fbccc464d7561b239c443`** 审查，日期 2026-09-29。源码核对不等于所有执行链都已重新验收。
+跑过 SDK 和插件实验后，你已经见过输入、工具和回复。这七篇继续追问：输入记进日志后为什么还没运行，工具返回以后为什么还要一次模型请求，重启后怎样区分历史、活跃 Agent 和业务任务。
 
-先完成 [Cordis lifecycle lab](../labs/cordis-plugin-lifecycle/README.md)，理解 Context、Service、inject、scope、effect 与 waterfall next，再按下表阅读。业务 Run/Task、DSH Agent、Session 与协议中的 prompt 各自拥有不同语义。
+所有机制解释固定在 `dsh-v0.1.7-rc.2` / `477b4f420553e8a52c2fbccc464d7561b239c443`。先读 [Cordis 生命周期实验](../labs/cordis-plugin-lifecycle/README.md)，理解依赖激活与 effect 清理，再按下面的顺序追踪。正文中的源码事实、实验观察和由此推导的应用建议各自标明范围。
 
-## 阅读顺序与证据范围
+## 带着问题阅读
 
-| 篇目 | 当前主要事实 | 当前运行证据 | 尚未验证 |
-| --- | --- | --- | --- |
-| [01 Plugin tree 与组装](01-plugin-tree-and-runtime-assembly.md) | profile 有序 patch；sdk-minimal 独立树；preset 修订与 scope | 已有新版 SDK profile initialize/close | preset 热更新、完整 HMR、平台矩阵 |
-| [02 Agent Inbox 与 loop](02-agent-inbox-and-loop.md) | durable Inbox、Agent scope、initiator、write-handle resume | 新 probe：idle inject、followup 唤醒、whenIdle；[maintenance双gate](../labs/compaction-lifecycle/TRANSACTIONS.md) | 初始化/取消的全部交错 |
-| [03 Turn、Step 与工具](03-turn-step-tool-pipeline.md) | prepared admission、embedded stream、V4 tool message | 新 probe：未知工具 error → 下一 step；live/committed 输出 | parallel 顺序、retry、工具副作用与 repair |
-| [04 Session 与 projection](04-session-event-log-and-projection.md) | V4 surface；read/write 迁移；不可变 generation；required projections | [存储Lab16项](../labs/session-format-migration/RICH-HISTORY.md)：非空压缩历史、发布版V4附件样本；[历史catalog/forest](../labs/workflow-child-lifecycle/RECOVERY.md) | 任意用户真实历史、混合编码与更广迁移矩阵 |
-| [05 Context 与 compaction](05-compaction-and-context-assembly.md) | system 在 surface；request series；压缩 bracket | context snapshot probe；[compaction lab](../labs/compaction-lifecycle/README.md) 36项测试、真实pressure、[受控overflow/取消](../labs/compaction-lifecycle/RECOVERY.md)、[prune/offload](../labs/compaction-lifecycle/REDUCTION.md)及消息重放、[真实服务端overflow](../labs/compaction-lifecycle/PROVIDER-OVERFLOW.md)、[事务/并发](../labs/compaction-lifecycle/TRANSACTIONS.md)；[附件输入](../labs/attachment-input/README.md)另验生产store、真实Files及[inline fallback](../labs/attachment-input/FALLBACK.md) | 真实物理存储故障、广泛摘要质量 |
-| [06 Subagent 与 workflow](06-subagent-and-workflow.md) | parent catalog、continuable capacity、PTC 进程执行 | [PTC/child基础](../labs/workflow-child-lifecycle/README.md)与[18项进阶验证](../labs/workflow-child-lifecycle/RECOVERY.md)：真实PTC崩溃、受控并行/重试、正常及flush后SIGKILL森林恢复 | 任意执行中forest恢复、外部subagent provider与平台矩阵 |
-| [07 SDK、ACP 与 Web Host](07-sdk-jsonrpc-acp-and-web-host.md) | ACP control 与 generic tools；Remote mux；SDK 缺少 resume/cancel | SDK/ACP 跨进程实跑；[Web 浏览器实跑](../labs/web-host-lifecycle/README.md)：实时帧、历史、重启及[取消/审批/离线](../labs/web-host-lifecycle/CONTROLS.md)、[进阶恢复](../labs/web-host-lifecycle/RECOVERY.md) | 本仓库ACP通用控制适配与多平台验证 |
+| 顺序 | 这一章要解释什么 | 对应实验 |
+| --- | --- | --- |
+| [01 Plugin tree 与组装](01-plugin-tree-and-runtime-assembly.md) | 配置中有工具，为什么某个 Agent 看不见？ | profile 启动、Cordis lifecycle/preset |
+| [02 Agent Inbox 与 loop](02-agent-inbox-and-loop.md) | 输入已经入队，为什么仍然 idle？ | inject/followup 探针、[维护并发](../labs/compaction-lifecycle/TRANSACTIONS.md) |
+| [03 Turn、Step 与工具](03-turn-step-tool-pipeline.md) | 工具失败后，模型还能怎样继续？ | 未注册工具探针、受控并行与 retry |
+| [04 Session 与 projection](04-session-event-log-and-projection.md) | 旧消息还在日志中，为什么不再进入模型？ | [格式迁移](../labs/session-format-migration/README.md)、[复杂历史](../labs/session-format-migration/RICH-HISTORY.md) |
+| [05 Context 与 compaction](05-compaction-and-context-assembly.md) | 压缩怎样改变下一次请求，失败时又留下什么？ | [compaction 系列](../labs/compaction-lifecycle/README.md)、[附件系列](../labs/attachment-input/README.md) |
+| [06 Subagent 与 workflow](06-subagent-and-workflow.md) | 父子关系如何持久化，哪些 child 能继续对话？ | [基础 PTC/child](../labs/workflow-child-lifecycle/README.md)、[恢复实验](../labs/workflow-child-lifecycle/RECOVERY.md) |
+| [07 SDK、ACP 与 Web Host](07-sdk-jsonrpc-acp-and-web-host.md) | 同一 runtime 经不同入口能提供哪些控制和输出？ | [协议](../labs/protocol-semantics/README.md)、[官方 Web](../labs/web-host-lifecycle/README.md) |
 
-这些限定直接对应每篇的 Verified from source、Observed at runtime、Inference/Proposal 和未确认部分；不以一条成功命令推断其他能力可用。
+先把每章的一个现象解释清楚，再展开源码表。生命周期和故障往往比函数名称更值得记：谁接纳了输入、谁能取消工作、哪个事件已经提交、谁最终释放资源。
 
 ## 新版证据与重跑
 
-本目录的 [published-core.test.mjs](probes/published-core.test.mjs) 是库级诊断测试，直接挂载发布的 Cordis/Agent/Session/Loop plugins；它不是另一种 DSH 应用 launcher。运行完整应用仍用公开 dsh profile。
-
-该脚本只读解析 sibling `labs/runtime-supervision` 的精确锁文件安装，从 SDK 的同版本 dsh 和 sdk-minimal bundle 获取依赖，并逐包断言 DSH `0.1.7-rc.2` / Cordis `4.0.4`。不自动安装、不写 sibling 文件、不依赖 upstream master、不读取 key、不使用网络、文件工具或子进程。唯一模型 adapter 输出脚本内的确定性 fixture。若单独复制本目录而不安装 sibling lab，测试不可运行。
+[published-core.test.mjs](probes/published-core.test.mjs)提供三项无 Key 库级探针：输入唤醒、工具失败进入后续请求、runtime context 快照。它挂载真实发布的 Cordis/Agent/Session/Loop plugins，模型 adapter 输出确定性 fixture；不联网、不执行文件工具，也不启动 DSH 子进程。完整应用仍通过公开 profile 启动。
 
 从仓库根目录准备并执行：
 
@@ -31,15 +29,13 @@ pnpm --dir labs/runtime-supervision install --frozen-lockfile
 node --test how-dsh-works/probes/published-core.test.mjs
 ```
 
-2026-09-29 在 macOS arm64、Node 26.7.0 上执行 `node --test` 完整探针，**3 tests passed**。第一次编写 probe 时两项断言因误读新版字段而失败；按固定源码将工具结果关联改为 `message.toolCallId`、展开 stream 改为读取 `{ time, chunk }` 后通过。这是探针校正，不是 DSH bug 修复。它没有运行上游完整测试，也没有真实模型结论。
+探针从 sibling Lab 的安装只读解析依赖，逐包断言 DSH `0.1.7-rc.2` 和 Cordis `4.0.4`；不会自动安装或写 sibling 文件。只复制本目录而没有上述依赖时不能运行。2026-09-29 在 macOS arm64、Node 26.7.0 的记录为 3/3 passed；那次编写时曾修正 toolCallId 和 embedded stream 的字段断言，不构成 upstream bug。
 
-同版本已有的独立证据由原目录持有，本次笔记编辑不重复模型调用：
+真实模型、磁盘持久化、浏览器及容器由对应 Lab 分别验证。各项命令和结果集中在[全章验收索引](../docs/reviews/2026-10-01-chapter-audit.md)，保留自己的运行日期。任意执行中崩溃、全部取消交错、生产隔离与一般摘要质量等，仍按各章明确范围判断。
 
-- [runtime supervisor 执行记录](../docs/reviews/2026-09-28-execution.md)：公开 profile initialize/close 与一次 prompt，仅支持对应正常路径。
-- [protocol 执行记录](../docs/reviews/2026-09-29-web-protocol-migration.md)：SDK receipt-to-idle、ACP close/list/第二进程 resume 与无工具 nonce 回忆；fake/keyless 与真实范围分开。
-- [storage 执行记录](../docs/reviews/2026-09-29-recovery-storage.md)：synthetic V1/V3 到 V4、source hash、reopen 和拒绝路径；不证明 Agent 或业务任务恢复。
+## 对照固定源码
 
-所有源码链接固定完整 revision。在任意 upstream checkout 中可只读核对，无须切换当前分支：
+在具有该 tag 的 upstream checkout 中可只读核对，无须切换当前分支：
 
 ```sh
 git rev-parse 'dsh-v0.1.7-rc.2^{commit}'
@@ -47,12 +43,10 @@ git describe --tags --always dsh-v0.1.7-rc.2
 git show dsh-v0.1.7-rc.2:docs/architecture.md
 ```
 
-预期分别为上述 SHA、`dsh-v0.1.7-rc.2` 与该版本架构。每篇另列实际入口或最小 git-show 命令；这是源码复核，不能伪称 runtime test。
+前两项应得到页首 SHA 和 tag；第三项打开这一版的架构说明。各章再列具体生产入口。这些命令检查源码，不代表 runtime 已经运行过那条路径。
 
-## 历史结果
+## 历史与内容归属
 
-2026-08-31 的 `dsh-v0.1.1-rc.2` / `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e` 曾运行七组 focused probes，并将 21 个 test files 合并验证为 **603/603 passed**。原命令、结果和局限保留在[历史 probes](historical-2026-08-31.md)。它们没有在新版重新执行，尤其旧 worker-thread 与 Web carrier 测试不能证明新版 PTC/Remote 行为。
+[2026-08-31 历史 probes](historical-2026-08-31.md)保留旧 `0.1.1-rc.2` 的 21 个文件、603 项 focused tests。旧 worker-thread、Web carrier 和事件字段不能直接解释当前版本。
 
-## 内容归属
-
-教程步骤放在 [tutorials](../tutorials/README.md)，完整业务作品放在 [projects](../projects/README.md)，单一机制实验放在 [labs](../labs/README.md)。本目录保存版本明确的机制说明和最小诊断 probes，不复制 upstream 实现。源码事实与运行观察允许未来版本推翻；业务正确性、生产安全与平台覆盖需要各自的验收。
+需要可运行步骤时去 [tutorials](../tutorials/README.md) 或 [labs](../labs/README.md)，需要端到端业务作品时去 [projects](../projects/README.md)。这里负责解释机制及其固定源码，不复制完整实现。

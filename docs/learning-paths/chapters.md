@@ -1,6 +1,8 @@
 # 全章导航
 
-这是一份按学习顺序组织的入口。版本以各章manifest/lockfile为准：Python课程使用 `0.1.5rc1`，DSH TypeScript、协议与机制实验使用 `0.1.7-rc.2`。Codex/Hermes章节另行记录实际CLI版本，不能把它们的能力或启动参数互相套用。
+可以把这条路线看成同一个应用逐步长大的过程：先发出请求，再接入浏览器和业务状态，随后处理恢复、并发与隔离。每组章节都从可运行结果出发，遇到不熟悉的机制再沿链接追源码。
+
+版本以各章manifest/lockfile为准：Python课程使用 `0.1.5rc1`，DSH TypeScript、协议与机制实验使用 `0.1.7-rc.2`。Codex/Hermes章节另行记录实际CLI版本，不能把它们的能力或启动参数互相套用。
 
 执行证据集中在[全章节验收索引](../reviews/2026-10-01-chapter-audit.md)。每章区分源码事实、keyless发布包运行、受控故障和真实模型；章节完成不表示其列出的所有生产限制都已消失。
 
@@ -43,6 +45,8 @@
 
 ## 5. 七篇机制章
 
+到这里，先拿一次实际任务的事件顺序来对照源码。目标是解释输入、工具、日志与上下文之间的关系，读完后能定位一处异常该从哪层查起。
+
 1. [Plugin tree与runtime组装](../../how-dsh-works/01-plugin-tree-and-runtime-assembly.md)
 2. [Agent、Inbox与loop](../../how-dsh-works/02-agent-inbox-and-loop.md)
 3. [Turn、Step与工具流水线](../../how-dsh-works/03-turn-step-tool-pipeline.md)
@@ -52,6 +56,8 @@
 7. [SDK、ACP与Web Host](../../how-dsh-works/07-sdk-jsonrpc-acp-and-web-host.md)
 
 ## 6. 机制实作与故障实验
+
+这一组开始主动改变条件。读实验时先记清操作对象和故障时刻，再同时看调用结果、持久记录和外部文件。系列内部按箭头继续即可。
 
 | 主题 | 顺序 |
 | --- | --- |
@@ -74,6 +80,8 @@
 7. [DSH双协议、Codex与Hermes适配](../../labs/protocol-semantics/ADAPTERS.md)
 
 ## 8. 六篇比较
+
+完成相应例子后，再用这些文章作选择：你需要哪种结束信号、恢复哪一层状态、哪条链路真正提供实时输出。能力表的每一列都限定到实际实现与版本。
 
 - [Python与TypeScript SDK](../comparisons/python-vs-typescript-sdk.md)
 - [SDK JSON-RPC与ACP](../comparisons/sdk-jsonrpc-vs-acp.md)

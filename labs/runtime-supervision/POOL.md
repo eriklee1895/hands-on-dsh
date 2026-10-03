@@ -1,6 +1,8 @@
 # 第二课：有界进程池与排队
 
-当请求数超过可用 runtime 时，应用必须决定谁等待、谁被拒绝，以及失败后何时才能把 slot 交给下一条请求。本课把[单 runtime supervisor](README.md)组合成固定容量的池；运行后，你应能解释排队取消与执行取消的区别，并从 slot、generation 和模型终态判断一次请求经历了什么。
+现在有两个 runtime，A 和 B 已经在执行，C、D 又到了。让它们排队并不难；难的是 B 连接失败时，C 应该马上接替 B，还是等旧进程关闭？本课把[单 runtime supervisor](README.md)组成固定容量的池，用这一组请求观察接纳、排队和回收。
+
+读完后，你应能沿着一个请求说明：它何时进入队列、何时占用 slot、取消作用于哪一段，以及为什么下一条请求可以开始并不意味着上一条可以安全重做。
 
 ## 1. 先跑可控故障
 
@@ -29,18 +31,16 @@ pnpm format:check
 ## 2. 容量、FIFO 与独占使用
 
 ```mermaid
-flowchart LR
-    Input[新请求] --> Admission{还有容量吗}
-    Admission -->|有空闲 slot 且没有旧等待者| Dispatch[分配独占 slot]
-    Admission -->|slot 忙且队列未满| Queue[有界 FIFO 队列]
-    Admission -->|队列已满| Reject[拒绝]
-    Queue -->|未取消且未过期| Dispatch
+flowchart TD
+    Input[新请求] --> Admission{能立即派发吗}
+    Admission -->|空闲且无人排队| Dispatch[独占一个 slot]
+    Admission -->|不能| Capacity{队列有空位吗}
+    Capacity -->|有| Queue[进入 FIFO]
+    Capacity -->|没有| Reject[拒绝请求]
+    Queue -->|轮到且未过期| Dispatch
     Queue -->|取消或过期| EndWait[结束等待]
-    Dispatch --> S1[slot 1 supervisor]
-    Dispatch --> S2[slot 2 supervisor]
-    S1 --> Settle[等待 run 和失败回收结算]
-    S2 --> Settle
-    Settle -->|确认可用| Queue
+    Dispatch --> Settle[等待 run 与失败回收]
+    Settle -->|可用| Release[释放 slot]
     Settle -->|close 失败| Quarantine[隔离 slot]
 ```
 
@@ -62,7 +62,18 @@ await pool.close();
 
 `slotId` 从 1 开始，生命周期内稳定；`generation` 统计这个 supervisor 创建的 owner。一次正常 run 不增加 generation。工厂必须每次返回新 owner；复用别的 slot 或已退役 owner 会触发 `PoolOwnerReuseError` 并隔离当前 slot，不关闭别的 slot 正在使用的对象。
 
-## 3. 三种等待不要混淆
+## 3. 沿着 B 和 C 看三种等待
+
+故障示例里，B 报错后仍占着 slot 2；C 的排队等待不会因为“已经看到错误”而提前结束。下面是场景中的状态变化顺序，行与行的间隔不代表真实耗时：
+
+| 观察时刻 | slot 1 | slot 2 | 队列 | 为什么还要等 |
+| --- | --- | --- | --- | --- |
+| A、B 已派发 | A 执行 | B 执行，generation 1 | C、D | 两个 slot 都被占用 |
+| D 取消 | A 执行 | B 执行 | C | D 从未进入 runtime |
+| B 失败 | A 执行 | B 的 owner 正在 close | C | 退出尚未确认，C 不能复用 |
+| B 回收成功 | A 执行 | C 开始，generation 2 | 空 | 只派发 C，没有重放 B |
+
+同样叫“等待”，下面三种操作负责的事情不同：
 
 | 等待     | 起点与终点                                 | 到期或取消后发生什么                              |
 | -------- | ------------------------------------------ | ------------------------------------------------- |
@@ -70,7 +81,7 @@ await pool.close();
 | activity | supervisor 接收请求到 SDK run 完成         | 等待 owner close，向调用方返回失败；不重放 prompt |
 | 池关闭   | 调用 `close()` 到活动结算及所有 owner 关闭 | 立即拒绝新请求和队列；已派发请求继续到结算        |
 
-队列使用单调时钟，派发前再次检查 deadline；即使事件循环阻塞导致 timer 回调迟到，也不能把已经过期的任务派发出去。deadline 限制可派发时间，不保证 Promise 恰在那个时刻返回。
+如果 C 等得太久，应该在进入 runtime 之前被拒绝。队列使用单调时钟，派发前再次检查 deadline；即使事件循环阻塞导致 timer 回调迟到，也不能把已经过期的任务派发出去。deadline 限制可派发时间，不保证 Promise 恰在那个时刻返回。
 
 `pool.run(prompt, { queueSignal })` 的 signal 只控制排队：预先 abort 会直接拒绝；派发后移除监听器，之后 abort 不会中止模型。SDK 没有 per-prompt cancel RPC。若业务需要执行取消，应单独定义业务状态和整个 runtime 关闭的后果，不能把 HTTP 断开直接当作取消成功。
 
@@ -80,7 +91,7 @@ await pool.close();
 
 正常失败且 close 成功，只意味着该 slot 可以接收下一条独立请求；它在下一次需要时创建新 generation。原失败请求仍然返回给调用者。应用需要核对业务 Run、幂等记录和产物后决定是否重试，池不判断外部副作用是否发生。
 
-close 失败会隔离该 slot，健康 slot 继续接单。如果全部 slot 被隔离，排队和新请求收到 `PoolUnavailableError`，不必等待队列 deadline。`snapshot()` 返回独立副本：`capacity` 是配置数量，`active` 包含等待失败回收的 lease，`queued` 是等待数量，`available` 是当前可接单的空闲数量，`quarantined` 是被隔离数量。关闭接纳后 `available=0`。
+再把 B 的 close 改成失败：slot 2 不能确认退出，因此会被隔离；slot 1 仍能继续接单。如果全部 slot 被隔离，排队和新请求收到 `PoolUnavailableError`，不必等待队列 deadline。`snapshot()` 返回独立副本：`capacity` 是配置数量，`active` 包含等待失败回收的 lease，`queued` 是等待数量，`available` 是当前可接单的空闲数量，`quarantined` 是被隔离数量。关闭接纳后 `available=0`。
 
 [`tests/pool.test.ts`](tests/pool.test.ts)还覆盖全部/部分隔离、迟到完成、延迟 timer、重复 owner、工厂重入，以及两个 slot 关闭都失败时的错误收集。这些是可控故障测试；真实进程崩溃和 close 失败未在本课注入。
 
@@ -106,6 +117,8 @@ pnpm exec node --env-file=../../.env --import tsx examples/pool.ts
 
 ## 6. 应用集成前的练习
 
-把 `maxQueued` 改成 0，预测哪些请求会被拒绝；把 D 的 abort 移到派发之后，解释为什么它仍会执行；让一个 owner 的 close 失败，观察剩余 slot 能否继续服务。修改真实示例的容量时，也要相应修改它对固定场景的断言。
+先只改无模型的 `examples/pool-faults.ts`：把 `maxQueued` 改成 0，预测 C、D 会发生什么；再把 D 的 abort 移到派发之后，解释为什么它仍会执行。第三次让 B 的 owner close 失败，并先让 A 完成，再等 C 的结果；对照上表，找出 C 可以改由哪个健康 slot 接纳。原脚本先等 C、后结束 A，直接保留这个顺序会让 C 没有健康空位可用。修改场景后要同步修改它原本对固定顺序的断言；断言失败本身不能说明调度器有错。
+
+完成这三个练习，再考虑应用集成：HTTP 请求取消对应的是排队撤回、停止等待响应，还是结束整个 runtime？这些选择的副作用不同，不能只用一个通用的 cancel 名称代替决定。修改真实示例的容量时，也要相应修改它对固定场景的断言。
 
 这个池没有持久队列、业务 Run 存储、租户配额或会话亲和性；每次 SDK `run()` 默认创建新 Session。同一段多轮对话不能随意分配给不同 slot。进程和目录分开也不构成安全隔离；`sdk-minimal` 的执行策略仍为 `danger-full-access`。下一课[7.3 身份认证与租户](../../docs/learning-paths/engineering.md)在服务层处理身份和数据访问。
